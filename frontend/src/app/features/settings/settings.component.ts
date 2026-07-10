@@ -156,7 +156,7 @@ interface AIProviderOption {
 
                   <mat-form-field appearance="outline">
                     <mat-label>Job Title</mat-label>
-                    <input matInput formControlName="job_title" readonly>
+                    <input matInput formControlName="job_title">
                   </mat-form-field>
                 </div>
 
@@ -312,54 +312,127 @@ interface AIProviderOption {
                 Configure custom SMTP credentials (e.g. AWS SES, SendGrid, Mailgun) to send system emails and invitations on your organization's behalf.
               </p>
               
-              <form [formGroup]="smtpForm" (ngSubmit)="onSMTPSubmit()">
-                <div class="form-row" style="display: grid; grid-template-columns: 3fr 1fr; gap: 1rem;">
-                  <mat-form-field appearance="outline">
-                    <mat-label>SMTP Host</mat-label>
-                    <input matInput formControlName="smtp_host" placeholder="smtp.mailprovider.com">
-                  </mat-form-field>
-                  
-                  <mat-form-field appearance="outline">
-                    <mat-label>Port</mat-label>
-                    <input matInput type="number" formControlName="smtp_port" placeholder="587">
-                  </mat-form-field>
-                </div>
+              @if (smtpConfig() && !smtpEditMode()) {
+                <div class="ai-saved-config" style="animation: fadeSlideIn 0.3s ease">
+                  <div class="ai-saved-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+                    <div class="ai-provider-badge smtp" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); color: #10b981; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.85rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">
+                      <span class="provider-icon">📧</span>
+                      <span class="provider-label">SMTP Active</span>
+                    </div>
+                    <span class="config-type-tag" style="background: rgba(16, 163, 127, 0.1); border: 1px solid rgba(16, 163, 127, 0.2); color: #10a37f; display: inline-flex; align-items: center; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                      Configured
+                    </span>
+                  </div>
 
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
-                  <mat-form-field appearance="outline">
-                    <mat-label>Username</mat-label>
-                    <input matInput formControlName="smtp_username" placeholder="smtp_user@domain.com">
-                  </mat-form-field>
+                  <div class="ai-saved-details" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0;">
+                      <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">SMTP Host</span>
+                      <span class="detail-value model-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500; font-family: 'SF Mono', 'Fira Code', monospace; color: #a78bfa;">{{ smtpConfig().smtp_host }}</span>
+                    </div>
+                    <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                      <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Port</span>
+                      <span class="detail-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500;">{{ smtpConfig().smtp_port }}</span>
+                    </div>
+                    @if (smtpConfig().smtp_username) {
+                      <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                        <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Username</span>
+                        <span class="detail-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500;">{{ smtpConfig().smtp_username }}</span>
+                      </div>
+                    }
+                    <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                      <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Password</span>
+                      <span class="detail-value key-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500; display: flex; align-items: center; gap: 0.35rem; font-family: 'SF Mono', 'Fira Code', monospace; color: #94a3b8; font-size: 0.8rem;">
+                        <mat-icon class="key-icon" style="font-size: 16px !important; width: 16px !important; height: 16px !important; color: #10b981; display: inline-flex; align-items: center; justify-content: center;">check_circle</mat-icon>
+                        {{ smtpConfig().smtp_has_password ? 'Saved / Encrypted' : 'Not Saved' }}
+                      </span>
+                    </div>
+                    <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                      <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Sender Email</span>
+                      <span class="detail-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500;">{{ smtpConfig().smtp_from_email || 'Not configured' }}</span>
+                    </div>
+                    <div class="detail-row" style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255, 255, 255, 0.03);">
+                      <span class="detail-label" style="font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Encryption</span>
+                      <span class="detail-value" style="font-size: 0.85rem; color: #e2e8f0; font-weight: 500;">
+                        {{ smtpConfig().smtp_use_ssl ? 'SSL' : (smtpConfig().smtp_use_tls ? 'TLS' : 'None') }}
+                      </span>
+                    </div>
+                  </div>
 
-                  <mat-form-field appearance="outline">
-                    <mat-label>Password</mat-label>
-                    <input matInput [type]="hideSmtpPassword() ? 'password' : 'text'" formControlName="smtp_password" [placeholder]="smtpHasPassword() ? '••••••••' : 'Enter SMTP password'">
-                    <button mat-icon-button matSuffix type="button" (click)="hideSmtpPassword.set(!hideSmtpPassword())" [attr.aria-label]="'Hide password'">
-                      <mat-icon>{{hideSmtpPassword() ? 'visibility_off' : 'visibility'}}</mat-icon>
+                  <div class="ai-saved-actions" style="display: flex; gap: 0.5rem;">
+                    <button mat-flat-button class="reconfigure-btn" (click)="startSmtpEdit()">
+                      <mat-icon>edit</mat-icon>
+                      Reconfigure
                     </button>
-                  </mat-form-field>
+                    <button mat-button class="remove-btn" (click)="deleteSmtpConfig()" [disabled]="savingSmtp()">
+                      @if (savingSmtp()) {
+                        <mat-spinner diameter="16"></mat-spinner>
+                      } @else {
+                        <ng-container>
+                          <mat-icon>delete_outline</mat-icon>
+                          Remove
+                        </ng-container>
+                      }
+                    </button>
+                  </div>
                 </div>
+              } @else {
+                <form [formGroup]="smtpForm" (ngSubmit)="onSMTPSubmit()">
+                  <div class="form-row" style="display: grid; grid-template-columns: 3fr 1fr; gap: 1rem;">
+                    <mat-form-field appearance="outline">
+                      <mat-label>SMTP Host</mat-label>
+                      <input matInput formControlName="smtp_host" placeholder="smtp.mailprovider.com" required>
+                    </mat-form-field>
+                    
+                    <mat-form-field appearance="outline">
+                      <mat-label>Port</mat-label>
+                      <input matInput type="number" formControlName="smtp_port" placeholder="587" required>
+                    </mat-form-field>
+                  </div>
 
-                <div class="form-row" style="margin-top: 0.5rem;">
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Sender Email (From Email)</mat-label>
-                    <input matInput type="email" formControlName="smtp_from_email" placeholder="no-reply@yourcompany.com">
-                  </mat-form-field>
-                </div>
+                  <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Username</mat-label>
+                      <input matInput formControlName="smtp_username" placeholder="smtp_user@domain.com">
+                    </mat-form-field>
 
-                <div class="form-row" style="display: flex; gap: 2rem; align-items: center; margin: 0.5rem 0 1rem 0;">
-                  <mat-checkbox formControlName="smtp_use_tls" color="primary">Use TLS (Secure)</mat-checkbox>
-                  <mat-checkbox formControlName="smtp_use_ssl" color="primary">Use SSL (Secure)</mat-checkbox>
-                </div>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Password</mat-label>
+                      <input matInput [type]="hideSmtpPassword() ? 'password' : 'text'" formControlName="smtp_password" [placeholder]="smtpHasPassword() ? '••••••••' : 'Enter SMTP password'">
+                      <button mat-icon-button matSuffix type="button" (click)="hideSmtpPassword.set(!hideSmtpPassword())" [attr.aria-label]="'Hide password'">
+                        <mat-icon>{{hideSmtpPassword() ? 'visibility_off' : 'visibility'}}</mat-icon>
+                      </button>
+                    </mat-form-field>
+                  </div>
 
-                <button mat-flat-button color="primary" class="save-btn" type="submit" [disabled]="smtpForm.invalid || savingSmtp()">
-                  @if (savingSmtp()) {
-                    <mat-spinner diameter="18"></mat-spinner>
-                  } @else {
-                    Save SMTP Configuration
-                  }
-                </button>
-              </form>
+                  <div class="form-row" style="margin-top: 0.5rem;">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Sender Email (From Email)</mat-label>
+                      <input matInput type="email" formControlName="smtp_from_email" placeholder="no-reply@yourcompany.com" required>
+                    </mat-form-field>
+                  </div>
+
+                  <div class="form-row" style="display: flex; gap: 2rem; align-items: center; margin: 0.5rem 0 1rem 0;">
+                    <mat-checkbox formControlName="smtp_use_tls" color="primary">Use TLS (Secure)</mat-checkbox>
+                    <mat-checkbox formControlName="smtp_use_ssl" color="primary">Use SSL (Secure)</mat-checkbox>
+                  </div>
+
+                  <div class="ai-form-actions" style="display: flex; gap: 0.5rem;">
+                    @if (smtpEditMode()) {
+                      <button mat-button type="button" (click)="cancelSmtpEdit()">Cancel</button>
+                    }
+                    <button mat-flat-button color="primary" class="save-btn" type="submit" [disabled]="smtpForm.invalid || savingSmtp()">
+                      @if (savingSmtp()) {
+                        <mat-spinner diameter="18"></mat-spinner>
+                      } @else {
+                        <ng-container>
+                          <mat-icon>save</mat-icon>
+                          Save SMTP Configuration
+                        </ng-container>
+                      }
+                    </button>
+                  </div>
+                </form>
+              }
             </div>
           </div>
 
@@ -2128,6 +2201,8 @@ export class SettingsComponent implements OnInit {
   readonly savingSmtp = signal(false);
   readonly hideSmtpPassword = signal(true);
   readonly smtpHasPassword = signal(false);
+  readonly smtpConfig = signal<any>(null);
+  readonly smtpEditMode = signal(false);
   readonly updatingMember = signal(false);
 
   // AI Config signals
@@ -2256,6 +2331,13 @@ export class SettingsComponent implements OnInit {
         this.brandingForm.patchValue({ organization_name: name });
       }
     });
+
+    // Reactively load SMTP settings once the user is resolved as Admin
+    effect(() => {
+      if (this.isAdmin()) {
+        this.loadSMTPSettings();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -2276,7 +2358,6 @@ export class SettingsComponent implements OnInit {
     this.loadPrompts();
     this.loadLinkedInConfig();
     this.loadLLMStats();
-    this.loadSMTPSettings();
   }
 
   // ─── Profile ────────────────────────────────
@@ -2926,6 +3007,64 @@ export class SettingsComponent implements OnInit {
           smtp_from_email: res.smtp_from_email || ''
         });
         this.smtpHasPassword.set(res.smtp_has_password);
+        if (res.smtp_host) {
+          this.smtpConfig.set(res);
+        } else {
+          this.smtpConfig.set(null);
+        }
+      }
+    });
+  }
+
+  startSmtpEdit(): void {
+    this.smtpEditMode.set(true);
+    const config = this.smtpConfig();
+    if (config) {
+      this.smtpForm.patchValue({
+        smtp_host: config.smtp_host || '',
+        smtp_port: config.smtp_port || 587,
+        smtp_username: config.smtp_username || '',
+        smtp_password: '',
+        smtp_use_tls: config.smtp_use_tls !== undefined ? config.smtp_use_tls : true,
+        smtp_use_ssl: config.smtp_use_ssl !== undefined ? config.smtp_use_ssl : false,
+        smtp_from_email: config.smtp_from_email || ''
+      });
+    }
+  }
+
+  cancelSmtpEdit(): void {
+    this.smtpEditMode.set(false);
+    this.loadSMTPSettings();
+  }
+
+  deleteSmtpConfig(): void {
+    if (!confirm('Are you sure you want to remove the SMTP configuration?')) return;
+    this.savingSmtp.set(true);
+    const formData = new FormData();
+    formData.append('smtp_host', '');
+    formData.append('smtp_port', '587');
+    formData.append('smtp_username', '');
+    formData.append('smtp_password', '');
+    formData.append('smtp_use_tls', 'true');
+    formData.append('smtp_use_ssl', 'false');
+    formData.append('smtp_from_email', '');
+
+    this.apiService.put<any>('/auth/organization/branding/', formData).subscribe({
+      next: (res) => {
+        this.savingSmtp.set(false);
+        this.smtpConfig.set(null);
+        this.smtpEditMode.set(false);
+        this.smtpHasPassword.set(false);
+        this.smtpForm.reset({
+          smtp_port: 587,
+          smtp_use_tls: true,
+          smtp_use_ssl: false
+        });
+        this.notification.success('SMTP configuration removed successfully.');
+      },
+      error: (err) => {
+        this.savingSmtp.set(false);
+        this.notification.error('Failed to remove SMTP configuration');
       }
     });
   }
@@ -2951,6 +3090,12 @@ export class SettingsComponent implements OnInit {
         this.savingSmtp.set(false);
         this.smtpHasPassword.set(res.smtp_has_password);
         this.smtpForm.patchValue({ smtp_password: '' });
+        if (res.smtp_host) {
+          this.smtpConfig.set(res);
+        } else {
+          this.smtpConfig.set(null);
+        }
+        this.smtpEditMode.set(false);
         this.notification.success('SMTP configuration saved successfully.');
       },
       error: (err) => {

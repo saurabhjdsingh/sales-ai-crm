@@ -76,23 +76,64 @@ class BrandingService:
                 settings_obj.logo.delete(save=False)
             settings_obj.logo.save("logo.png", processed, save=False)
 
+        # Test SMTP connection if settings are being updated and host is not empty
+        smtp_updated = any(x is not None for x in [
+            smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls, smtp_use_ssl
+        ])
+        if smtp_updated:
+            test_host = smtp_host.strip() if smtp_host is not None else settings_obj.smtp_host
+            if test_host:
+                test_port = smtp_port if smtp_port is not None else settings_obj.smtp_port
+                test_username = smtp_username.strip() if smtp_username is not None else settings_obj.smtp_username
+                
+                if smtp_password is not None:
+                    test_password = smtp_password.strip()
+                else:
+                    test_password = settings_obj.smtp_password_decrypted
+                
+                test_use_tls = smtp_use_tls if smtp_use_tls is not None else settings_obj.smtp_use_tls
+                test_use_ssl = smtp_use_ssl if smtp_use_ssl is not None else settings_obj.smtp_use_ssl
+                
+                from apps.common.email import test_smtp_connection
+                try:
+                    test_smtp_connection(
+                        host=test_host,
+                        port=test_port,
+                        username=test_username,
+                        password=test_password,
+                        use_tls=test_use_tls,
+                        use_ssl=test_use_ssl,
+                    )
+                except Exception as e:
+                    raise ValueError(f"SMTP connection test failed: {str(e)}")
+
         # Update SMTP details
         if smtp_host is not None:
             settings_obj.smtp_host = smtp_host.strip()
-        if smtp_port is not None:
-            settings_obj.smtp_port = smtp_port
-        if smtp_username is not None:
-            settings_obj.smtp_username = smtp_username.strip()
-        if smtp_password is not None:
-            pw = smtp_password.strip()
-            if pw:
-                settings_obj.smtp_password_decrypted = pw
-        if smtp_use_tls is not None:
-            settings_obj.smtp_use_tls = smtp_use_tls
-        if smtp_use_ssl is not None:
-            settings_obj.smtp_use_ssl = smtp_use_ssl
-        if smtp_from_email is not None:
-            settings_obj.smtp_from_email = smtp_from_email.strip()
+            # If smtp_host is empty, clear out credentials/from_email
+            if not settings_obj.smtp_host:
+                settings_obj.smtp_username = ""
+                settings_obj.smtp_password = ""
+                settings_obj.smtp_from_email = ""
+                settings_obj.smtp_port = 587
+                settings_obj.smtp_use_tls = True
+                settings_obj.smtp_use_ssl = False
+
+        if settings_obj.smtp_host:
+            if smtp_port is not None:
+                settings_obj.smtp_port = smtp_port
+            if smtp_username is not None:
+                settings_obj.smtp_username = smtp_username.strip()
+            if smtp_password is not None:
+                pw = smtp_password.strip()
+                if pw:
+                    settings_obj.smtp_password_decrypted = pw
+            if smtp_use_tls is not None:
+                settings_obj.smtp_use_tls = smtp_use_tls
+            if smtp_use_ssl is not None:
+                settings_obj.smtp_use_ssl = smtp_use_ssl
+            if smtp_from_email is not None:
+                settings_obj.smtp_from_email = smtp_from_email.strip()
 
         settings_obj.updated_by = user
         settings_obj.save()

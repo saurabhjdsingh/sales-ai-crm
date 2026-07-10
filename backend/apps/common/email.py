@@ -182,3 +182,30 @@ def send_branded_email(
     except Exception as e:
         logger.error("Failed to send branded email: %s", str(e), exc_info=True)
         return False
+
+
+def test_smtp_connection(host: str, port: int, username: str, password: str, use_tls: bool, use_ssl: bool, timeout: int = 5) -> None:
+    """
+    Attempts to connect and authenticate with the provided SMTP details.
+    Raises an exception if the connection or authentication fails.
+    """
+    from django.core.mail.backends.smtp import EmailBackend
+    backend = EmailBackend(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        use_tls=use_tls,
+        use_ssl=use_ssl,
+        timeout=timeout,
+    )
+    # open() attempts to establish connection and authenticate.
+    # It returns True if a new connection was opened, or False if already opened.
+    # It raises smtplib.SMTPException, socket.error, etc. if it fails.
+    try:
+        connection_result = backend.open()
+        if connection_result is None and not backend.connection:
+            raise Exception("SMTP backend opened but no connection established.")
+    finally:
+        backend.close()
+
