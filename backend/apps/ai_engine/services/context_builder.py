@@ -1,0 +1,279 @@
+"""
+Context builder for AI conversations.
+Automatically assembles relevant information from the database
+so the AI has full context without the user manually pasting anything.
+"""
+
+import logging
+from uuid import UUID
+
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class ContextBuilder:
+    """
+    Assembles structured context for AI conversations.
+    Pulls data from companies, contacts, deals, activities, notes,
+    tasks, and research — then formats it as structured text.
+    """
+
+    MAX_ACTIVITIES = 20
+    MAX_NOTES = 10
+    MAX_TASKS = 10
+
+    def build_company_context(self, company_id: UUID) -> str:
+        """Build complete context for a company-scoped AI conversation."""
+        from apps.companies.models import Company
+
+        company = Company.objects.select_related("owner").get(id=company_id)
+
+        sections = [
+            self._company_info(company),
+            self._company_research(company),
+            self._company_contacts(company),
+            self._company_deals(company),
+            self._entity_activities(company_id=company_id),
+            self._entity_notes(company_id=company_id),
+            self._entity_tasks(company_id=company_id),
+        ]
+
+        return "\n\n".join(filter(None, sections))
+
+    def build_contact_context(self, contact_id: UUID) -> str:
+        """Build complete context for a contact-scoped AI conversation."""
+        from apps.contacts.models import Contact
+
+        contact = Contact.objects.select_related("company", "owner").get(id=contact_id)
+
+        sections = [
+            self._contact_info(contact),
+            self._company_info(contact.company),
+            self._entity_activities(contact_id=contact_id),
+            self._entity_notes(contact_id=contact_id),
+            self._entity_tasks(contact_id=contact_id),
+        ]
+
+        return "\n\n".join(filter(None, sections))
+
+    def build_deal_context(self, deal_id: UUID) -> str:
+        """Build complete context for a deal-scoped AI conversation."""
+        from apps.deals.models import Deal
+
+        deal = Deal.objects.select_related("company", "owner").get(id=deal_id)
+
+        sections = [
+            self._deal_info(deal),
+            self._company_info(deal.company),
+            self._deal_contacts(deal),
+            self._entity_activities(deal_id=deal_id),
+            self._entity_notes(deal_id=deal_id),
+            self._entity_tasks(deal_id=deal_id),
+        ]
+
+        return "\n\n".join(filter(None, sections))
+
+    def _company_info(self, company) -> str:
+        lines = [
+            "## Company Information",
+            f"- Name: {company.name}",
+            f"- Website: {company.website or 'N/A'}",
+            f"- Industry: {company.industry or 'N/A'}",
+            f"- Size: {company.company_size or 'N/A'}",
+            f"- Country: {company.country or 'N/A'}",
+            f"- Stage: {company.get_stage_display()}",
+            f"- Owner: {company.owner.get_full_name() if company.owner else 'Unassigned'}",
+            f"- ICP Score: {company.icp_score or 'Not scored'}",
+            f"- Source: {company.source or 'N/A'}",
+            f"- Tags: {', '.join(company.tags) if company.tags else 'None'}",
+        ]
+        if company.description:
+            lines.append(f"- Description: {company.description}")
+        if company.ai_summary:
+            lines.append(f"- AI Summary: {company.ai_summary}")
+        if company.icp_explanation:
+            lines.append(f"- ICP Explanation: {company.icp_explanation}")
+        return "\n".join(lines)
+
+    def _company_research(self, company) -> str:
+        try:
+            research = company.research
+            if research.research_status != "completed":
+                return ""
+
+            lines = [
+                "## AI Research Results",
+                f"- Business Summary: {research.business_summary}",
+                f"- Estimated Size: {research.estimated_size or 'N/A'}",
+                f"- ICP Match: {'Yes' if research.icp_match else 'No' if research.icp_match is not None else 'Unknown'}",
+                f"- Security Maturity: {research.security_maturity or 'N/A'}",
+                f"- Why Radar 36 Fits: {research.why_radar36_fits or 'N/A'}",
+            ]
+            if research.pain_points:
+                lines.append(f"- Pain Points: {', '.join(research.pain_points)}")
+            if research.technology_stack:
+                lines.append(f"- Tech Stack: {', '.join(research.technology_stack)}")
+            if research.buying_signals:
+                lines.append(f"- Buying Signals: {', '.join(research.buying_signals)}")
+            if research.potential_objections:
+                lines.append(f"- Potential Objections: {', '.join(research.potential_objections)}")
+            if research.services:
+                lines.append(f"- Services: {', '.join(research.services)}")
+            if research.products:
+                lines.append(f"- Products: {', '.join(research.products)}")
+            return "\n".join(lines)
+        except Exception:
+            return ""
+
+    def _company_contacts(self, company) -> str:
+        contacts = company.contacts.filter(is_deleted=False)[:10]
+        if not contacts:
+            return ""
+
+        lines = ["## Contacts"]
+        for c in contacts:
+            lines.append(
+                f"- {c.full_name} | {c.job_title or 'N/A'} | "
+                f"{c.email or 'N/A'} | Stage: {c.get_stage_display()}"
+            )
+        return "\n".join(lines)
+
+    def _company_deals(self, company) -> str:
+        deals = company.deals.filter(is_deleted=False)[:10]
+        if not deals:
+            return ""
+
+        lines = ["## Deals"]
+        for d in deals:
+            revenue = f"${d.expected_revenue:,.2f}" if d.expected_revenue else "N/A"
+            lines.append(
+                f"- {d.name} | Stage: {d.get_stage_display()} | "
+                f"Revenue: {revenue} | Priority: {d.get_priority_display()}"
+            )
+        return "\n".join(lines)
+
+    def _deal_info(self, deal) -> str:
+        revenue = f"${deal.expected_revenue:,.2f}" if deal.expected_revenue else "N/A"
+        lines = [
+            "## Deal Information",
+            f"- Name: {deal.name}",
+            f"- Company: {deal.company.name}",
+            f"- Stage: {deal.get_stage_display()}",
+            f"- Expected Revenue: {revenue}",
+            f"- Priority: {deal.get_priority_display()}",
+            f"- Risk: {deal.get_risk_display()}",
+            f"- Probability: {deal.probability or 'N/A'}%",
+            f"- Expected Close: {deal.expected_close_date or 'N/A'}",
+            f"- Owner: {deal.owner.get_full_name() if deal.owner else 'Unassigned'}",
+        ]
+        if deal.description:
+            lines.append(f"- Description: {deal.description}")
+        if deal.internal_notes:
+            lines.append(f"- Internal Notes: {deal.internal_notes}")
+        return "\n".join(lines)
+
+    def _deal_contacts(self, deal) -> str:
+        deal_contacts = deal.deal_contacts.select_related("contact").all()[:10]
+        if not deal_contacts:
+            return ""
+
+        lines = ["## Deal Contacts"]
+        for dc in deal_contacts:
+            c = dc.contact
+            primary = " [PRIMARY]" if dc.is_primary else ""
+            lines.append(
+                f"- {c.full_name} | {c.job_title or 'N/A'} | "
+                f"Role: {dc.get_role_display() or 'N/A'}{primary}"
+            )
+        return "\n".join(lines)
+
+    def _contact_info(self, contact) -> str:
+        lines = [
+            "## Contact Information",
+            f"- Name: {contact.full_name}",
+            f"- Email: {contact.email or 'N/A'}",
+            f"- Phone: {contact.phone or 'N/A'}",
+            f"- Job Title: {contact.job_title or 'N/A'}",
+            f"- Department: {contact.department or 'N/A'}",
+            f"- Company: {contact.company.name}",
+            f"- Stage: {contact.get_stage_display()}",
+            f"- Country: {contact.country or 'N/A'}",
+        ]
+        if contact.ai_summary:
+            lines.append(f"- AI Summary: {contact.ai_summary}")
+        return "\n".join(lines)
+
+    def _entity_activities(self, company_id=None, contact_id=None, deal_id=None) -> str:
+        from apps.activities.models import Activity
+
+        qs = Activity.objects.select_related("performed_by")
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        elif contact_id:
+            qs = qs.filter(contact_id=contact_id)
+        elif deal_id:
+            qs = qs.filter(deal_id=deal_id)
+        else:
+            return ""
+
+        activities = qs.order_by("-created_at")[: self.MAX_ACTIVITIES]
+        if not activities:
+            return ""
+
+        lines = ["## Recent Activity Timeline"]
+        for a in activities:
+            by = a.performed_by.get_full_name() if a.performed_by else "System"
+            lines.append(f"- [{a.created_at:%Y-%m-%d}] {a.get_activity_type_display()}: {a.title} (by {by})")
+        return "\n".join(lines)
+
+    def _entity_notes(self, company_id=None, contact_id=None, deal_id=None) -> str:
+        from apps.notes.models import Note
+
+        qs = Note.objects.select_related("created_by")
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        elif contact_id:
+            qs = qs.filter(contact_id=contact_id)
+        elif deal_id:
+            qs = qs.filter(deal_id=deal_id)
+        else:
+            return ""
+
+        notes = qs.order_by("-created_at")[: self.MAX_NOTES]
+        if not notes:
+            return ""
+
+        lines = ["## Notes"]
+        for n in notes:
+            by = n.created_by.get_full_name() if n.created_by else "Unknown"
+            content = n.content[:300] + "..." if len(n.content) > 300 else n.content
+            lines.append(f"- [{n.created_at:%Y-%m-%d}] by {by}: {content}")
+        return "\n".join(lines)
+
+    def _entity_tasks(self, company_id=None, contact_id=None, deal_id=None) -> str:
+        from apps.tasks.models import Task
+
+        qs = Task.objects.select_related("owner")
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        elif contact_id:
+            qs = qs.filter(contact_id=contact_id)
+        elif deal_id:
+            qs = qs.filter(deal_id=deal_id)
+        else:
+            return ""
+
+        tasks = qs.order_by("-created_at")[: self.MAX_TASKS]
+        if not tasks:
+            return ""
+
+        lines = ["## Tasks"]
+        for t in tasks:
+            owner = t.owner.get_full_name() if t.owner else "Unassigned"
+            due = t.due_date.strftime("%Y-%m-%d") if t.due_date else "No due date"
+            lines.append(
+                f"- [{t.get_status_display()}] {t.title} | "
+                f"Due: {due} | Assigned: {owner}"
+            )
+        return "\n".join(lines)

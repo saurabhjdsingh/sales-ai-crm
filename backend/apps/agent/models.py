@@ -1,0 +1,232 @@
+from django.conf import settings
+from django.db import models
+
+from apps.common.enums import ResearchStatus
+from apps.common.models import BaseModel
+from apps.agent.enums import SourceType, InsightCategory, ApprovalStatus, ToolExecutionStatus
+
+
+class ResearchRun(BaseModel):
+    """
+    Represents a single execution of the research pipeline for a company or contact.
+    Groups multiple research sources and generated insights.
+    """
+
+    company = models.ForeignKey(
+        "companies.Company",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="research_runs",
+    )
+    contact = models.ForeignKey(
+        "contacts.Contact",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="research_runs",
+    )
+    status = models.CharField(
+        max_length=15,
+        choices=ResearchStatus.choices,
+        default=ResearchStatus.PENDING,
+        db_index=True,
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "agent_research_run"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        target = self.company.name if self.company else (self.contact.full_name if self.contact else "Unknown")
+        return f"ResearchRun for {target} ({self.status})"
+
+
+class ResearchSource(BaseModel):
+    """
+    An individual source investigated during a research run (e.g. website, linkedin).
+    """
+
+    run = models.ForeignKey(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name="sources",
+    )
+    source_type = models.CharField(
+        max_length=30,
+        choices=SourceType.choices,
+        db_index=True,
+    )
+    url = models.URLField(max_length=500, blank=True, default="")
+    raw_data = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "agent_research_source"
+
+    def __str__(self):
+        return f"{self.source_type} for run {self.run.id}"
+
+
+class ResearchInsight(BaseModel):
+    """
+    A single structured insight extracted from a research run.
+    """
+
+    run = models.ForeignKey(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name="insights",
+    )
+    category = models.CharField(
+        max_length=30,
+        choices=InsightCategory.choices,
+        db_index=True,
+    )
+    content = models.TextField()
+    confidence = models.FloatField(default=1.0)
+
+    class Meta:
+        db_table = "agent_research_insight"
+
+    def __str__(self):
+        return f"[{self.category}] Insight for run {self.run.id}"
+
+
+class ResearchSummary(BaseModel):
+    """
+    A generated executive summary and target sales strategy from a research run.
+    """
+
+    run = models.OneToOneField(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name="summary",
+    )
+    executive_summary = models.TextField(blank=True, default="")
+    sales_strategy = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "agent_research_summary"
+        verbose_name_plural = "Research summaries"
+
+    def __str__(self):
+        return f"Summary for run {self.run.id}"
+
+
+class ResearchArtifact(BaseModel):
+    """
+    Raw data or large text artifacts collected (e.g. webpage content).
+    """
+
+    run = models.ForeignKey(
+        ResearchRun,
+        on_delete=models.CASCADE,
+        related_name="artifacts",
+    )
+    name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100)
+    data_text = models.TextField(blank=True, default="")
+    data_binary = models.BinaryField(null=True, blank=True)
+
+    class Meta:
+        db_table = "agent_research_artifact"
+
+    def __str__(self):
+        return f"Artifact: {self.name} for run {self.run.id}"
+
+
+class ToolExecution(BaseModel):
+    """
+    Logs every tool invocation made by the AI copilot agent.
+    """
+
+    tool_name = models.CharField(max_length=100, db_index=True)
+    parameters = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=ToolExecutionStatus.choices,
+        default=ToolExecutionStatus.SUCCESS,
+        db_index=True,
+    )
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, default="")
+    duration_ms = models.IntegerField(null=True, blank=True)
+    conversation = models.ForeignKey(
+        "ai_engine.AIConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tool_executions",
+    )
+
+    class Meta:
+        db_table = "agent_tool_execution"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Tool {self.tool_name} ({self.status}) at {self.created_at}"
+
+
+class PendingApproval(BaseModel):
+    """
+    Tracks actions generated by tools that require human confirmation before execution.
+    """
+
+    tool_name = models.CharField(max_length=100, db_index=True)
+    parameters = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.PENDING,
+        db_index=True,
+    )
+    action_payload = models.JSONField(default=dict, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_actions",
+    )
+    conversation = models.ForeignKey(
+        "ai_engine.AIConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pending_approvals",
+    )
+
+    class Meta:
+        db_table = "agent_pending_approval"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Approval for {self.tool_name} ({self.status})"
+
+
+class UserLinkedInConfig(BaseModel):
+    """
+    Secure per-user LinkedIn configuration.
+    Stores encrypted JSON containing session cookies and the user's LinkedIn profile.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="linkedin_config",
+    )
+    cookies_json_encrypted = models.TextField(
+        help_text="Fernet-encrypted JSON list of cookies (containing li_at, JSESSIONID, etc.)"
+    )
+    linkedin_url = models.URLField(max_length=500, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "agent_user_linkedin_config"
+
+    def __str__(self):
+        return f"LinkedIn Config for {self.user.get_full_name()}"

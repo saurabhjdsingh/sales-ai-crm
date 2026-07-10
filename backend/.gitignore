@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Celery stuff
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+celerybeat.pid
+
+# Environments & credentials
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django files
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+
+# Django migrations
+**/migrations/*.py
+!**/migrations/__init__.py
+
+# Media and Static Files
+media/
+staticfiles/
+
+# Logs & test reports
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
