@@ -21,6 +21,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
     command: sh -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
@@ -29,48 +31,52 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=db
+      - DB_HOST=${DB_HOST:-db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/1
     depends_on:
-      - db
+      - db    # Bypassed if DATABASE_URL is set in backend/.env
       - redis
 
   celery:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
     command: celery -A config worker -l info
     volumes:
       - ./backend:/app
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=db
+      - DB_HOST=${DB_HOST:-db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/1
     depends_on:
-      - db
+      - db    # Bypassed if DATABASE_URL is set in backend/.env
       - redis
 
   celery-beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
     command: celery -A config beat -l info
     volumes:
       - ./backend:/app
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=db
+      - DB_HOST=${DB_HOST:-db}
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/1
     depends_on:
-      - db
+      - db    # Bypassed if DATABASE_URL is set in backend/.env
       - redis
 
   frontend:

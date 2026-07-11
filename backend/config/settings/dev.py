@@ -1,5 +1,5 @@
 """
-Development settings for Radar 36 Sales CRM.
+Development settings for Sales AI CRM.
 """
 
 from .base import *  # noqa: F401, F403
