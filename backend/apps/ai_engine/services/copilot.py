@@ -146,6 +146,8 @@ class CopilotService:
             kwargs["contact_id"] = entity_id
         elif entity_type == AIEntityType.DEAL:
             kwargs["deal_id"] = entity_id
+        elif entity_type == AIEntityType.CALL:
+            kwargs["call_id"] = entity_id
 
         return AIConversation.objects.create(**kwargs)
 
@@ -210,6 +212,8 @@ class CopilotService:
                 return self.context_builder.build_contact_context(conversation.contact_id)
             elif conversation.entity_type == AIEntityType.DEAL and conversation.deal_id:
                 return self.context_builder.build_deal_context(conversation.deal_id)
+            elif conversation.entity_type == AIEntityType.CALL and conversation.call_id:
+                return self.context_builder.build_call_context(conversation.call_id)
         except Exception:
             logger.exception("Failed to build context for conversation %s", conversation.id)
         return "No additional context available."

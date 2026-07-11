@@ -22,6 +22,7 @@ api_v1_patterns = [
     path("search/", include("apps.search.urls")),
     path("reports/", include("apps.reports.urls")),
     path("dashboard/", include("apps.dashboard.urls")),
+    path("telephony/", include("apps.telephony.urls")),
 ]
 
 urlpatterns = [

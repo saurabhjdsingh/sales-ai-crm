@@ -63,6 +63,10 @@ export const routes: Routes = [
       {
         path: 'settings',
         loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent)
+      },
+      {
+        path: 'calls',
+        loadComponent: () => import('./features/telephony/calls.component').then(m => m.CallsComponent)
       }
     ]
   },

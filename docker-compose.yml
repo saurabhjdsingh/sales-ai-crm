@@ -22,7 +22,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
+        # - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
+        - REQUIREMENTS_FILE=requirements/dev.txt  # Use dev.txt for local dev with debug toolbar
     command: sh -c "python manage.py makemigrations && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
@@ -44,7 +45,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
+        - REQUIREMENTS_FILE=requirements/dev.txt  # Use dev.txt for local dev with debug toolbar
     command: celery -A config worker -l info
     volumes:
       - ./backend:/app
@@ -64,7 +65,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        - REQUIREMENTS_FILE=requirements/prod.txt  # Uncomment in production to install S3 & cloud DB dependencies
+        - REQUIREMENTS_FILE=requirements/dev.txt  # Use dev.txt for local dev with debug toolbar
     command: celery -A config beat -l info
     volumes:
       - ./backend:/app

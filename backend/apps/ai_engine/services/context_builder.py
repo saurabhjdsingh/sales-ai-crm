@@ -23,6 +23,37 @@ class ContextBuilder:
     MAX_NOTES = 10
     MAX_TASKS = 10
 
+    def build_call_context(self, call_id: UUID) -> str:
+        """Build context for a call-scoped AI conversation."""
+        from apps.telephony.models import Call
+
+        call = Call.objects.select_related("contact", "company", "deal").get(id=call_id)
+
+        sections = [
+            f"## Active Call Context",
+            f"- Direction: {call.direction.capitalize()}",
+            f"- Status: {call.status.capitalize()}",
+            f"- Contact: {call.contact.full_name if call.contact else 'Unknown'}",
+            f"- Company: {call.company.name if call.company else 'Unknown'}",
+            f"- Deal: {call.deal.name if call.deal else 'None'}",
+        ]
+
+        try:
+            transcript = call.transcript
+            if transcript.full_text.strip():
+                sections.append(f"## Call Transcript So Far\n{transcript.full_text}")
+        except Exception:
+            pass
+
+        if call.contact:
+            sections.append(self._contact_info(call.contact))
+        if call.company:
+            sections.append(self._company_info(call.company))
+        if call.deal:
+            sections.append(self._deal_info(call.deal))
+
+        return "\n\n".join(filter(None, sections))
+
     def build_company_context(self, company_id: UUID) -> str:
         """Build complete context for a company-scoped AI conversation."""
         from apps.companies.models import Company

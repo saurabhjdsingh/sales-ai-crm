@@ -31,3 +31,6 @@ Pillow>=10.0,<12.0
 
 # Development shared
 django-extensions>=3.2,<4.0
+
+# Telephony
+twilio>=9.0.0,<10.0.0

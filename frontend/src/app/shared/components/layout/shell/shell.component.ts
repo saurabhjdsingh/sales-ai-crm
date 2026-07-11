@@ -5,11 +5,12 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { HeaderComponent } from '../header/header.component';
 import { SearchDialogComponent } from '../../search-dialog/search-dialog.component';
+import { PhoneWidgetComponent } from '../../../../features/telephony/phone-widget.component';
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, MatDialogModule],
+  imports: [CommonModule, RouterOutlet, SidebarComponent, HeaderComponent, MatDialogModule, PhoneWidgetComponent],
   template: `
     <div class="shell-container">
       <app-sidebar class="shell-sidebar"></app-sidebar>
@@ -22,6 +23,7 @@ import { SearchDialogComponent } from '../../search-dialog/search-dialog.compone
           <router-outlet></router-outlet>
         </main>
       </div>
+      <app-phone-widget></app-phone-widget>
     </div>
   `,
   styles: [`

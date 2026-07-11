@@ -16,6 +16,9 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NotificationService } from '../../../core/services/notification.service';
 import { marked } from 'marked';
+import { TelephonyService } from '../../telephony/telephony.service';
+import { CallStateService } from '../../telephony/call-state.service';
+import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
 
 @Component({
   selector: 'app-contact-detail',
@@ -78,9 +81,12 @@ import { marked } from 'marked';
                 <mat-icon>email</mat-icon>
                 <span>{{ contact.email }}</span>
               </div>
-              <div class="info-item" *ngIf="contact.phone">
+              <div class="info-item phone-item" *ngIf="contact.phone" style="display: flex; align-items: center; gap: 0.5rem;">
                 <mat-icon>phone</mat-icon>
                 <span>{{ contact.phone }}</span>
+                <button mat-icon-button color="primary" class="phone-call-btn" (click)="makeCall(contact)" title="Call contact" style="width: 28px; height: 28px; line-height: 28px; display: flex; align-items: center; justify-content: center;">
+                  <mat-icon style="font-size: 16px; width: 16px; height: 16px;">call</mat-icon>
+                </button>
               </div>
               <div class="info-item" *ngIf="contact.timezone">
                 <mat-icon>schedule</mat-icon>
@@ -639,6 +645,9 @@ export class ContactDetailComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly telephonyService = inject(TelephonyService);
+  private readonly callState = inject(CallStateService);
+  private readonly twilioService = inject(TwilioVoiceService);
 
   readonly tasks = signal<Task[]>([]);
   readonly notes = signal<Note[]>([]);
@@ -659,10 +668,29 @@ export class ContactDetailComponent implements OnInit {
 
   formatExternalUrl(url: string | undefined): string {
     if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
+    return url.startsWith('http') ? url : `https://${url}`;
+  }
+
+  makeCall(contact: any): void {
+    if (!contact.phone) {
+      this.notification.error('This contact has no phone number.');
+      return;
     }
-    return `https://${url}`;
+
+    this.callState.resetCallState();
+    this.twilioService.initDevice();
+
+    this.telephonyService.initiateCall({
+      phone: contact.phone,
+      contact_id: contact.id,
+      ai_assist_enabled: true
+    }).subscribe({
+      next: (call) => {
+        this.callState.activeCall.set(call);
+        this.twilioService.makeCall(contact.phone, call.id);
+      },
+      error: () => this.notification.error('Failed to initiate Call.')
+    });
   }
 
   private loadLinkedData(contactId: string): void {

@@ -138,6 +138,7 @@ class AIEntityType(models.TextChoices):
     COMPANY = "company", "Company"
     CONTACT = "contact", "Contact"
     DEAL = "deal", "Deal"
+    CALL = "call", "Call"
 
 
 class AIMessageRole(models.TextChoices):

@@ -88,6 +88,13 @@ class AIConversation(BaseModel):
         blank=True,
         related_name="ai_conversations",
     )
+    call = models.ForeignKey(
+        "telephony.Call",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_conversations",
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
