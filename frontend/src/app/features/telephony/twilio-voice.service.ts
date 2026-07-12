@@ -67,12 +67,46 @@ export class TwilioVoiceService {
       });
 
       this.twilioDevice.on('incoming', (connection: any) => {
-        console.log('Incoming call received from:', connection.parameters.From);
-        this.activeConnection = connection;
+        const getParam = (name: string) => {
+          if (!connection.customParameters) return null;
+          if (typeof connection.customParameters.get === 'function') {
+            return connection.customParameters.get(name);
+          }
+          return (connection.customParameters as any)[name];
+        };
+
+        const callerNum = getParam('callerNumber') || connection.parameters.From || 'Unknown';
+        const callerName = getParam('callerName') || '';
+        const dbCallId = getParam('dbCallId') || connection.parameters.CallSid || 'inbound_' + Date.now();
         
+        console.log('Incoming call received. DB Call ID:', dbCallId, 'Caller:', callerNum);
+        this.activeConnection = connection;
+
+        // Register disconnect listener for the incoming connection
+        connection.on('disconnect', () => {
+          console.log('Incoming call disconnected by remote caller.');
+          this.hangup();
+          if (this.onDisconnectCallback) {
+            this.onDisconnectCallback();
+          }
+        });
+        
+        // Populate the active call signal to expand and open the incoming call box in the UI!
+        this.callState.activeCall.set({
+          id: dbCallId,
+          direction: 'inbound',
+          status: 'ringing',
+          participants: [
+            { 
+              phone_number: callerNum,
+              name: callerName
+            }
+          ],
+          ai_assist_enabled: true
+        });
+
         // Trigger incoming call modal in CallState
-        this.callState.appendTranscriptLine('contact', `Incoming Call from: ${connection.parameters.From}`);
-        this.callState.startTimer();
+        this.callState.appendTranscriptLine('contact', `Incoming Call from: ${callerName || callerNum}`);
       });
 
       await this.twilioDevice.register();
@@ -147,6 +181,31 @@ export class TwilioVoiceService {
   }
 
   /**
+   * Accept an incoming call.
+   */
+  acceptIncomingCall(callId: string): void {
+    if (this.activeConnection) {
+      this.activeConnection.accept();
+      this.callState.startTimer();
+
+      // Listen for audio connection established
+      this.activeConnection.on('accept', () => {
+        console.log('Inbound call accepted!');
+        const localStream = (this.twilioDevice as any).audio.localStream;
+        const remoteStream = this.activeConnection.audio.remoteStream || this.activeConnection.getRemoteStream();
+        
+        if (localStream && remoteStream) {
+          this.audioService.startCallRecording(localStream, remoteStream, callId);
+        }
+
+        if (this.transcriptionProvider === 'none') {
+          this.startBrowserSpeechRecognition(callId);
+        }
+      });
+    }
+  }
+
+  /**
    * End the current call.
    */
   hangup(): void {
@@ -158,8 +217,26 @@ export class TwilioVoiceService {
       return;
     }
 
+    if (this.twilioDevice) {
+      try {
+        this.twilioDevice.disconnectAll();
+      } catch (e) {
+        console.error('Error during Twilio disconnectAll:', e);
+      }
+    }
+
     if (this.activeConnection) {
-      this.activeConnection.disconnect();
+      try {
+        if (this.activeConnection.status() === 'pending') {
+          this.activeConnection.reject();
+        } else {
+          this.activeConnection.disconnect();
+        }
+      } catch (e) {
+        try {
+          this.activeConnection.disconnect();
+        } catch (innerErr) {}
+      }
       this.activeConnection = null;
     }
     this.stopBrowserSpeechRecognition();

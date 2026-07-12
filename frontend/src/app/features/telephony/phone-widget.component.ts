@@ -1190,16 +1190,20 @@ export class PhoneWidgetComponent implements OnInit {
   }
 
   acceptCall(): void {
-    // If incoming WebRTC connection exists, answer it
+    const active = this.callState.activeCall();
+    if (!active) return;
+
     this.currentScreen.set('active');
     this.callState.startTimer();
     this.callState.appendTranscriptLine('agent', 'Hello! Thank you for calling. How can I help you today?');
-    // If Twilio is active, connect audio mixer, otherwise run simulator dialog
+    
     if (this.callState.isSimulated()) {
       // Run mock response timer
       setTimeout(() => {
         this.callState.appendTranscriptLine('contact', 'Hi! I saw your pricing page and wanted to discuss integrations.');
       }, 2500);
+    } else {
+      this.twilioService.acceptIncomingCall(active.id);
     }
   }
 

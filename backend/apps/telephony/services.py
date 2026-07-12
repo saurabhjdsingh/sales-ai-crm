@@ -59,7 +59,11 @@ Transcript:
 JSON:
 """
         try:
-            response = provider.chat(messages=[{"role": "user", "content": prompt}], system_prompt="You are a real-time sales helper. Always output valid JSON only.")
+            response = provider.chat(
+                messages=[{"role": "user", "content": prompt}],
+                system_prompt="You are a real-time sales helper. Always output valid JSON only.",
+                purpose="calls"
+            )
             data = json.loads(response.content.strip())
             
             # Save analysis results to CallSummary
@@ -150,7 +154,11 @@ Transcript:
 JSON:
 """
         try:
-            response = provider.chat(messages=[{"role": "user", "content": prompt}], system_prompt="You are a post-call analyst. Always output valid JSON only.")
+            response = provider.chat(
+                messages=[{"role": "user", "content": prompt}],
+                system_prompt="You are a post-call analyst. Always output valid JSON only.",
+                purpose="calls"
+            )
             cleaned_content = response.content.strip()
             # Handle markdown code blocks wrapper
             if cleaned_content.startswith("```json"):
@@ -231,8 +239,8 @@ class TelephonyService:
             elif new_status in ["completed", "failed", "busy", "no-answer", "canceled"]:
                 call.end_time = timezone.now()
                 
-                # Use Twilio's authoritative call duration from payload
-                twilio_duration = payload.get("CallDuration")
+                # Use Twilio's authoritative call duration from payload (supports both CallDuration and DialCallDuration)
+                twilio_duration = payload.get("CallDuration") or payload.get("DialCallDuration")
                 if twilio_duration:
                     try:
                         call.duration = int(twilio_duration)

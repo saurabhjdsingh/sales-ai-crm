@@ -3,7 +3,7 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, generics, status, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -216,7 +216,7 @@ class CRMLookupView(APIView):
         })
 
 
-class CallViewSet(viewsets.ReadOnlyModelViewSet):
+class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
     """
     Lists logged calls history. Analyzes, triggers summaries, and confirms post-call reviews.
     """
@@ -225,6 +225,40 @@ class CallViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Call.objects.filter(user=self.request.user, is_deleted=False).order_by("-created_at")
+
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        pk = self.kwargs.get("pk")
+        
+        import uuid
+        try:
+            uuid.UUID(str(pk))
+            obj = get_object_or_404(queryset, id=pk)
+        except ValueError:
+            obj = get_object_or_404(queryset, sid=pk)
+            
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def perform_update(self, serializer):
+        notes = self.request.data.get("notes")
+        call = serializer.save()
+        if notes:
+            # Save notes in customer profile if exists
+            if call.contact:
+                from apps.notes.models import Note
+                note_marker = f"From Call ID: {call.id}"
+                contact_note = Note.objects.filter(contact=call.contact, content__contains=note_marker).first()
+                if contact_note:
+                    contact_note.content = f"{notes}\n\n_{note_marker}_"
+                    contact_note.save()
+                else:
+                    Note.objects.create(
+                        contact=call.contact,
+                        company=call.company,
+                        deal=call.deal,
+                        content=f"{notes}\n\n_{note_marker}_"
+                    )
 
     @action(detail=False, methods=["post"], url_path="initiate", url_name="initiate")
     def initiate_call(self, request):
@@ -433,13 +467,30 @@ class CallViewSet(viewsets.ReadOnlyModelViewSet):
         POST /api/v1/telephony/calls/<id>/summarize/
         Triggers final call summarization asynchronously (via Celery) or synchronously.
         """
-        call = get_object_or_404(Call, id=pk, user=request.user)
+        call = self.get_object()
         
-        # Set end time if not set
+        # Query authoritative Twilio REST API for actual call duration
+        if call.sid:
+            try:
+                provider_instance = get_provider_for_user(call.user)
+                if provider_instance:
+                    client = provider_instance._get_client()
+                    twilio_call = client.calls(call.sid).fetch()
+                    if twilio_call.duration:
+                        call.duration = int(twilio_call.duration)
+                    elif twilio_call.start_time and twilio_call.end_time:
+                        call.duration = int((twilio_call.end_time - twilio_call.start_time).total_seconds())
+            except Exception as e:
+                logger.warning("Could not fetch authoritative Twilio call duration: %s", e)
+
+        # Set end time and fallback duration if not set
         if not call.end_time:
             call.end_time = timezone.now()
-            if call.start_time:
+            if not call.duration and call.start_time:
                 call.duration = int((call.end_time - call.start_time).total_seconds())
+            call.status = "completed"
+            call.save()
+        else:
             call.status = "completed"
             call.save()
 
@@ -457,7 +508,7 @@ class CallViewSet(viewsets.ReadOnlyModelViewSet):
         POST /api/v1/telephony/calls/<id>/confirm/
         Accepts the validated user-confirmed post-call parameters, logs Activity and approved tasks.
         """
-        call = get_object_or_404(Call, id=pk, user=request.user)
+        call = self.get_object()
         
         serializer = CallConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -514,15 +565,22 @@ class TwilioIncomingCallWebhookView(WebhookBypassCSRFMixin, APIView):
         # Lookup matching contact
         contact = None
         company = None
+        deal = None
         if caller:
             clean_caller = caller.replace("+", "").replace("-", "").replace(" ", "").strip()
-            contacts = Contact.objects.filter(is_deleted=False)
+            contacts = Contact.objects.filter(is_deleted=False).select_related("company")
             for c in contacts:
                 c_phone = c.phone.replace("+", "").replace("-", "").replace(" ", "").strip()
                 if clean_caller in c_phone or c_phone in clean_caller:
                     contact = c
                     company = c.company
                     break
+
+        # Auto-link active deal for inbound calls
+        if contact:
+            deal = Deal.objects.filter(contacts=contact, is_deleted=False).first()
+            if not deal and company:
+                deal = Deal.objects.filter(company=company, is_deleted=False).first()
 
         # Create inbound Call record
         call = Call.objects.create(
@@ -531,22 +589,24 @@ class TwilioIncomingCallWebhookView(WebhookBypassCSRFMixin, APIView):
             provider=provider,
             contact=contact,
             company=company,
+            deal=deal,
             direction="inbound",
             status="ringing",
             ai_assist_enabled=True # Default enabled or setting-controlled
         )
 
-        CallParticipant.objects.create(
-            call=call,
-            participant_type="contact",
-            phone_number=caller,
-            name=contact.full_name if contact else ""
-        )
+        # Create participants (Agent first, then Contact to match outbound ordering for index 1 rendering)
         CallParticipant.objects.create(
             call=call,
             participant_type="agent",
             phone_number=provider.phone_number,
             name=provider.user.get_full_name()
+        )
+        CallParticipant.objects.create(
+            call=call,
+            participant_type="contact",
+            phone_number=caller,
+            name=contact.full_name if contact else ""
         )
 
         CallTranscript.objects.create(call=call)
@@ -562,9 +622,15 @@ class TwilioIncomingCallWebhookView(WebhookBypassCSRFMixin, APIView):
         dial = response.dial(
             caller_id=caller,
             action=f"/api/v1/telephony/webhooks/status/{provider.id}/",
-            method="POST"
+            method="POST",
+            status_callback=f"/api/v1/telephony/webhooks/status/{provider.id}/",
+            status_callback_event="initiated ringing answered completed"
         )
-        dial.client(client_name)
+        client = dial.client(client_name)
+        client.parameter(name="dbCallId", value=str(call.id))
+        client.parameter(name="callerNumber", value=caller)
+        if contact:
+            client.parameter(name="callerName", value=contact.full_name)
 
         return HttpResponse(str(response), content_type="application/xml")
 
@@ -605,6 +671,8 @@ class TwilioVoiceWebhookView(WebhookBypassCSRFMixin, APIView):
         dial = response.dial(
             caller_id=provider.phone_number,
             record="record-from-answer", # Enable twilio recording
+            status_callback=f"/api/v1/telephony/webhooks/status/{provider.id}/",
+            status_callback_event="initiated ringing answered completed"
         )
         dial.number(to_number)
 
@@ -634,12 +702,16 @@ class TwilioStatusWebhookView(WebhookBypassCSRFMixin, APIView):
         validate_twilio_signature(request, provider)
 
         call_sid = request.POST.get("CallSid")
+        parent_call_sid = request.POST.get("ParentCallSid")
         call_status = request.POST.get("CallStatus") # ringing, in-progress, completed, failed, busy, no-answer, canceled
 
         try:
-            call = Call.objects.get(sid=call_sid)
+            if parent_call_sid and Call.objects.filter(sid=parent_call_sid).exists():
+                call = Call.objects.get(sid=parent_call_sid)
+            else:
+                call = Call.objects.get(sid=call_sid)
         except Call.DoesNotExist:
-            logger.warning("Call SID %s not found for status update.", call_sid)
+            logger.warning("Call SID %s (Parent: %s) not found for status update.", call_sid, parent_call_sid)
             return HttpResponse("Call not found.", status=200)
 
         # Record event
