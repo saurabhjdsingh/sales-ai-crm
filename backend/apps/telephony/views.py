@@ -270,6 +270,7 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
         contact_id = request.data.get("contact_id")
         deal_id = request.data.get("deal_id")
         ai_assist = request.data.get("ai_assist_enabled", False)
+        ai_analysis = request.data.get("ai_analysis_enabled", False)
 
         if not phone:
             raise ValidationError("Phone number is required.")
@@ -319,7 +320,8 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             deal=deal,
             direction="outbound",
             status="queued",
-            ai_assist_enabled=ai_assist
+            ai_assist_enabled=ai_assist,
+            ai_analysis_enabled=ai_analysis
         )
 
         # Create participants
@@ -494,12 +496,20 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             call.status = "completed"
             call.save()
 
-        # Trigger background Celery task
-        process_call_ai_summary.delay(str(call.id))
+        # Trigger background Celery task if AI Assist or AI Analysis is enabled to ensure transcript syncs reliably
+        if call.ai_assist_enabled or call.ai_analysis_enabled:
+            process_call_ai_summary.delay(str(call.id))
+            status_msg = "summarizing" if call.ai_analysis_enabled else "completed"
+            msg = "Background transcription synchronization scheduled."
+        else:
+            call.summary_status = "none"
+            call.save(update_fields=["summary_status"])
+            status_msg = "completed"
+            msg = "Call completed."
 
         return Response({
-            "status": "summarizing",
-            "message": "AI summarization triggered in the background."
+            "status": status_msg,
+            "message": msg
         })
 
     @action(detail=True, methods=["post"], url_path="confirm")
@@ -520,6 +530,25 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             "status": "confirmed",
             "activity_id": str(activity.id),
             "message": "Call successfully confirmed and logged in CRM."
+        })
+
+    @action(detail=True, methods=["post"], url_path="regenerate-insights")
+    def regenerate_insights(self, request, pk=None):
+        """
+        POST /api/v1/telephony/calls/<id>/regenerate-insights/
+        Resets Call summary status and enqueues background Celery task
+        to regenerate insights from database.
+        """
+        call = self.get_object()
+        call.summary_status = "generating"
+        call.save(update_fields=["summary_status"])
+        
+        # Trigger Celery background task
+        process_call_ai_summary.delay(str(call.id))
+        
+        return Response({
+            "status": "regenerating",
+            "message": "AI insights regeneration triggered in background."
         })
 
 
@@ -717,8 +746,12 @@ class TwilioStatusWebhookView(WebhookBypassCSRFMixin, APIView):
         # Record event
         TelephonyService.record_call_event(call, call_status, request.POST)
 
-        # Trigger Celery summarization automatically if call is completed
+        # Trigger Celery summarization automatically if call is completed and AI Assist or AI Analysis is enabled
         if call_status == "completed":
-            process_call_ai_summary.delay(str(call.id))
+            if call.ai_assist_enabled or call.ai_analysis_enabled:
+                process_call_ai_summary.delay(str(call.id))
+            else:
+                call.summary_status = "none"
+                call.save(update_fields=["summary_status"])
 
         return HttpResponse("Status updated.")

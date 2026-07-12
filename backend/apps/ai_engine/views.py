@@ -63,6 +63,8 @@ class AIConversationListCreateView(generics.ListCreateAPIView):
                 qs = qs.filter(contact_id=entity_id)
             elif entity_type == "deal":
                 qs = qs.filter(deal_id=entity_id)
+            elif entity_type == "call":
+                qs = qs.filter(call_id=entity_id)
 
         return qs
 
@@ -124,10 +126,12 @@ class AISendMessageView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        use_agent = conversation.entity_type != "call"
         service = CopilotService(user=request.user)
         ai_message = service.send_message(
             conversation=conversation,
             user_message=serializer.validated_data["message"],
+            use_agent=use_agent,
         )
 
         return Response(AIMessageSerializer(ai_message).data)

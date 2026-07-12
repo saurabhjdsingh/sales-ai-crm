@@ -16,6 +16,7 @@ import { TelephonyService } from './telephony.service';
 import { AudioService } from './audio.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ApiService } from '../../core/services/api.service';
+import { ConversationIntelligenceService } from '../conversation-intelligence/conversation-intelligence.service';
 
 @Component({
   selector: 'app-phone-widget',
@@ -88,8 +89,11 @@ import { ApiService } from '../../core/services/api.service';
 
             <!-- Options -->
             <div class="options-container">
-              <mat-checkbox [(ngModel)]="aiAssistCheck" color="primary">
-                Enable Real-time AI Assist
+              <mat-checkbox [(ngModel)]="aiAssistCheck" (ngModelChange)="onAssistChange($event)" color="primary">
+                Live Call Transcription
+              </mat-checkbox>
+              <mat-checkbox [(ngModel)]="aiAnalysisCheck" [disabled]="!aiAssistCheck" color="primary">
+                Post-Call AI Summary
               </mat-checkbox>
             </div>
 
@@ -145,6 +149,16 @@ import { ApiService } from '../../core/services/api.service';
               </div>
             </div>
 
+            <!-- Options for incoming call -->
+            <div class="options-container" style="margin: 1.5rem 0;">
+              <mat-checkbox [(ngModel)]="aiAssistCheck" (ngModelChange)="onAssistChange($event)" color="primary">
+                Live Call Transcription
+              </mat-checkbox>
+              <mat-checkbox [(ngModel)]="aiAnalysisCheck" [disabled]="!aiAssistCheck" color="primary">
+                Post-Call AI Summary
+              </mat-checkbox>
+            </div>
+
             <!-- Answer / Reject Actions -->
             <div class="incoming-actions">
               <button class="action-btn answer" (click)="acceptCall()">
@@ -164,6 +178,12 @@ import { ApiService } from '../../core/services/api.service';
               <h3>{{ callState.crmContext()?.contact?.full_name || 'External Lead' }}</h3>
               <p>{{ dialNumber || incomingCallerNumber }}</p>
               <div class="call-timer">{{ formatDuration(callState.callDuration()) }}</div>
+              
+              <!-- AI Stream Status Indicator -->
+              <div class="ai-stream-status-wrapper" [ngClass]="conversationIntelligence.streamStatus()">
+                <span class="status-dot"></span>
+                <span class="status-label">AI Capture: {{ getStreamStatusLabel() }}</span>
+              </div>
             </div>
 
             <!-- Call Controls Grid -->
@@ -208,6 +228,11 @@ import { ApiService } from '../../core/services/api.service';
             <div class="review-layout">
               <div class="review-fields">
                 <h4>Confirm Call Outcomes</h4>
+                
+                <div class="sync-loader-card" *ngIf="conversationIntelligence.streamStatus() === 'connected' || conversationIntelligence.streamStatus() === 'connecting'">
+                  <mat-spinner diameter="18"></mat-spinner>
+                  <span>Syncing final call transcript segments from AI server...</span>
+                </div>
                 
                 <div class="form-group">
                   <label>Conversation Summary</label>
@@ -511,6 +536,9 @@ import { ApiService } from '../../core/services/api.service';
     }
 
     .options-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
       margin-bottom: 1.25rem;
       ::ng-deep .mdc-checkbox { padding: 0; margin-right: 0.5rem; }
       ::ng-deep .mdc-label { font-size: 0.8rem; color: #94a3b8; }
@@ -690,6 +718,19 @@ import { ApiService } from '../../core/services/api.service';
     /* Post Call Review screen */
     .screen-review {
       height: 100%;
+    }
+
+    .sync-loader-card {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 6px;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.75rem;
+      color: #93c5fd;
     }
 
     .review-layout {
@@ -921,6 +962,57 @@ import { ApiService } from '../../core/services/api.service';
     .animate-bounce { animation: bounce 1s infinite; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 
+    .ai-stream-status-wrapper {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      margin-top: 0.5rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #94a3b8;
+      }
+      .status-label {
+        color: #94a3b8;
+      }
+
+      &.connected {
+        background: rgba(16, 185, 129, 0.08);
+        border-color: rgba(16, 185, 129, 0.25);
+        .status-dot {
+          background: #10b981;
+          box-shadow: 0 0 8px #10b981;
+          animation: blink 1.5s infinite;
+        }
+        .status-label { color: #10b981; }
+      }
+
+      &.connecting {
+        background: rgba(245, 158, 11, 0.08);
+        border-color: rgba(245, 158, 11, 0.25);
+        .status-dot {
+          background: #f59e0b;
+          animation: blink 1s infinite;
+        }
+        .status-label { color: #f59e0b; }
+      }
+
+      &.error {
+        background: rgba(239, 68, 68, 0.08);
+        border-color: rgba(239, 68, 68, 0.25);
+        .status-dot { background: #ef4444; }
+        .status-label { color: #ef4444; }
+      }
+    }
+
     /* Light Theme Styles */
     :host-context(body.light-theme) {
       .expanded-panel {
@@ -1031,6 +1123,7 @@ export class PhoneWidgetComponent implements OnInit {
   readonly notification = inject(NotificationService);
   readonly apiService = inject(ApiService);
   readonly router = inject(Router);
+  readonly conversationIntelligence = inject(ConversationIntelligenceService);
 
   // Widget visual signals
   readonly expanded = signal<boolean>(false);
@@ -1039,6 +1132,7 @@ export class PhoneWidgetComponent implements OnInit {
   // Input states
   dialNumber = '';
   aiAssistCheck = false;
+  aiAnalysisCheck = false;
   showKeypadInCall = false;
   agentNotes = '';
   chatInput = '';
@@ -1106,6 +1200,17 @@ export class PhoneWidgetComponent implements OnInit {
       if (this.currentScreen() === 'active' || this.currentScreen() === 'ringing_out') {
         const active = this.callState.activeCall();
         
+        // Bypass AI analysis if user turned AI Assist OFF or didn't check AI Analysis
+        if (!this.callState.aiAssistEnabled() || !this.aiAnalysisCheck) {
+          this.notification.success('Call ended.');
+          if (active && this.agentNotes) {
+            this.apiService.patch<any>(`/telephony/calls/${active.id}/`, { notes: this.agentNotes }).subscribe();
+          }
+          this.closeWidget();
+          this.router.navigateByUrl('/calls');
+          return;
+        }
+
         // Transition to review screen
         this.currentScreen.set('review');
         
@@ -1169,7 +1274,8 @@ export class PhoneWidgetComponent implements OnInit {
         phone: this.dialNumber,
         contact_id: context.contact?.id,
         deal_id: context.deals?.length ? context.deals[0].id : undefined,
-        ai_assist_enabled: this.aiAssistCheck
+        ai_assist_enabled: this.aiAssistCheck,
+        ai_analysis_enabled: this.aiAnalysisCheck
       };
 
       this.telephonyService.initiateCall(payload).subscribe({
@@ -1194,6 +1300,14 @@ export class PhoneWidgetComponent implements OnInit {
     if (!active) return;
 
     this.currentScreen.set('active');
+    this.callState.aiAssistEnabled.set(this.aiAssistCheck);
+    
+    // Sync checkboxes to backend Call record for incoming calls
+    this.apiService.patch<any>(`/telephony/calls/${active.id}/`, {
+      ai_assist_enabled: this.aiAssistCheck,
+      ai_analysis_enabled: this.aiAnalysisCheck
+    }).subscribe();
+
     this.callState.startTimer();
     this.callState.appendTranscriptLine('agent', 'Hello! Thank you for calling. How can I help you today?');
     
@@ -1218,6 +1332,17 @@ export class PhoneWidgetComponent implements OnInit {
 
     this.twilioService.hangup();
     
+    // Bypass AI analysis if user turned AI Assist OFF or didn't check AI Analysis
+    if (!this.callState.aiAssistEnabled() || !this.aiAnalysisCheck) {
+      this.notification.success('Call ended.');
+      if (this.agentNotes) {
+        this.apiService.patch<any>(`/telephony/calls/${active.id}/`, { notes: this.agentNotes }).subscribe();
+      }
+      this.closeWidget();
+      this.router.navigateByUrl('/calls');
+      return;
+    }
+    
     // Transition to review screen
     this.currentScreen.set('review');
     
@@ -1226,10 +1351,51 @@ export class PhoneWidgetComponent implements OnInit {
       this.apiService.patch<any>(`/telephony/calls/${active.id}/`, { notes: this.agentNotes }).subscribe();
     }
 
-    // Trigger AI summarization on backend
-    this.telephonyService.summarizeCall(active.id).subscribe(() => {
-      this.pollCallSummary(active.id);
-    });
+    // Trigger post-call summarization
+    const conversationId = this.conversationIntelligence.activeConversationId();
+    if (conversationId) {
+      this.pollConversationSummary(conversationId);
+    } else {
+      this.telephonyService.summarizeCall(active.id).subscribe(() => {
+        this.pollCallSummary(active.id);
+      });
+    }
+  }
+
+  pollConversationSummary(conversationId: string): void {
+    const checkInterval = setInterval(() => {
+      this.conversationIntelligence.getConversationDetail(conversationId).subscribe(data => {
+        if (data && data.status === 'completed') {
+          clearInterval(checkInterval);
+          this.callState.suggestions.set(data.summary);
+          this.reviewSummary = data.summary?.executive_summary || '';
+          this.reviewDealStage = data.summary?.suggested_deal_stage || '';
+          
+          // Pre-check all suggested tasks
+          this.taskApprovedMap = {};
+          if (data.summary && data.summary.tasks) {
+            data.summary.tasks.forEach((t: any) => {
+              this.taskApprovedMap[t.title] = true;
+            });
+            // Update active call suggested tasks
+            const active = this.callState.activeCall();
+            if (active) {
+              this.callState.activeCall.set({
+                ...active,
+                suggested_tasks: data.summary.tasks.map((t: any) => ({
+                  id: t.title,
+                  title: t.title,
+                  description: t.description,
+                  due_days_offset: t.due_days_offset,
+                  priority: t.priority,
+                  task_type: t.task_type
+                }))
+              });
+            }
+          }
+        }
+      });
+    }, 2000);
   }
 
   pollCallSummary(callId: string): void {
@@ -1259,41 +1425,77 @@ export class PhoneWidgetComponent implements OnInit {
     const active = this.callState.activeCall();
     if (!active) return;
 
-    this.savingReview.set(true);
+    const conversationId = this.conversationIntelligence.activeConversationId();
+    if (conversationId) {
+      this.savingReview.set(true);
 
-    // Prepare approved tasks
-    const approvedTasks = (active.suggested_tasks || [])
-      .filter((t: any) => this.taskApprovedMap[t.id])
-      .map((t: any) => ({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        due_date: t.due_date,
-        priority: t.priority,
-        task_type: t.task_type
-      }));
+      const approvedTasks = (this.callState.activeCall()?.suggested_tasks || [])
+        .filter((t: any) => this.taskApprovedMap[t.title])
+        .map((t: any) => ({
+          title: t.title,
+          description: t.description,
+          due_days_offset: t.due_days_offset,
+          priority: t.priority,
+          task_type: t.task_type,
+          approved: true
+        }));
 
-    const reviewPayload = {
-      summary: this.reviewSummary,
-      pain_points: this.callState.suggestions()?.pain_points || [],
-      next_steps: this.callState.suggestions()?.next_steps || [],
-      suggested_deal_stage: this.reviewDealStage || null,
-      tasks: approvedTasks
-    };
+      const reviewPayload = {
+        executive_summary: this.reviewSummary,
+        conversation_summary: this.callState.suggestions()?.conversation_summary,
+        suggested_deal_stage: this.reviewDealStage || null,
+        tasks: approvedTasks
+      };
 
-    this.telephonyService.confirmPostCallReview(active.id, reviewPayload).subscribe({
-      next: () => {
-        this.notification.success('Call activity successfully logged!');
-        this.savingReview.set(false);
-        this.closeWidget();
-        // Route back or refresh views
-        this.router.navigateByUrl('/calls');
-      },
-      error: () => {
-        this.notification.error('Failed to log call activity.');
-        this.savingReview.set(false);
-      }
-    });
+      this.conversationIntelligence.confirmReview(conversationId, reviewPayload).subscribe({
+        next: () => {
+          this.notification.success('Call activity successfully logged!');
+          this.savingReview.set(false);
+          this.closeWidget();
+          this.router.navigateByUrl('/calls');
+        },
+        error: () => {
+          this.notification.error('Failed to log call activity.');
+          this.savingReview.set(false);
+        }
+      });
+    } else {
+      this.savingReview.set(true);
+
+      // Prepare approved tasks
+      const approvedTasks = (active.suggested_tasks || [])
+        .filter((t: any) => this.taskApprovedMap[t.id])
+        .map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          due_date: t.due_date,
+          priority: t.priority,
+          task_type: t.task_type
+        }));
+
+      const reviewPayload = {
+        summary: this.reviewSummary,
+        pain_points: this.callState.suggestions()?.pain_points || [],
+        next_steps: this.callState.suggestions()?.next_steps || [],
+        suggested_deal_stage: this.reviewDealStage || null,
+        tasks: approvedTasks
+      };
+
+      this.telephonyService.confirmPostCallReview(active.id, reviewPayload).subscribe({
+        next: () => {
+          this.notification.success('Call activity successfully logged!');
+          this.savingReview.set(false);
+          this.closeWidget();
+          // Route back or refresh views
+          this.router.navigateByUrl('/calls');
+        },
+        error: () => {
+          this.notification.error('Failed to log call activity.');
+          this.savingReview.set(false);
+        }
+      });
+    }
   }
 
   closeWidget(): void {
@@ -1320,6 +1522,14 @@ export class PhoneWidgetComponent implements OnInit {
     if (screen === 'active') return 'Active Call';
     if (screen === 'review') return 'Post-Call Review';
     return 'Softphone';
+  }
+
+  getStreamStatusLabel(): string {
+    const status = this.conversationIntelligence.streamStatus();
+    if (status === 'connected') return 'Streaming';
+    if (status === 'connecting') return 'Connecting...';
+    if (status === 'error') return 'Connection Error';
+    return 'Offline';
   }
 
   // AI Copilot Chat actions
@@ -1354,5 +1564,11 @@ export class PhoneWidgetComponent implements OnInit {
         this.loadingChat.set(false);
       }
     });
+  }
+
+  onAssistChange(val: boolean): void {
+    if (!val) {
+      this.aiAnalysisCheck = false;
+    }
   }
 }

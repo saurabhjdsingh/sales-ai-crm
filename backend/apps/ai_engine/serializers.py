@@ -82,7 +82,7 @@ class AIConversationDetailSerializer(AIConversationListSerializer):
 
 
 class AIConversationCreateSerializer(serializers.Serializer):
-    entity_type = serializers.ChoiceField(choices=["company", "contact", "deal"])
+    entity_type = serializers.ChoiceField(choices=["company", "contact", "deal", "call"])
     entity_id = serializers.UUIDField()
     title = serializers.CharField(required=False, default="")
 

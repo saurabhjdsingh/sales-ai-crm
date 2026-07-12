@@ -144,6 +144,7 @@ class CallSerializer(serializers.ModelSerializer):
             "duration",
             "recording_enabled",
             "ai_assist_enabled",
+            "ai_analysis_enabled",
             "transcript_status",
             "summary_status",
             "notes",

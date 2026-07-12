@@ -186,8 +186,8 @@ import { NotificationService } from '../../core/services/notification.service';
               <h4>Dialogue Transcript</h4>
               <div class="transcript-box">
                 @for (seg of call.transcript.transcript_data; track seg.timestamp) {
-                  <div class="transcript-seg" [class.agent]="seg.speaker === 'agent'">
-                    <span class="speaker-tag">{{ seg.speaker === 'agent' ? 'Agent' : 'Customer' }}:</span>
+                  <div class="transcript-seg" [class.agent]="seg.speaker === 'agent' || seg.speaker === 'sales_rep'">
+                    <span class="speaker-tag">{{ (seg.speaker === 'agent' || seg.speaker === 'sales_rep') ? 'Agent' : 'Customer' }}:</span>
                     <p class="seg-text">{{ seg.text }}</p>
                   </div>
                 }
@@ -195,9 +195,21 @@ import { NotificationService } from '../../core/services/notification.service';
             </div>
 
             <!-- AI Summary Section -->
-            <div class="detail-section" *ngIf="call.summary">
-              <h4>AI Assisted Insights</h4>
-              <div class="ai-summary-box">
+            <div class="detail-section" *ngIf="call.ai_assist_enabled || call.transcript?.full_text">
+              <div class="flex justify-between items-center mb-3">
+                <h4 class="m-0">AI Assisted Insights</h4>
+                <button mat-stroked-button color="accent" [disabled]="regenerating()" (click)="regenerateAI(call.id)" class="regen-btn">
+                  @if (regenerating()) {
+                    <mat-spinner diameter="16"></mat-spinner>
+                    <span class="ml-2">Regenerating...</span>
+                  } @else {
+                    <mat-icon>psychology</mat-icon>
+                    <span>Regenerate Insights</span>
+                  }
+                </button>
+              </div>
+
+              <div class="ai-summary-box" *ngIf="call.summary">
                 <h5>Conversation Summary</h5>
                 <p>{{ call.summary.summary || 'Summary unavailable' }}</p>
 
@@ -229,6 +241,10 @@ import { NotificationService } from '../../core/services/notification.service';
                   <h6>Suggested Email Follow-up</h6>
                   <pre class="code-box">{{ call.summary.suggested_email || 'No draft generated' }}</pre>
                 </div>
+              </div>
+
+              <div class="ai-empty-box" *ngIf="!call.summary">
+                <p class="empty-text">No summary generated yet. Click "Regenerate Insights" to generate call summary and follow-up templates.</p>
               </div>
             </div>
           </div>
@@ -520,6 +536,34 @@ import { NotificationService } from '../../core/services/notification.service';
     .justify-between { justify-content: space-between; }
     .gap-2 { gap: 0.5rem; }
     .p-0 { padding: 0; }
+    .mb-3 { margin-bottom: 0.75rem; }
+    .m-0 { margin: 0; }
+    .ml-2 { margin-left: 0.5rem; }
+
+    .regen-btn {
+      font-size: 0.75rem !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      padding: 0 0.5rem !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.25rem !important;
+      
+      ::ng-deep .mat-mdc-progress-spinner {
+        width: 16px !important;
+        height: 16px !important;
+      }
+      mat-icon { font-size: 16px; width: 16px; height: 16px; margin: 0; }
+    }
+
+    .ai-empty-box {
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      .empty-text { font-size: 0.8rem; color: #64748b; font-style: italic; margin: 0; }
+    }
 
     /* Light Theme Styling */
     :host-context(body.light-theme) {
@@ -585,6 +629,12 @@ import { NotificationService } from '../../core/services/notification.service';
         border-bottom-color: rgba(0, 0, 0, 0.05);
         .info-val { color: #0f172a; }
       }
+
+      .ai-empty-box {
+        background: #f8fafc;
+        border-color: rgba(0, 0, 0, 0.06);
+        .empty-text { color: #64748b; }
+      }
     }
   `]
 })
@@ -597,6 +647,7 @@ export class CallsComponent implements OnInit {
   readonly loading = signal<boolean>(true);
   readonly calls = signal<any[]>([]);
   readonly selectedCall = signal<any | null>(null);
+  readonly regenerating = signal<boolean>(false);
 
   // Statistics signals
   readonly totalCalls = signal<number>(0);
@@ -622,6 +673,45 @@ export class CallsComponent implements OnInit {
         this.loading.set(false);
       }
     });
+  }
+
+  regenerateAI(callId: string): void {
+    this.regenerating.set(true);
+    this.telephonyService.regenerateInsights(callId).subscribe({
+      next: () => {
+        this.pollCallDetails(callId);
+      },
+      error: () => {
+        this.notification.error('Failed to start AI insights regeneration.');
+        this.regenerating.set(false);
+      }
+    });
+  }
+
+  private pollCallDetails(callId: string): void {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      this.telephonyService.getCallDetail(callId).subscribe({
+        next: (data) => {
+          attempts++;
+          if (data.summary_status === 'completed' || data.summary_status === 'failed' || attempts > 60) {
+            clearInterval(interval);
+            this.selectedCall.set(data);
+            this.regenerating.set(false);
+            if (data.summary_status === 'completed') {
+              this.notification.success('AI Assisted Insights regenerated successfully!');
+              this.loadCalls();
+            } else {
+              this.notification.error('Failed to generate insights: ' + (data.summary?.summary || 'Error occurred.'));
+            }
+          }
+        },
+        error: () => {
+          clearInterval(interval);
+          this.regenerating.set(false);
+        }
+      });
+    }, 2000);
   }
 
   private calculateStats(list: any[]): void {

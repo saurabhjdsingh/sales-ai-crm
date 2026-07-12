@@ -46,6 +46,8 @@ A Django 5 REST API backend powering an autonomous AI Sales CRM with agentic too
 | **Auth** | JWT via `djangorestframework-simplejwt` |
 | **Web Scraping** | `httpx` + `beautifulsoup4` + `lxml` |
 | **Encryption** | `cryptography` (Fernet symmetric encryption) |
+| **WebSockets / ASGI** | Daphne 4.2 + Django Channels 4.3 |
+| **Speech Recognition** | `faster-whisper-server` (local CPU-optimized Docker container) |
 | **API Docs** | `drf-spectacular` (OpenAPI 3.0) |
 | **Containerization** | Docker + Docker Compose |
 
@@ -78,6 +80,13 @@ backend/
 │   ├── contacts/         # Contact CRUD, LinkedIn URLs
 │   ├── deals/            # Deal pipeline management
 │   ├── notes/            # Entity-scoped notes
+│   ├── conversation_intelligence/ # Standalone speech & transcription pipeline
+│   │   ├── models/       # Conversation, Session, Transcript schemas
+│   │   ├── providers/    # Speech Engine providers (WhisperDockerProvider)
+│   │   ├── serializers/  # Conversation serializers
+│   │   ├── services/     # Conversation business service layer
+│   │   ├── tasks/        # Post-call AI analysis Celery jobs
+│   │   └── websocket/    # ASGI consumer and JWT middleware
 │   ├── tasks/            # CRM task management
 │   ├── imports/          # CSV import engine
 │   ├── dashboard/        # Analytics & metrics

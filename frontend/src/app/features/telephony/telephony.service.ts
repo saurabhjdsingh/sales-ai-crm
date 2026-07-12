@@ -54,7 +54,7 @@ export class TelephonyService {
   /**
    * Create Call record on backend.
    */
-  initiateCall(payload: { phone: string; contact_id?: string; deal_id?: string; ai_assist_enabled?: boolean }): Observable<any> {
+  initiateCall(payload: { phone: string; contact_id?: string; deal_id?: string; ai_assist_enabled?: boolean; ai_analysis_enabled?: boolean }): Observable<any> {
     return this.apiService.post<any>('/telephony/calls/initiate/', payload);
   }
 
@@ -100,5 +100,12 @@ export class TelephonyService {
    */
   lookupPhoneNumber(phone: string): Observable<any> {
     return this.apiService.get<any>('/telephony/lookup/', { phone });
+  }
+
+  /**
+   * Trigger LLM call summarization regeneration.
+   */
+  regenerateInsights(callId: string): Observable<any> {
+    return this.apiService.post<any>(`/telephony/calls/${callId}/regenerate-insights/`, {});
   }
 }

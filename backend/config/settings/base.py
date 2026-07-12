@@ -42,6 +42,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_celery_beat",
     "drf_spectacular",
+    "channels",
 ]
 
 LOCAL_APPS = [
@@ -60,9 +61,11 @@ LOCAL_APPS = [
     "apps.dashboard",
     "apps.agent",
     "apps.telephony",
+    "apps.conversation_intelligence",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+INSTALLED_APPS = ["daphne"] + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
 
 # ──────────────────────────────────────────────
 # Middleware
@@ -99,6 +102,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
 
 # ──────────────────────────────────────────────
 # Database

@@ -4,6 +4,7 @@ import { ApiService } from '../../core/services/api.service';
 import { CallStateService } from './call-state.service';
 import { AudioService } from './audio.service';
 import { catchError, of, tap } from 'rxjs';
+import { ConversationIntelligenceService } from '../conversation-intelligence/conversation-intelligence.service';
 
 @Injectable({
   providedIn: 'root'
@@ -12,6 +13,7 @@ export class TwilioVoiceService {
   private readonly apiService = inject(ApiService);
   private readonly callState = inject(CallStateService);
   private readonly audioService = inject(AudioService);
+  private readonly conversationIntelligence = inject(ConversationIntelligenceService);
 
   private twilioDevice: any;
   private activeConnection: any;
@@ -129,6 +131,8 @@ export class TwilioVoiceService {
       
       // Simulate answering call after 2 seconds
       setTimeout(() => {
+        // Transition call status to in-progress to route UI to the active screen
+        this.callState.activeCall.update(c => c ? { ...c, status: 'in-progress' } : null);
         this.callState.appendTranscriptLine('agent', 'Hello, this is agent connecting. Am I speaking with the lead?');
         
         // Feed mock transcript chunks
@@ -150,20 +154,52 @@ export class TwilioVoiceService {
         this.activeConnection = connection;
         this.callState.startTimer();
 
-        // Listen for remote audio stream
-        connection.on('accept', () => {
-          console.log('Call connected!');
-          const localStream = (this.twilioDevice as any).audio.localStream;
-          const remoteStream = connection.audio.remoteStream || connection.getRemoteStream();
-          
-          if (localStream && remoteStream) {
-            this.audioService.startCallRecording(localStream, remoteStream, callId);
+        const handleAccept = async () => {
+          console.log('Call connected! Accessing media streams...');
+          // Transition call status to in-progress to route UI to the active screen
+          this.callState.activeCall.update(c => c ? { ...c, status: 'in-progress' } : null);
+          try {
+            // 1. Capture Sales Rep Microphone stream directly (like POC)
+            const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // 2. Capture Remote Customer audio stream from Twilio Connection
+            const remoteStream = typeof connection.getRemoteStream === 'function' 
+              ? connection.getRemoteStream() 
+              : null;
+            
+            if (localStream) {
+              console.log('Audio streams successfully captured!');
+              this.audioService.startCallRecording(localStream, remoteStream || new MediaStream(), callId);
+              
+              if (this.callState.aiAssistEnabled()) {
+                const context = this.callState.crmContext();
+                this.conversationIntelligence.startStreaming(
+                  callId,
+                  localStream,
+                  remoteStream || new MediaStream(),
+                  context?.contact?.id,
+                  context?.company?.id,
+                  context?.deals?.[0]?.id
+                );
+              }
+            } else {
+              console.warn('Failed to capture microphone stream.');
+            }
+          } catch (err) {
+            console.error('Error capturing streams from browser or connection:', err);
           }
 
-          if (this.transcriptionProvider === 'none') {
+          if (this.transcriptionProvider === 'none' && !this.callState.aiAssistEnabled()) {
             this.startBrowserSpeechRecognition(callId);
           }
-        });
+        };
+
+        // Handle race conditions where connection transitions to open before listener registration
+        if (connection.state === 'open' || connection.status?.() === 'open') {
+          handleAccept();
+        } else {
+          connection.on('accept', handleAccept);
+        }
 
         connection.on('disconnect', () => {
           console.log('Call disconnected.');
@@ -188,20 +224,49 @@ export class TwilioVoiceService {
       this.activeConnection.accept();
       this.callState.startTimer();
 
-      // Listen for audio connection established
-      this.activeConnection.on('accept', () => {
-        console.log('Inbound call accepted!');
-        const localStream = (this.twilioDevice as any).audio.localStream;
-        const remoteStream = this.activeConnection.audio.remoteStream || this.activeConnection.getRemoteStream();
-        
-        if (localStream && remoteStream) {
-          this.audioService.startCallRecording(localStream, remoteStream, callId);
+      const handleAccept = async () => {
+        console.log('Inbound call accepted! Accessing media streams...');
+        try {
+          // 1. Capture Sales Rep Microphone stream directly (like POC)
+          const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          
+          // 2. Capture Remote Customer audio stream from Twilio Connection
+          const remoteStream = typeof this.activeConnection.getRemoteStream === 'function'
+            ? this.activeConnection.getRemoteStream()
+            : null;
+          
+          if (localStream) {
+            console.log('Inbound audio streams successfully captured!');
+            this.audioService.startCallRecording(localStream, remoteStream || new MediaStream(), callId);
+            
+            if (this.callState.aiAssistEnabled()) {
+              const context = this.callState.crmContext();
+              this.conversationIntelligence.startStreaming(
+                callId,
+                localStream,
+                remoteStream || new MediaStream(),
+                context?.contact?.id,
+                context?.company?.id,
+                context?.deals?.[0]?.id
+              );
+            }
+          } else {
+            console.warn('Failed to capture inbound microphone stream.');
+          }
+        } catch (err) {
+          console.error('Error capturing inbound streams:', err);
         }
 
-        if (this.transcriptionProvider === 'none') {
+        if (this.transcriptionProvider === 'none' && !this.callState.aiAssistEnabled()) {
           this.startBrowserSpeechRecognition(callId);
         }
-      });
+      };
+
+      if (this.activeConnection.state === 'open' || this.activeConnection.status?.() === 'open') {
+        handleAccept();
+      } else {
+        this.activeConnection.on('accept', handleAccept);
+      }
     }
   }
 
@@ -210,6 +275,7 @@ export class TwilioVoiceService {
    */
   hangup(): void {
     this.audioService.stopCallRecording();
+    this.conversationIntelligence.stopStreaming();
     this.callState.stopTimer();
 
     if (this.callState.isSimulated()) {

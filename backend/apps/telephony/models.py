@@ -145,6 +145,7 @@ class Call(BaseModel):
     
     recording_enabled = models.BooleanField(default=False)
     ai_assist_enabled = models.BooleanField(default=False)
+    ai_analysis_enabled = models.BooleanField(default=False)
     
     transcript_status = models.CharField(
         max_length=20,

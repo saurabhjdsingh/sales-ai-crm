@@ -23,6 +23,7 @@ api_v1_patterns = [
     path("reports/", include("apps.reports.urls")),
     path("dashboard/", include("apps.dashboard.urls")),
     path("telephony/", include("apps.telephony.urls")),
+    path("conversation-intelligence/", include("apps.conversation_intelligence.urls")),
 ]
 
 urlpatterns = [
