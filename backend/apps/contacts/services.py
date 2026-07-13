@@ -38,6 +38,23 @@ class ContactService:
             title=f"Contact created: {contact.full_name}",
             user=user,
         )
+        # Apply automatic company stage rule if contact has a stage and a company
+        if contact.stage and contact.company:
+            new_stage = contact.stage
+            company_stage = None
+            if new_stage in ["replied", "follow_up", "interested"]:
+                company_stage = "active_opportunity"
+            elif new_stage == "won":
+                company_stage = "current_client"
+            elif new_stage in ["not_icp", "not_interested", "unresponsive"]:
+                company_stage = "dead_opportunity"
+            elif new_stage in ["do_not_contact", "bad_data", "changed_job"]:
+                company_stage = "do_not_prospect"
+                
+            if company_stage:
+                from apps.companies.services import CompanyService
+                CompanyService.update_company(contact.company, {"stage": company_stage}, user)
+
         logger.info("Contact created: %s by %s", contact.full_name, user.email)
         return contact
 
@@ -54,10 +71,27 @@ class ContactService:
             ContactService._log_activity(
                 contact=contact,
                 activity_type=ActivityType.STAGE_CHANGED,
-                title=f"Stage changed: {old_stage} → {contact.stage}",
+                title=f"contact {contact.first_name} stage is changed from {old_stage} -> {contact.stage}",
                 user=user,
                 metadata={"old_stage": old_stage, "new_stage": contact.stage},
             )
+            # Apply automatic company stage rule on update
+            if contact.company:
+                new_stage = contact.stage
+                company_stage = None
+                if new_stage in ["replied", "follow_up", "interested"]:
+                    company_stage = "active_opportunity"
+                elif new_stage == "won":
+                    company_stage = "current_client"
+                elif new_stage in ["not_icp", "not_interested", "unresponsive"]:
+                    company_stage = "dead_opportunity"
+                elif new_stage in ["do_not_contact", "bad_data", "changed_job"]:
+                    company_stage = "do_not_prospect"
+                    
+                if company_stage:
+                    from apps.companies.services import CompanyService
+                    CompanyService.update_company(contact.company, {"stage": company_stage}, user)
+
         return contact
 
     @staticmethod

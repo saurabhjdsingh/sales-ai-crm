@@ -344,10 +344,17 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
     }
 
     .stage-badge.cold { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
-    .stage-badge.approaching { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .stage-badge.replied { background: rgba(139, 92, 246, 0.15); color: #c084fc; }
-    .stage-badge.follow_up { background: rgba(245, 158, 11, 0.15); color: #fbbd23; }
+    .stage-badge.approaching { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .stage-badge.replied { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .stage-badge.follow_up { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
     .stage-badge.interested { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .stage-badge.not_icp { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+    .stage-badge.not_interested { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .stage-badge.unresponsive { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
+    .stage-badge.do_not_contact { background: rgba(220, 38, 38, 0.2); color: #ef4444; }
+    .stage-badge.bad_data { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .stage-badge.changed_job { background: rgba(156, 163, 175, 0.15); color: #d1d5db; }
+    .stage-badge.won { background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; }
 
     .quick-info-grid {
       display: grid;
@@ -773,7 +780,14 @@ export class ContactDetailComponent implements OnInit {
       approaching: 'Approaching',
       replied: 'Replied',
       follow_up: 'Follow Up',
-      interested: 'Interested'
+      interested: 'Interested',
+      not_icp: 'Not ICP',
+      not_interested: 'Not Interested',
+      unresponsive: 'Unresponsive',
+      do_not_contact: 'DNC',
+      bad_data: 'Bad Data',
+      changed_job: 'Job Changed',
+      won: 'Won'
     };
     return labels[stage] || stage;
   }

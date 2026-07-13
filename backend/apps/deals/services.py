@@ -34,6 +34,19 @@ class DealService:
     @transaction.atomic
     def create_deal(data: dict, user) -> Deal:
         deal = Deal.objects.create(**data, created_by=user, updated_by=user)
+        
+        # Autolink all company members in the deal contacts as decision maker
+        if deal.company:
+            from apps.contacts.models import Contact
+            company_contacts = Contact.objects.filter(company=deal.company, is_deleted=False)
+            for contact in company_contacts:
+                DealContact.objects.create(
+                    deal=deal,
+                    contact=contact,
+                    role="decision_maker",
+                    is_primary=False
+                )
+
         DealService._log_activity(
             deal=deal,
             activity_type=ActivityType.STAGE_CHANGED,

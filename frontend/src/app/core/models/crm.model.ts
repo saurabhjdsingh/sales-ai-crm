@@ -62,7 +62,8 @@ export type ContactStage =
   | 'unresponsive'
   | 'do_not_contact'
   | 'bad_data'
-  | 'changed_job';
+  | 'changed_job'
+  | 'won';
 
 export interface Contact {
   id: string;

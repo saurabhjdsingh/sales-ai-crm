@@ -82,7 +82,7 @@ class CompanyService:
             CompanyService._log_activity(
                 company=company,
                 activity_type=ActivityType.STAGE_CHANGED,
-                title=f"Stage changed: {old_stage} → {company.stage}",
+                title=f"company stage is changed from {old_stage} -> {company.stage}",
                 user=user,
                 metadata={
                     "old_stage": old_stage,

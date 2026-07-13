@@ -299,18 +299,27 @@ class ImportService:
                         import_job.save(update_fields=["duplicate_count", "processed_rows"])
                         continue
 
+                stage_val = ContactStage.COLD
+                csv_stage_col = mapping.get("stage")
+                if csv_stage_col and row.get(csv_stage_col):
+                    raw_val = str(row[csv_stage_col]).strip().lower().replace(" ", "_")
+                    for choice in ContactStage.choices:
+                        if raw_val == choice[0] or raw_val == choice[1].lower().replace(" ", "_"):
+                            stage_val = choice[0]
+                            break
+
                 contact_data = {
                     "company": company,
                     "first_name": first_name,
                     "last_name": last_name,
                     "email": email,
-                    "stage": ContactStage.COLD,
+                    "stage": stage_val,
                 }
 
                 for field in ["phone", "job_title", "department", "linkedin_url", "apollo_id", "timezone", "country"]:
                     csv_col = mapping.get(field)
                     if csv_col and row.get(csv_col):
-                        contact_data[field] = row[csv_col].strip()
+                        contact_data[field] = str(row[csv_col]).strip()
 
                 # Ensure unique apollo_id is saved as NULL instead of empty string to avoid unique constraint violations
                 if not contact_data.get("apollo_id"):
@@ -322,6 +331,23 @@ class ImportService:
                     updated_by=user,
                     owner=user,
                 )
+
+                # Trigger automatic company stage update based on contact stage
+                if contact.stage and contact.company:
+                    new_stage = contact.stage
+                    company_stage = None
+                    if new_stage in ["replied", "follow_up", "interested"]:
+                        company_stage = "active_opportunity"
+                    elif new_stage == "won":
+                        company_stage = "current_client"
+                    elif new_stage in ["not_icp", "not_interested", "unresponsive"]:
+                        company_stage = "dead_opportunity"
+                    elif new_stage in ["do_not_contact", "bad_data", "changed_job"]:
+                        company_stage = "do_not_prospect"
+                        
+                    if company_stage:
+                        from apps.companies.services import CompanyService
+                        CompanyService.update_company(contact.company, {"stage": company_stage}, user)
 
                 ImportRecord.objects.create(
                     import_job=import_job,

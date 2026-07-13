@@ -32,6 +32,7 @@ class ContactStage(models.TextChoices):
     DO_NOT_CONTACT = "do_not_contact", "Do Not Contact"
     BAD_DATA = "bad_data", "Bad Data"
     CHANGED_JOB = "changed_job", "Changed Job"
+    WON = "won", "Won"
 
 
 class DealStage(models.TextChoices):

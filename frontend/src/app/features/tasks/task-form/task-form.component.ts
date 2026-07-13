@@ -108,9 +108,16 @@ interface DropdownItem {
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Company</mat-label>
-              <mat-select formControlName="company">
+              <mat-select formControlName="company" placeholder="Select Company">
+                <div class="select-search-container">
+                  <input type="text" 
+                         placeholder="Search company..." 
+                         (input)="filterCompanies($event)" 
+                         (keydown)="$event.stopPropagation()"
+                         class="select-search-input" />
+                </div>
                 <mat-option [value]="null">None</mat-option>
-                @for (c of companies(); track c.id) {
+                @for (c of filteredCompanies(); track c.id) {
                   <mat-option [value]="c.id">{{ c.name }}</mat-option>
                 }
               </mat-select>
@@ -118,9 +125,16 @@ interface DropdownItem {
 
             <mat-form-field appearance="outline">
               <mat-label>Contact</mat-label>
-              <mat-select formControlName="contact">
+              <mat-select formControlName="contact" placeholder="Select Contact">
+                <div class="select-search-container">
+                  <input type="text" 
+                         placeholder="Search contact..." 
+                         (input)="filterContacts($event)" 
+                         (keydown)="$event.stopPropagation()"
+                         class="select-search-input" />
+                </div>
                 <mat-option [value]="null">None</mat-option>
-                @for (c of contacts(); track c.id) {
+                @for (c of filteredContacts(); track c.id) {
                   <mat-option [value]="c.id">{{ c.name }}</mat-option>
                 }
               </mat-select>
@@ -202,6 +216,38 @@ interface DropdownItem {
       padding: 1rem 1.5rem 1.5rem 1.5rem !important;
       border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
+
+    .select-search-container {
+      padding: 8px 12px;
+      position: sticky;
+      top: 0;
+      background: #0f172a;
+      z-index: 100;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .select-search-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      background: #1e293b;
+      color: white;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .select-search-input:focus {
+      border-color: #3b82f6;
+    }
+    :host-context(body.light-theme) .select-search-container {
+      background: #f1f5f9;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    :host-context(body.light-theme) .select-search-input {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
   `]
 })
 export class TaskFormComponent implements OnInit {
@@ -214,7 +260,9 @@ export class TaskFormComponent implements OnInit {
   readonly isEdit = !!this.data && !this.data.company && !this.data.contact && !this.data.deal;
   readonly users = signal<DropdownItem[]>([]);
   readonly companies = signal<DropdownItem[]>([]);
+  readonly filteredCompanies = signal<DropdownItem[]>([]);
   readonly contacts = signal<DropdownItem[]>([]);
+  readonly filteredContacts = signal<DropdownItem[]>([]);
   readonly deals = signal<DropdownItem[]>([]);
 
   readonly taskForm: FormGroup = this.fb.group({
@@ -239,14 +287,18 @@ export class TaskFormComponent implements OnInit {
 
     // Load associations
     this.apiService.get<any>('/companies/', { page_size: 100 }).subscribe((res) => {
-      this.companies.set(res.results.map((c: any) => ({ id: c.id, name: c.name })));
+      const items = res.results.map((c: any) => ({ id: c.id, name: c.name }));
+      this.companies.set(items);
+      this.filteredCompanies.set(items);
       if (this.data && this.data.company) {
         this.taskForm.patchValue({ company: this.data.company });
       }
     });
 
     this.apiService.get<any>('/contacts/', { page_size: 100 }).subscribe((res) => {
-      this.contacts.set(res.results.map((c: any) => ({ id: c.id, name: c.full_name })));
+      const items = res.results.map((c: any) => ({ id: c.id, name: c.full_name }));
+      this.contacts.set(items);
+      this.filteredContacts.set(items);
       if (this.data && this.data.contact) {
         this.taskForm.patchValue({ contact: this.data.contact });
       }
@@ -279,12 +331,25 @@ export class TaskFormComponent implements OnInit {
   private toLocalISOString(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    const pad = (num: number) => (num < 10 ? '0' : '') + num;
-    return date.getFullYear() +
-      '-' + pad(date.getMonth() + 1) +
-      '-' + pad(date.getDate()) +
-      'T' + pad(date.getHours()) +
-      ':' + pad(date.getMinutes());
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+    return localISOTime;
+  }
+
+  filterCompanies(event: Event): void {
+    const query = (event.target as HTMLInputElement).value.toLowerCase();
+    const all = this.companies();
+    this.filteredCompanies.set(
+      all.filter(c => c.name.toLowerCase().includes(query))
+    );
+  }
+
+  filterContacts(event: Event): void {
+    const query = (event.target as HTMLInputElement).value.toLowerCase();
+    const all = this.contacts();
+    this.filteredContacts.set(
+      all.filter(c => c.name.toLowerCase().includes(query))
+    );
   }
 
   onSubmit(): void {

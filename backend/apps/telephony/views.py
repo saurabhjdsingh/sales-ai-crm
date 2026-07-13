@@ -149,7 +149,7 @@ class CRMLookupView(APIView):
         matched_contact = None
         for contact in contacts:
             c_phone = contact.phone.replace("+", "").replace("-", "").replace(" ", "").strip()
-            if clean_phone in c_phone or c_phone in clean_phone:
+            if c_phone and clean_phone and (clean_phone in c_phone or c_phone in clean_phone):
                 matched_contact = contact
                 break
 
@@ -288,7 +288,7 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             contacts = Contact.objects.filter(is_deleted=False).select_related("company")
             for c in contacts:
                 c_phone = c.phone.replace("+", "").replace("-", "").replace(" ", "").strip()
-                if clean_phone in c_phone or c_phone in clean_phone:
+                if c_phone and clean_phone and (clean_phone in c_phone or c_phone in clean_phone):
                     contact = c
                     company = c.company
                     break
@@ -601,7 +601,7 @@ class TwilioIncomingCallWebhookView(WebhookBypassCSRFMixin, APIView):
             contacts = Contact.objects.filter(is_deleted=False).select_related("company")
             for c in contacts:
                 c_phone = c.phone.replace("+", "").replace("-", "").replace(" ", "").strip()
-                if clean_caller in c_phone or c_phone in clean_caller:
+                if c_phone and clean_caller and (clean_caller in c_phone or c_phone in clean_caller):
                     contact = c
                     company = c.company
                     break

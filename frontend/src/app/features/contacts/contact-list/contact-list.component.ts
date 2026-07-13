@@ -68,6 +68,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <mat-option value="do_not_contact">Do Not Contact</mat-option>
             <mat-option value="bad_data">Bad Data</mat-option>
             <mat-option value="changed_job">Changed Job</mat-option>
+            <mat-option value="won">Won</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -419,6 +420,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     .stage-badge.do_not_contact { background: rgba(220, 38, 38, 0.2); color: #ef4444; }
     .stage-badge.bad_data { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
     .stage-badge.changed_job { background: rgba(156, 163, 175, 0.15); color: #d1d5db; }
+    .stage-badge.won { background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; }
 
     .empty-state {
       display: flex;
@@ -588,7 +590,8 @@ export class ContactListComponent implements OnInit {
       unresponsive: 'Unresponsive',
       do_not_contact: 'DNC',
       bad_data: 'Bad Data',
-      changed_job: 'Job Changed'
+      changed_job: 'Job Changed',
+      won: 'Won'
     };
     return labels[stage] || stage;
   }

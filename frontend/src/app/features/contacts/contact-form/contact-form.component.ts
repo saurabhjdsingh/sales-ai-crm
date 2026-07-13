@@ -56,8 +56,15 @@ interface DropdownItem {
           <div class="form-row">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Company</mat-label>
-              <mat-select formControlName="company" required>
-                @for (c of companies(); track c.id) {
+              <mat-select formControlName="company" required placeholder="Select Company">
+                <div class="select-search-container">
+                  <input type="text" 
+                         placeholder="Search company..." 
+                         (input)="filterCompanies($event)" 
+                         (keydown)="$event.stopPropagation()"
+                         class="select-search-input" />
+                </div>
+                @for (c of filteredCompanies(); track c.id) {
                   <mat-option [value]="c.id">{{ c.name }}</mat-option>
                 }
               </mat-select>
@@ -118,6 +125,7 @@ interface DropdownItem {
                 <mat-option value="do_not_contact">Do Not Contact</mat-option>
                 <mat-option value="bad_data">Bad Data</mat-option>
                 <mat-option value="changed_job">Changed Job</mat-option>
+                <mat-option value="won">Won</mat-option>
               </mat-select>
             </mat-form-field>
 
@@ -200,6 +208,38 @@ interface DropdownItem {
       padding: 1rem 1.5rem 1.5rem 1.5rem !important;
       border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
+
+    .select-search-container {
+      padding: 8px 12px;
+      position: sticky;
+      top: 0;
+      background: #0f172a;
+      z-index: 100;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .select-search-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      background: #1e293b;
+      color: white;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .select-search-input:focus {
+      border-color: #3b82f6;
+    }
+    :host-context(body.light-theme) .select-search-container {
+      background: #f1f5f9;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    :host-context(body.light-theme) .select-search-input {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+    }
   `]
 })
 export class ContactFormComponent implements OnInit {
@@ -212,6 +252,7 @@ export class ContactFormComponent implements OnInit {
   readonly isEdit = !!this.data && !!this.data.id; // It's an edit if data has id
   readonly users = signal<DropdownItem[]>([]);
   readonly companies = signal<DropdownItem[]>([]);
+  readonly filteredCompanies = signal<DropdownItem[]>([]);
 
   readonly contactForm: FormGroup = this.fb.group({
     first_name: ['', [Validators.required]],
@@ -237,7 +278,9 @@ export class ContactFormComponent implements OnInit {
 
     // Load companies list
     this.apiService.get<any>('/companies/', { page_size: 100 }).subscribe((res) => {
-      this.companies.set(res.results.map((c: any) => ({ id: c.id, name: c.name })));
+      const items = res.results.map((c: any) => ({ id: c.id, name: c.name }));
+      this.companies.set(items);
+      this.filteredCompanies.set(items);
       
       // If we are creating from a company page, pre-select that company
       if (this.data && this.data.company) {
@@ -275,5 +318,13 @@ export class ContactFormComponent implements OnInit {
     } else {
       this.store.createContact(contactData, callback);
     }
+  }
+
+  filterCompanies(event: Event): void {
+    const query = (event.target as HTMLInputElement).value.toLowerCase();
+    const all = this.companies();
+    this.filteredCompanies.set(
+      all.filter(c => c.name.toLowerCase().includes(query))
+    );
   }
 }

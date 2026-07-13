@@ -707,7 +707,8 @@ export class ImportCenterComponent implements OnInit {
         { key: 'timezone', label: 'Timezone', required: false },
         { key: 'country', label: 'Country', required: false },
         { key: 'linkedin_url', label: 'LinkedIn Profile URL', required: false },
-        { key: 'apollo_id', label: 'Apollo Contact ID', required: false }
+        { key: 'apollo_id', label: 'Apollo Contact ID', required: false },
+        { key: 'stage', label: 'Contact Stage', required: false }
       ];
     } else {
       return [
@@ -726,7 +727,8 @@ export class ImportCenterComponent implements OnInit {
         { key: 'timezone', label: 'Timezone', required: false },
         { key: 'country', label: 'Country', required: false },
         { key: 'linkedin_url', label: 'LinkedIn Profile URL', required: false },
-        { key: 'apollo_id', label: 'Apollo Contact ID', required: false }
+        { key: 'apollo_id', label: 'Apollo Contact ID', required: false },
+        { key: 'stage', label: 'Contact Stage', required: false }
       ];
     }
   }
