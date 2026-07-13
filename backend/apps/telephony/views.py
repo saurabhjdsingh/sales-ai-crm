@@ -541,7 +541,8 @@ class CallViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
         """
         call = self.get_object()
         call.summary_status = "generating"
-        call.save(update_fields=["summary_status"])
+        call.ai_analysis_enabled = True
+        call.save(update_fields=["summary_status", "ai_analysis_enabled"])
         
         # Trigger Celery background task
         process_call_ai_summary.delay(str(call.id))
@@ -699,7 +700,6 @@ class TwilioVoiceWebhookView(WebhookBypassCSRFMixin, APIView):
         # Set callerId to the BYOC configured number
         dial = response.dial(
             caller_id=provider.phone_number,
-            record="record-from-answer", # Enable twilio recording
             status_callback=f"/api/v1/telephony/webhooks/status/{provider.id}/",
             status_callback_event="initiated ringing answered completed"
         )

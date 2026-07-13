@@ -95,8 +95,9 @@ services:
 
   local-whisper:
     image: fedirz/faster-whisper-server:latest-cpu
+    env_file:
+      - ./backend/.env
     environment:
-      - WHISPER_MODEL=${WHISPER_MODEL:-large-v3}
       - WHISPER_MODEL_DIR=/app/models
       - OMP_NUM_THREADS=2
       - OPENBLAS_NUM_THREADS=2
