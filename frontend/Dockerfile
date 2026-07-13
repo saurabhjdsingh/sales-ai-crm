@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# Stage 1: Build Angular App
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -8,6 +9,15 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 4200
+RUN npm run build
 
-CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--port", "4200"]
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+
+COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

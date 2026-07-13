@@ -33,7 +33,15 @@ class WhisperDockerProvider(BaseSpeechProvider):
 
         client = OpenAI(base_url=resolved_url, api_key="local-dummy-key")
         audio_file = io.BytesIO(audio_file_bytes)
-        audio_file.name = "audio.webm"  # default webm container from MediaRecorder
+        
+        # Probe for container format to name the file properly
+        first_bytes = audio_file_bytes[:12]
+        if b"ftyp" in first_bytes or first_bytes.startswith(b"\x00\x00\x00"):
+            audio_file.name = "audio.mp4"
+        elif first_bytes.startswith(b"\x1A\x45\xDF\xA3"):
+            audio_file.name = "audio.webm"
+        else:
+            audio_file.name = "audio.webm"  # fallback
 
         try:
             response = client.audio.transcriptions.create(

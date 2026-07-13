@@ -1,4 +1,4 @@
-version: "3.8"
+#version: "3.8"
 
 services:
   db:
@@ -29,6 +29,19 @@ services:
       - ./backend:/app
     ports:
       - "8000:8000"
+    labels:
+      - "traefik.enable=true"
+      # HTTP Router (Port 80)
+      - "traefik.http.routers.backend-http.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.backend-http.entrypoints=web"
+      - "traefik.http.routers.backend-http.service=backend"
+      # HTTPS Router (Port 443)
+      - "traefik.http.routers.backend-https.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.backend-https.entrypoints=websecure"
+      - "traefik.http.routers.backend-https.tls=true"
+      - "traefik.http.routers.backend-https.service=backend"
+      # Load Balancer Port
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
     env_file:
       - ./backend/.env
     environment:
@@ -84,14 +97,21 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    command: npx ng serve --host 0.0.0.0 --port 4200
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "4200:4200"
     depends_on:
       - backend
+    labels:
+      - "traefik.enable=true"
+      # HTTP Router (Port 80)
+      - "traefik.http.routers.frontend-http.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.service=frontend"
+      # HTTPS Router (Port 443)
+      - "traefik.http.routers.frontend-https.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-https.entrypoints=websecure"
+      - "traefik.http.routers.frontend-https.tls=true"
+      - "traefik.http.routers.frontend-https.service=frontend"
+      # Load Balancer Port
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
   local-whisper:
     image: fedirz/faster-whisper-server:latest-cpu
@@ -106,6 +126,25 @@ services:
       - "9000:8000"
     volumes:
       - whisper_models:/app/models
+
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    depends_on:
+      - frontend
+      - backend
 
 volumes:
   postgres_data:

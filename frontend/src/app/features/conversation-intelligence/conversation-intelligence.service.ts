@@ -42,6 +42,7 @@ export class ConversationIntelligenceService {
 
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private reconnectTimeoutId?: any;
 
   // Track sent and processed chunks to synchronize post-call AI review
   private agentChunksSent = 0;
@@ -61,9 +62,7 @@ export class ConversationIntelligenceService {
     companyId?: string,
     dealId?: string
   ): void {
-    if (this.isStreamingActive) {
-      this.stopStreaming();
-    }
+    this.forceTeardown();
 
     console.log('[CI] startStreaming called with CallId:', callId);
     this.localStream = localStream;
@@ -126,13 +125,15 @@ export class ConversationIntelligenceService {
     const token = this.tokenService.getAccessToken() || '';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = window.location.hostname;
+    const wsPort = window.location.port;
+    const wsHostWithPort = wsPort === '4200' ? `${wsHost}:8000` : `${wsHost}${wsPort ? `:${wsPort}` : ''}`;
     
     // Connect sales rep stream
-    const agentUrl = `${wsProtocol}//${wsHost}:8000/ws/conversation/stream/${this.conversationId}/sales_rep/?token=${token}`;
+    const agentUrl = `${wsProtocol}//${wsHostWithPort}/ws/conversation/stream/${this.conversationId}/sales_rep/?token=${token}`;
     this.wsAgent = new WebSocket(agentUrl);
 
     // Connect remote customer stream
-    const customerUrl = `${wsProtocol}//${wsHost}:8000/ws/conversation/stream/${this.conversationId}/customer/?token=${token}`;
+    const customerUrl = `${wsProtocol}//${wsHostWithPort}/ws/conversation/stream/${this.conversationId}/customer/?token=${token}`;
     this.wsCustomer = new WebSocket(customerUrl);
 
     let agentConnected = false;
@@ -232,11 +233,20 @@ export class ConversationIntelligenceService {
     this.stopChunking();
     this.streamStatus.set('connecting');
     
+    if (this.reconnectTimeoutId) {
+      console.log('[CI] Reconnection already scheduled, ignoring close event.');
+      return;
+    }
+
     // Auto reconnect attempts
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = Math.pow(2, this.reconnectAttempts) * 1000;
-      setTimeout(() => this.connectWebSockets(), delay);
+      console.log(`[CI] Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
+      this.reconnectTimeoutId = setTimeout(() => {
+        this.reconnectTimeoutId = undefined;
+        this.connectWebSockets();
+      }, delay);
     } else {
       this.streamStatus.set('error');
       this.notification.error('Conversation Intelligence disconnected.');
@@ -257,14 +267,27 @@ export class ConversationIntelligenceService {
     }
   }
 
+  private getSupportedMimeType(): string {
+    const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac'];
+    for (const t of types) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
+        return t;
+      }
+    }
+    return '';
+  }
+
   private startRecorderForStream(stream: MediaStream, socket: WebSocket): any {
     const chunkDuration = 4000; // 4 seconds chunk
+    const mimeType = this.getSupportedMimeType();
+    console.log('[CI] Resolved supported MIME type:', mimeType || 'default');
     
     const recordChunk = () => {
       if (socket.readyState !== WebSocket.OPEN) return;
 
       try {
-        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        const options = mimeType ? { mimeType } : undefined;
+        const recorder = new MediaRecorder(stream, options);
         this.activeRecorders.push(recorder);
         const chunks: Blob[] = [];
 
@@ -276,7 +299,7 @@ export class ConversationIntelligenceService {
         recorder.onstop = () => {
           console.log('[MediaRecorder] onstop. Chunks collected:', chunks.length);
           if (chunks.length > 0 && socket.readyState === WebSocket.OPEN) {
-            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
             console.log('[MediaRecorder] Sending audio blob size:', blob.size);
             socket.send(blob);
             if (socket === this.wsAgent) {
@@ -347,21 +370,40 @@ export class ConversationIntelligenceService {
     }
   }
 
-  private finalizeTeardown(): void {
+  private forceTeardown(): void {
+    this.isStreamingActive = false;
+    this.stopChunking();
+
     if (this.teardownTimeoutId) {
       clearTimeout(this.teardownTimeoutId);
       this.teardownTimeoutId = undefined;
     }
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = undefined;
+    }
 
-    console.log('[CI] All pending chunks processed. Finalizing session and closing WebSockets.');
     if (this.wsAgent) {
+      this.wsAgent.onopen = null;
+      this.wsAgent.onclose = null;
+      this.wsAgent.onerror = null;
+      this.wsAgent.onmessage = null;
       try { this.wsAgent.close(); } catch (e) {}
       this.wsAgent = undefined;
     }
     if (this.wsCustomer) {
+      this.wsCustomer.onopen = null;
+      this.wsCustomer.onclose = null;
+      this.wsCustomer.onerror = null;
+      this.wsCustomer.onmessage = null;
       try { this.wsCustomer.close(); } catch (e) {}
       this.wsCustomer = undefined;
     }
+  }
+
+  private finalizeTeardown(): void {
+    console.log('[CI] All pending chunks processed. Finalizing session.');
+    this.forceTeardown();
 
     const convId = this.conversationId;
     if (convId) {
