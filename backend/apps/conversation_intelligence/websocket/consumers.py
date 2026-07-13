@@ -176,10 +176,12 @@ class ConversationStreamConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def activate_session(self):
         try:
+            import uuid
+            self.session_key = f"ws_{self.conversation_id}_{uuid.uuid4().hex}"
             conversation = Conversation.objects.get(id=self.conversation_id)
             session, _ = ConversationSession.objects.get_or_create(
                 conversation=conversation,
-                session_key=f"ws_{self.conversation_id}",
+                session_key=self.session_key,
             )
             session.is_active = True
             session.save(update_fields=["is_active", "updated_at"])
@@ -190,7 +192,12 @@ class ConversationStreamConsumer(AsyncWebsocketConsumer):
     def deactivate_session(self):
         try:
             from django.utils import timezone
-            session = ConversationSession.objects.filter(conversation_id=self.conversation_id).first()
+            if not hasattr(self, "session_key"):
+                return
+            session = ConversationSession.objects.filter(
+                conversation_id=self.conversation_id,
+                session_key=self.session_key
+            ).first()
             if session:
                 session.is_active = False
                 session.ended_at = timezone.now()
