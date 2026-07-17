@@ -400,3 +400,115 @@ class OrganizationBrandingView(APIView):
         branding = BrandingService.get_branding_data(request)
         return Response(OrganizationBrandingSerializer(branding).data)
 
+
+class RequestPasswordResetView(APIView):
+    """
+    POST /api/v1/auth/password-reset/
+    Send a password reset email link with secure token.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({
+                "message": "If this email is registered in our system, a password reset link has been sent."
+            }, status=status.HTTP_200_OK)
+
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+        from apps.common.email import send_branded_email
+        from apps.accounts.services.branding import BrandingService
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # Dynamically determine frontend base URL based on the request host
+        host = request.get_host()
+        scheme = "https" if request.is_secure() else "http"
+        
+        # Check HTTP_X_FORWARDED_PROTO header or default to request scheme
+        forwarded_proto = request.META.get("HTTP_X_FORWARDED_PROTO")
+        if forwarded_proto:
+            scheme = forwarded_proto
+
+        if "localhost:8000" in host:
+            frontend_base = "http://localhost:4200"
+        elif "127.0.0.1:8000" in host:
+            frontend_base = "http://127.0.0.1:4200"
+        else:
+            frontend_base = f"{scheme}://{host}"
+
+        reset_url = f"{frontend_base}/reset-password?uid={uid}&token={token}"
+
+        branding = BrandingService.get_branding_data()
+        org_name = branding.get("organization_name")
+
+        subject = f"Password Reset Request for {org_name}"
+        title = "Reset Password"
+        content_html = f"""Hi {user.first_name or 'there'},<br><br>
+We received a request to reset your password for your <strong>{org_name}</strong> account on Sales AI CRM.<br><br>
+Please click the button below to set a new password:"""
+
+        send_branded_email(
+            subject=subject,
+            title=title,
+            content_html=content_html,
+            recipient_list=[user.email],
+            cta_text="Reset Password",
+            cta_url=reset_url,
+        )
+
+        return Response({
+            "message": "If this email is registered in our system, a password reset link has been sent."
+        }, status=status.HTTP_200_OK)
+
+
+class ConfirmPasswordResetView(APIView):
+    """
+    POST /api/v1/auth/password-reset-confirm/
+    Validate uid/token and update user password.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        uidb64 = request.data.get("uid")
+        token = request.data.get("token")
+        password = request.data.get("password")
+
+        if not uidb64 or not token or not password:
+            return Response({"error": "uid, token, and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({"error": "Invalid reset link."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify token
+        if not default_token_generator.check_token(user, token):
+            return Response({"error": "The reset link is invalid or has expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate password length
+        if len(password) < 8:
+            return Response({"error": "Password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update password
+        user.set_password(password)
+        user.is_active = True
+        if user.status == "pending":
+            user.status = "active"
+        user.save()
+
+        return Response({"message": "Password reset successfully."}, status=status.HTTP_200_OK)
+

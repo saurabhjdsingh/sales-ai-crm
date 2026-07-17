@@ -26,7 +26,11 @@ class ContactService:
 
     @staticmethod
     def get_contacts_queryset():
-        return Contact.objects.select_related("company", "owner")
+        from django.db.models import ExpressionWrapper, BooleanField, Q
+        return Contact.objects.select_related("company", "owner").annotate(
+            has_email=ExpressionWrapper(~Q(email=None) & ~Q(email=""), output_field=BooleanField()),
+            has_phone=ExpressionWrapper(~Q(phone=None) & ~Q(phone=""), output_field=BooleanField()),
+        )
 
     @staticmethod
     @transaction.atomic

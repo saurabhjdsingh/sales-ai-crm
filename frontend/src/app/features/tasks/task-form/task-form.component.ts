@@ -73,12 +73,12 @@ interface DropdownItem {
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Due Date</mat-label>
-              <input matInput type="datetime-local" formControlName="due_date" lang="en-GB">
+              <input matInput type="datetime-local" formControlName="due_date" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Reminder Date</mat-label>
-              <input matInput type="datetime-local" formControlName="reminder_at" lang="en-GB">
+              <input matInput type="datetime-local" formControlName="reminder_at" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)">
             </mat-form-field>
           </div>
 
@@ -257,7 +257,7 @@ export class TaskFormComponent implements OnInit {
   readonly dialogRef = inject(MatDialogRef<TaskFormComponent>);
   readonly data = inject<any>(MAT_DIALOG_DATA, { optional: true });
 
-  readonly isEdit = !!this.data && !this.data.company && !this.data.contact && !this.data.deal;
+  readonly isEdit = !!this.data && !!this.data.id;
   readonly users = signal<DropdownItem[]>([]);
   readonly companies = signal<DropdownItem[]>([]);
   readonly filteredCompanies = signal<DropdownItem[]>([]);
@@ -350,6 +350,17 @@ export class TaskFormComponent implements OnInit {
     this.filteredContacts.set(
       all.filter(c => c.name.toLowerCase().includes(query))
     );
+  }
+
+  showDatePicker(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 
   onSubmit(): void {

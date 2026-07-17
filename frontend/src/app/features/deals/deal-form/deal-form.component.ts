@@ -129,7 +129,7 @@ interface DropdownItem {
           <div class="form-row">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Expected Close Date</mat-label>
-              <input matInput type="date" formControlName="expected_close_date" lang="en-GB">
+              <input matInput type="date" formControlName="expected_close_date" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)">
             </mat-form-field>
           </div>
 
@@ -318,5 +318,16 @@ export class DealFormComponent implements OnInit {
     this.filteredCompanies.set(
       all.filter(c => c.name.toLowerCase().includes(query))
     );
+  }
+
+  showDatePicker(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 }

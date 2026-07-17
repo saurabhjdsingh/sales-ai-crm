@@ -53,6 +53,11 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           <input type="text" formControlName="search" placeholder="Search contacts by name, email..." class="filter-input" />
         </div>
 
+        <div class="search-field">
+          <mat-icon>map</mat-icon>
+          <input type="text" formControlName="country" placeholder="Search country..." class="filter-input" style="width: 160px;" />
+        </div>
+
         <mat-form-field appearance="outline" class="filter-select">
           <mat-label>Stage</mat-label>
           <mat-select formControlName="stage">
@@ -69,6 +74,17 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <mat-option value="bad_data">Bad Data</mat-option>
             <mat-option value="changed_job">Changed Job</mat-option>
             <mat-option value="won">Won</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-select">
+          <mat-label>Sort Contacts</mat-label>
+          <mat-select formControlName="ordering">
+            <mat-option value="">Default Sort</mat-option>
+            <mat-option value="-has_email">Has Email First</mat-option>
+            <mat-option value="has_email">No Email First</mat-option>
+            <mat-option value="-has_phone">Has Phone First</mat-option>
+            <mat-option value="has_phone">No Phone First</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -544,7 +560,9 @@ export class ContactListComponent implements OnInit {
 
   readonly filterForm: FormGroup = this.fb.group({
     search: [''],
-    stage: ['']
+    stage: [''],
+    country: [''],
+    ordering: ['']
   });
 
   ngOnInit(): void {
@@ -567,7 +585,9 @@ export class ContactListComponent implements OnInit {
   resetFilters(): void {
     this.filterForm.reset({
       search: '',
-      stage: ''
+      stage: '',
+      country: '',
+      ordering: ''
     });
   }
 

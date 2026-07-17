@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -170,7 +170,7 @@ interface KanbanColumn {
             </div>
           }
 
-          <table mat-table [dataSource]="store.deals()" class="dark-table">
+          <table mat-table [dataSource]="sortedDeals()" class="dark-table">
             <!-- Checkbox Column -->
             <ng-container matColumnDef="select">
               <th mat-header-cell *matHeaderCellDef class="checkbox-header-cell">
@@ -818,6 +818,30 @@ export class DealListComponent implements OnInit {
   readonly currentView = signal<'board' | 'list'>('board');
   readonly displayedColumns: string[] = ['select', 'name', 'revenue', 'stage', 'priority', 'expected_close_date', 'actions'];
   selection = new SelectionModel<string>(true, []);
+
+  readonly stageOrder = [
+    'lead',
+    'sales_qualified',
+    'meeting_booked',
+    'negotiation',
+    'poc',
+    'contract_sent',
+    'closed_won',
+    'closed_lost'
+  ];
+
+  readonly sortedDeals = computed(() => {
+    const rawDeals = this.store.deals();
+    return [...rawDeals].sort((a, b) => {
+      const orderA = this.stageOrder.indexOf(a.stage);
+      const orderB = this.stageOrder.indexOf(b.stage);
+      
+      const indexA = orderA === -1 ? 999 : orderA;
+      const indexB = orderB === -1 ? 999 : orderB;
+      
+      return indexA - indexB;
+    });
+  });
 
   readonly kanbanColumns: KanbanColumn[] = [
     { id: 'lead', label: 'Lead', colorClass: 'lead' },

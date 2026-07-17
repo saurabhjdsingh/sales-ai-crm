@@ -17,6 +17,7 @@ import { AudioService } from './audio.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ApiService } from '../../core/services/api.service';
 import { ConversationIntelligenceService } from '../conversation-intelligence/conversation-intelligence.service';
+import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
 
 @Component({
   selector: 'app-phone-widget',
@@ -31,14 +32,16 @@ import { ConversationIntelligenceService } from '../conversation-intelligence/co
     MatFormFieldModule,
     MatInputModule,
     MatCheckboxModule,
-    MatSelectModule
+    MatSelectModule,
+    CdkDrag,
+    CdkDragHandle
   ],
   template: `
     <!-- Floating Softphone Widget -->
-    <div class="phone-widget-container" [class.expanded]="expanded()" [class.review-mode]="currentScreen() === 'review'">
+    <div class="phone-widget-container" cdkDrag [class.expanded]="expanded()" [class.review-mode]="currentScreen() === 'review'">
       
       <!-- Minimized Floating Pill -->
-      <button class="minimized-pill" *ngIf="!expanded()" (click)="toggleExpand()" [class.ringing]="isRinging()">
+      <button class="minimized-pill" cdkDragHandle *ngIf="!expanded()" (click)="toggleExpand()" [class.ringing]="isRinging()">
         <mat-icon>{{ isRinging() ? 'ring_volume' : 'call' }}</mat-icon>
         <span class="pulse-ring" *ngIf="isRinging()"></span>
         <span class="pill-label" *ngIf="callState.callDuration() > 0">{{ formatDuration(callState.callDuration()) }}</span>
@@ -47,7 +50,7 @@ import { ConversationIntelligenceService } from '../conversation-intelligence/co
       <!-- Expanded Softphone Panel -->
       <div class="expanded-panel card" *ngIf="expanded()">
         <!-- Header -->
-        <div class="panel-header">
+        <div class="panel-header" cdkDragHandle style="cursor: move;">
           <div class="header-info">
             <mat-icon class="pulse-dot" *ngIf="callState.activeCall() && currentScreen() !== 'review'">lens</mat-icon>
             <h3>{{ getHeaderTitle() }}</h3>

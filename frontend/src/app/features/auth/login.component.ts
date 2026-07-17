@@ -36,41 +36,76 @@ import { BrandingService } from '../../core/services/branding.service';
           <span class="brand-name">{{ brandingService.organizationName() }}</span>
         </div>
         
-        <h2>Welcome back</h2>
-        <p class="subtitle">Sign in to your Radar 36 account to continue</p>
-        
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email address</mat-label>
-            <input matInput type="email" formControlName="email" placeholder="name@radar36.com" autocomplete="email">
-            <mat-icon matSuffix>email</mat-icon>
-            @if (loginForm.get('email')?.hasError('required') && loginForm.get('email')?.touched) {
-              <mat-error>Email is required</mat-error>
-            }
-            @if (loginForm.get('email')?.hasError('email') && loginForm.get('email')?.touched) {
-              <mat-error>Please enter a valid email address</mat-error>
-            }
-          </mat-form-field>
+        @if (!forgotPasswordMode()) {
+          <h2>Welcome back</h2>
+          <p class="subtitle">Sign in to your Radar 36 account to continue</p>
           
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Password</mat-label>
-            <input matInput [type]="hidePassword() ? 'password' : 'text'" formControlName="password" autocomplete="current-password">
-            <button mat-icon-button matSuffix type="button" (click)="hidePassword.set(!hidePassword())" [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hidePassword()">
-              <mat-icon>{{hidePassword() ? 'visibility_off' : 'visibility'}}</mat-icon>
+          <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Email address</mat-label>
+              <input matInput type="email" formControlName="email" placeholder="name@radar36.com" autocomplete="email">
+              <mat-icon matSuffix>email</mat-icon>
+              @if (loginForm.get('email')?.hasError('required') && loginForm.get('email')?.touched) {
+                <mat-error>Email is required</mat-error>
+              }
+              @if (loginForm.get('email')?.hasError('email') && loginForm.get('email')?.touched) {
+                <mat-error>Please enter a valid email address</mat-error>
+              }
+            </mat-form-field>
+            
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Password</mat-label>
+              <input matInput [type]="hidePassword() ? 'password' : 'text'" formControlName="password" autocomplete="current-password">
+              <button mat-icon-button matSuffix type="button" (click)="hidePassword.set(!hidePassword())" [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hidePassword()">
+                <mat-icon>{{hidePassword() ? 'visibility_off' : 'visibility'}}</mat-icon>
+              </button>
+              @if (loginForm.get('password')?.hasError('required') && loginForm.get('password')?.touched) {
+                <mat-error>Password is required</mat-error>
+              }
+            </mat-form-field>
+
+            <div class="forgot-pwd-link-container">
+              <button mat-button type="button" class="forgot-btn" (click)="forgotPasswordMode.set(true)">Forgot Password?</button>
+            </div>
+            
+            <button mat-flat-button color="primary" class="submit-btn" type="submit" [disabled]="loginForm.invalid || loading()">
+              @if (loading()) {
+                <mat-spinner diameter="20" class="spinner"></mat-spinner>
+              } @else {
+                Sign In
+              }
             </button>
-            @if (loginForm.get('password')?.hasError('required') && loginForm.get('password')?.touched) {
-              <mat-error>Password is required</mat-error>
-            }
-          </mat-form-field>
+          </form>
+        } @else {
+          <h2>Reset password</h2>
+          <p class="subtitle">Enter your email and we'll send you a link to reset your password</p>
           
-          <button mat-flat-button color="primary" class="submit-btn" type="submit" [disabled]="loginForm.invalid || loading()">
-            @if (loading()) {
-              <mat-spinner diameter="20" class="spinner"></mat-spinner>
-            } @else {
-              Sign In
-            }
-          </button>
-        </form>
+          <form [formGroup]="resetRequestForm" (ngSubmit)="onResetRequest()">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Email address</mat-label>
+              <input matInput type="email" formControlName="email" placeholder="name@radar36.com" autocomplete="email">
+              <mat-icon matSuffix>email</mat-icon>
+              @if (resetRequestForm.get('email')?.hasError('required') && resetRequestForm.get('email')?.touched) {
+                <mat-error>Email is required</mat-error>
+              }
+              @if (resetRequestForm.get('email')?.hasError('email') && resetRequestForm.get('email')?.touched) {
+                <mat-error>Please enter a valid email address</mat-error>
+              }
+            </mat-form-field>
+            
+            <button mat-flat-button color="primary" class="submit-btn" type="submit" [disabled]="resetRequestForm.invalid || loading()">
+              @if (loading()) {
+                <mat-spinner diameter="20" class="spinner"></mat-spinner>
+              } @else {
+                Send Reset Link
+              }
+            </button>
+
+            <button mat-button type="button" class="back-btn" (click)="forgotPasswordMode.set(false)" [disabled]="loading()">
+              Back to Sign In
+            </button>
+          </form>
+        }
       </div>
       
       <div class="login-footer">
@@ -220,6 +255,30 @@ import { BrandingService } from '../../core/services/branding.service';
         transform: translateY(0);
       }
     }
+
+    .forgot-pwd-link-container {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .forgot-btn {
+      color: #3b82f6 !important;
+      font-size: 0.85rem;
+      padding: 0 !important;
+      min-width: unset !important;
+    }
+    .forgot-btn:hover {
+      text-decoration: underline;
+    }
+    .back-btn {
+      width: 100%;
+      margin-top: 1rem !important;
+      color: #94a3b8 !important;
+    }
+    .back-btn:hover {
+      color: #f8fafc !important;
+    }
   `]
 })
 export class LoginComponent {
@@ -234,8 +293,13 @@ export class LoginComponent {
     password: ['', [Validators.required]]
   });
 
+  readonly resetRequestForm: FormGroup = this.fb.group({
+    email: ['', [Validators.required, Validators.email]]
+  });
+
   readonly loading = signal(false);
   readonly hidePassword = signal(true);
+  readonly forgotPasswordMode = signal(false);
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;
@@ -250,6 +314,25 @@ export class LoginComponent {
       error: (err) => {
         this.loading.set(false);
         const errMsg = err.error?.error?.message || 'Login failed. Please check your credentials.';
+        this.notificationService.error(errMsg);
+      }
+    });
+  }
+
+  onResetRequest(): void {
+    if (this.resetRequestForm.invalid) return;
+
+    this.loading.set(true);
+    this.authService.requestPasswordReset(this.resetRequestForm.get('email')?.value).subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        this.notificationService.success(res.message || 'If this email is registered, a password reset link has been sent.');
+        this.forgotPasswordMode.set(false);
+        this.resetRequestForm.reset();
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const errMsg = err.error?.error?.message || 'Failed to request password reset.';
         this.notificationService.error(errMsg);
       }
     });

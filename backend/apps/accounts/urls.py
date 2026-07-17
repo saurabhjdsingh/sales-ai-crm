@@ -18,6 +18,8 @@ from apps.accounts.views import (
     SetTempPasswordView,
     ResendInviteView,
     AcceptInviteView,
+    RequestPasswordResetView,
+    ConfirmPasswordResetView,
 )
 
 app_name = "accounts"
@@ -36,4 +38,6 @@ urlpatterns = [
     path("team/<uuid:pk>/", UpdateTeamMemberView.as_view(), name="team-member-update"),
     path("team/<uuid:pk>/temp-password/", SetTempPasswordView.as_view(), name="team-member-temp-password"),
     path("organization/branding/", OrganizationBrandingView.as_view(), name="organization-branding"),
+    path("password-reset/", RequestPasswordResetView.as_view(), name="password-reset-request"),
+    path("password-reset-confirm/", ConfirmPasswordResetView.as_view(), name="password-reset-confirm"),
 ]

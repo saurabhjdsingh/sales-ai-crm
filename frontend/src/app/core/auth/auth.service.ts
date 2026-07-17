@@ -61,4 +61,12 @@ export class AuthService {
       tap((user) => this.currentUser.set(user))
     );
   }
+
+  requestPasswordReset(email: string): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/auth/password-reset/`, { email });
+  }
+
+  confirmPasswordReset(data: any): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/auth/password-reset-confirm/`, data);
+  }
 }
