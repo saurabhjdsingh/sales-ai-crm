@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ApiService } from '../../../core/services/api.service';
 import { Activity } from '../../../core/models/crm.model';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -20,7 +21,8 @@ import { NotificationService } from '../../../core/services/notification.service
     MatButtonModule,
     MatSelectModule,
     MatInputModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatDialogModule
   ],
   template: `
     <div class="timeline-container">
@@ -43,6 +45,8 @@ import { NotificationService } from '../../../core/services/notification.service
                   <mat-option value="meeting">Meeting</mat-option>
                   <mat-option value="linkedin_request">LinkedIn Request</mat-option>
                   <mat-option value="proposal_sent">Proposal Sent</mat-option>
+                  <mat-option value="whatsapp">WhatsApp Message</mat-option>
+                  <mat-option value="linkedin_message">LinkedIn Message</mat-option>
                 </mat-select>
               </mat-form-field>
 
@@ -98,11 +102,38 @@ import { NotificationService } from '../../../core/services/notification.service
                     <span class="item-time">{{ act.created_at | date:'mediumDate' }} · {{ act.created_at | date:'shortTime' }}</span>
                   </div>
                   
+                  @if (act.activity_type === 'email' && act.metadata) {
+                    <div class="email-metadata">
+                      <div class="meta-row">
+                        <span class="badge" [ngClass]="act.metadata.direction">
+                          {{ act.metadata.direction === 'outgoing' ? 'Sent' : 'Received' }}
+                        </span>
+                        <span class="email-sender">
+                          <strong>From:</strong> {{ act.metadata.sender }}
+                        </span>
+                      </div>
+                      <div class="meta-row" *ngIf="act.metadata.recipients?.length">
+                        <span class="email-recipients">
+                          <strong>To:</strong> {{ act.metadata.recipients?.join(', ') }}
+                        </span>
+                      </div>
+                    </div>
+                  }
+
                   @if (act.description) {
-                    <p class="item-desc">{{ act.description }}</p>
+                    <p class="item-desc" [class.email-preview]="act.activity_type === 'email'">{{ act.description }}</p>
+                  }
+
+                  @if (act.activity_type === 'email' && act.metadata?.thread_id) {
+                    <div class="email-actions">
+                      <button mat-stroked-button class="view-conv-btn" (click)="viewEmailConversation(act.metadata.thread_id)">
+                        <mat-icon>chat</mat-icon>
+                        <span>View Full Conversation</span>
+                      </button>
+                    </div>
                   }
                   
-                  <div class="item-footer" *ngIf="act.performed_by_name">
+                  <div class="item-footer" *ngIf="act.performed_by_name && act.activity_type !== 'email'">
                     Logged by {{ act.performed_by_name }}
                   </div>
                 </div>
@@ -230,7 +261,9 @@ import { NotificationService } from '../../../core/services/notification.service
     .item-icon-wrapper.task_completed { background-color: rgba(236, 72, 153, 0.15); color: #f472b6; }
     .item-icon-wrapper.stage_changed { background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; }
     .item-icon-wrapper.ai_research { background-color: rgba(14, 165, 233, 0.15); color: #38bdf8; }
-    .item-icon-wrapper.note { background-color: rgba(156, 163, 175, 0.15); color: #d1d5db; }
+    .item-icon-wrapper.note { background-color: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+    .item-icon-wrapper.whatsapp { background-color: rgba(37, 211, 102, 0.15); color: #25d366; }
+    .item-icon-wrapper.linkedin_message { background-color: rgba(10, 102, 194, 0.15); color: #0a66c2; }
     .item-icon-wrapper.import { background-color: rgba(99, 102, 241, 0.15); color: #818cf8; }
 
     .item-card {
@@ -238,6 +271,65 @@ import { NotificationService } from '../../../core/services/notification.service
       border: 1px solid rgba(255, 255, 255, 0.04);
       border-radius: 8px;
       padding: 1rem;
+    }
+
+    .email-metadata {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.05rem 0.35rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .badge.incoming {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }
+
+    .badge.outgoing {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .email-preview {
+      font-style: italic;
+      color: #94a3b8 !important;
+      border-left: 2px solid rgba(255, 255, 255, 0.05);
+      padding-left: 0.5rem;
+    }
+
+    .email-actions {
+      margin-top: 0.75rem;
+    }
+
+    .view-conv-btn {
+      height: 32px !important;
+      line-height: 32px !important;
+      font-size: 0.75rem !important;
+      color: #3b82f6 !important;
+      border-color: rgba(59, 130, 246, 0.2) !important;
+      background: rgba(59, 130, 246, 0.02) !important;
+    }
+
+    .view-conv-btn mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
     }
 
     .item-header {
@@ -296,6 +388,7 @@ export class TimelineComponent implements OnChanges {
   private readonly apiService = inject(ApiService);
   private readonly fb = inject(FormBuilder);
   private readonly notification = inject(NotificationService);
+  private readonly dialog = inject(MatDialog);
 
   @Input() companyId?: string;
   @Input() contactId?: string;
@@ -383,8 +476,23 @@ export class TimelineComponent implements OnChanges {
       note: 'note',
       import: 'upload',
       linkedin_request: 'connect_without_contact',
-      proposal_sent: 'description'
+      proposal_sent: 'description',
+      whatsapp: 'chat',
+      linkedin_message: 'message'
     };
     return icons[type] || 'history';
+  }
+
+  viewEmailConversation(threadId: string): void {
+    if (!threadId) return;
+
+    import('./email-conversation-dialog.component').then((m) => {
+      this.dialog.open(m.EmailConversationDialogComponent, {
+        width: '750px',
+        maxHeight: '90vh',
+        data: { threadId },
+        panelClass: 'dark-dialog-panel'
+      });
+    });
   }
 }

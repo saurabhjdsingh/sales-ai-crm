@@ -112,6 +112,8 @@ class ActivityType(models.TextChoices):
     LINKEDIN_REQUEST = "linkedin_request", "LinkedIn Request"
     PROPOSAL_SENT = "proposal_sent", "Proposal Sent"
     DOCUMENT_UPLOADED = "document_uploaded", "Document Uploaded"
+    WHATSAPP = "whatsapp", "WhatsApp Message"
+    LINKEDIN_MESSAGE = "linkedin_message", "LinkedIn Message"
 
 
 class ImportEntityType(models.TextChoices):

@@ -66,6 +66,7 @@ class ContextBuilder:
             self._company_contacts(company),
             self._company_deals(company),
             self._entity_activities(company_id=company_id),
+            self._entity_emails(company_id=company_id),
             self._entity_notes(company_id=company_id),
             self._entity_tasks(company_id=company_id),
         ]
@@ -82,6 +83,7 @@ class ContextBuilder:
             self._contact_info(contact),
             self._company_info(contact.company),
             self._entity_activities(contact_id=contact_id),
+            self._entity_emails(contact_id=contact_id),
             self._entity_notes(contact_id=contact_id),
             self._entity_tasks(contact_id=contact_id),
         ]
@@ -99,6 +101,7 @@ class ContextBuilder:
             self._company_info(deal.company),
             self._deal_contacts(deal),
             self._entity_activities(deal_id=deal_id),
+            self._entity_emails(deal_id=deal_id),
             self._entity_notes(deal_id=deal_id),
             self._entity_tasks(deal_id=deal_id),
         ]
@@ -307,4 +310,54 @@ class ContextBuilder:
                 f"- [{t.get_status_display()}] {t.title} | "
                 f"Due: {due} | Assigned: {owner}"
             )
+        return "\n".join(lines)
+
+    def _entity_emails(self, company_id=None, contact_id=None, deal_id=None) -> str:
+        from django.db.models import Q
+        from apps.emails.models import EmailThread
+
+        qs = EmailThread.objects.prefetch_related("messages")
+        if company_id:
+            qs = qs.filter(Q(company_id=company_id) | Q(contact__company_id=company_id))
+        elif contact_id:
+            qs = qs.filter(contact_id=contact_id)
+        elif deal_id:
+            qs = qs.filter(deal_id=deal_id)
+        else:
+            return ""
+
+        threads = qs.distinct().order_by("-last_message_time")[:10]
+        if not threads:
+            return ""
+
+        lines = ["## Email Conversations"]
+        for thread in threads:
+            lines.append(f"### Thread: {thread.subject or '(No Subject)'} (Gmail Thread ID: {thread.gmail_thread_id})")
+            
+            messages = thread.messages.order_by("internal_date")[:10]
+            for m in messages:
+                date_str = m.internal_date.strftime("%Y-%m-%d %H:%M:%S UTC")
+                dir_indicator = "Outgoing" if m.direction == "outgoing" else "Incoming"
+                
+                lines.append(f"  - [{date_str}] {dir_indicator} from {m.sender}")
+                lines.append(f"    To: {', '.join(m.recipients) if m.recipients else 'N/A'}")
+                if m.cc:
+                    lines.append(f"    Cc: {', '.join(m.cc)}")
+                
+                body_content = m.plain_text_body.strip()
+                if not body_content:
+                    body_content = m.snippet.strip()
+                
+                body_lines = body_content.split("\n")
+                cleaned_body_lines = []
+                for bl in body_lines[:15]:
+                    cleaned_body_lines.append(f"      {bl}")
+                
+                body_formatted = "\n".join(cleaned_body_lines)
+                if len(body_lines) > 15 or len(body_content) > 1000:
+                    body_formatted += "\n      [Truncated...]"
+                    
+                lines.append(f"    Content:\n{body_formatted}")
+                lines.append("")
+                
         return "\n".join(lines)

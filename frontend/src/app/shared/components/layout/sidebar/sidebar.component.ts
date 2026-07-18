@@ -229,6 +229,7 @@ export class SidebarComponent {
     { label: 'Calls', route: '/calls', icon: 'call' },
     { label: 'Import Center', route: '/imports', icon: 'cloud_upload' },
     { label: 'Reports', route: '/reports', icon: 'bar_chart' },
+    { label: 'Integrations', route: '/integrations', icon: 'extension' },
     { label: 'Settings', route: '/settings', icon: 'settings' }
   ];
 }

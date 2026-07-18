@@ -437,218 +437,107 @@ interface AIProviderOption {
             </div>
           </div>
 
-          <!-- AI Configuration Card -->
-          <div class="card settings-card ai-config-card">
-            <div class="card-header">
-              <mat-icon>smart_toy</mat-icon>
-              <h3>AI Configuration</h3>
+          <!-- Gmail API Configuration Settings (Admin Only) -->
+          <div class="card settings-card" *ngIf="isAdmin()">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <mat-icon>settings_suggest</mat-icon>
+                <h3>Gmail API Configuration</h3>
+              </div>
+              <button mat-icon-button type="button" (click)="showGmailGuide.set(!showGmailGuide())" title="Setup Instructions" class="guide-toggle">
+                <mat-icon>info_outline</mat-icon>
+              </button>
             </div>
             <div class="card-body">
-              <!-- Loading State -->
-              @if (loadingAIConfig()) {
-                <div class="ai-loading">
-                  <mat-spinner diameter="24"></mat-spinner>
-                  <span>Loading AI configuration...</span>
+              @if (showGmailGuide()) {
+                <div class="gmail-setup-guide">
+                  <h4>Google Cloud Project & Gmail API Setup Guide</h4>
+                  <ol>
+                    <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">Google Cloud Console</a> and create a new project.</li>
+                    <li>Navigate to <strong>APIs & Services > Library</strong>, search for <strong>Gmail API</strong>, and click <strong>Enable</strong>.</li>
+                    <li>Go to <strong>OAuth consent screen</strong>:
+                      <ul>
+                        <li>Choose user type <strong>External</strong> and fill in required app details.</li>
+                        <li>Add scopes: <code>https://www.googleapis.com/auth/gmail.readonly</code> and <code>https://www.googleapis.com/auth/gmail.send</code>.</li>
+                        <li>Add your test users (emails you want to connect) under <strong>Test users</strong>.</li>
+                      </ul>
+                    </li>
+                    <li>Go to <strong>Credentials</strong>:
+                      <ul>
+                        <li>Click <strong>+ CREATE CREDENTIALS</strong> and select <strong>OAuth client ID</strong>.</li>
+                        <li>Select application type <strong>Web application</strong>.</li>
+                        <li>Add an Authorized Redirect URI: <code>http://localhost/integrations</code> (or your server's domain/integrations path).</li>
+                      </ul>
+                    </li>
+                    <li>Copy the generated <strong>Client ID</strong> and <strong>Client Secret</strong>, paste them into the form below, and click Save.</li>
+                  </ol>
                 </div>
               }
 
-              <!-- Saved Config Summary -->
-              @else if (aiConfig() && !aiEditMode()) {
-                <div class="ai-saved-config">
-                  <div class="ai-saved-header">
-                    <div class="ai-provider-badge" [ngClass]="aiConfig()!.provider">
-                      <span class="provider-icon">{{ getProviderIcon(aiConfig()!.provider) }}</span>
-                      <span class="provider-label">{{ getProviderName(aiConfig()!.provider) }}</span>
-                    </div>
-                    <span class="config-type-tag" [ngClass]="aiConfig()!.config_type">
-                      {{ aiConfig()!.config_type === 'cloud_api' ? 'Cloud API' : 'Custom Endpoint' }}
-                    </span>
-                  </div>
-
-                  <div class="ai-saved-details">
+              @if (gmailConfig() && !gmailEditMode()) {
+                <div class="configured-state" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                  <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin: 0; line-height: 1.4;">
+                    Organization-wide Google OAuth credentials are saved. Users can now authenticate their individual mailboxes.
+                  </p>
+                  <div class="details-list">
                     <div class="detail-row">
-                      <span class="detail-label">Model</span>
-                      <span class="detail-value model-value">{{ aiConfig()!.model_name }}</span>
+                      <span>Client ID</span>
+                      <strong style="word-break: break-all; max-width: 70%; text-align: right;">{{ gmailConfig().client_id }}</strong>
                     </div>
                     <div class="detail-row">
-                      <span class="detail-label">API Key</span>
-                      <span class="detail-value key-value">
-                        <mat-icon class="key-icon">vpn_key</mat-icon>
-                        {{ aiConfig()!.api_key_masked }}
-                      </span>
+                      <span>Client Secret</span>
+                      <strong>🔑 Masked / Configured</strong>
                     </div>
-                    @if (aiConfig()!.base_url) {
-                      <div class="detail-row">
-                        <span class="detail-label">Endpoint</span>
-                        <span class="detail-value endpoint-value">{{ aiConfig()!.base_url }}</span>
-                      </div>
-                    }
                   </div>
-
-                  <div class="ai-saved-actions">
-                    <button mat-flat-button class="reconfigure-btn" (click)="startAIEdit()">
+                  <div class="form-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem;">
+                    <button mat-stroked-button type="button" (click)="gmailEditMode.set(true)" class="reconfigure-btn">
                       <mat-icon>edit</mat-icon>
-                      Reconfigure
+                      <span>Reconfigure</span>
                     </button>
-                    <button mat-button class="remove-btn" (click)="deleteAIConfig()" [disabled]="deletingAIConfig()">
-                      @if (deletingAIConfig()) {
-                        <mat-spinner diameter="16"></mat-spinner>
+                    <button mat-button color="warn" type="button" (click)="deleteGmailConfig()" [disabled]="deletingGmailConfig()" class="remove-btn">
+                      @if (deletingGmailConfig()) {
+                        <mat-spinner diameter="18" style="display: inline-block;"></mat-spinner>
                       } @else {
-                        <ng-container>
-                          <mat-icon>delete_outline</mat-icon>
-                          Remove
-                        </ng-container>
+                        <mat-icon>delete</mat-icon>
+                        <span>Remove Config</span>
                       }
                     </button>
                   </div>
                 </div>
-              }
-
-              <!-- Setup / Edit Flow -->
-              @else if (!loadingAIConfig()) {
-                <!-- Step 1: Provider Selection -->
-                <div class="ai-step">
-                  <div class="step-label">
-                    <span class="step-number">1</span>
-                    Choose your AI Provider
+              } @else {
+                <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 1.25rem; line-height: 1.4;">
+                  Set up the organization-wide Google OAuth Application Credentials. Individual team members can then authenticate their own mailboxes using these settings.
+                </p>
+                
+                <form [formGroup]="gmailConfigForm" (ngSubmit)="saveGmailConfig()">
+                  <div class="form-row">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Google Client ID</mat-label>
+                      <input matInput formControlName="client_id" placeholder="Enter Google Client ID" required>
+                    </mat-form-field>
                   </div>
-                  <div class="provider-cards">
-                    @for (p of providers; track p.id) {
-                      <div
-                        class="provider-card"
-                        [class.selected]="selectedProvider() === p.id"
-                        (click)="selectProvider(p.id)"
-                      >
-                        <span class="provider-card-icon">{{ p.icon }}</span>
-                        <span class="provider-card-name">{{ p.name }}</span>
-                        @if (selectedProvider() === p.id) {
-                          <mat-icon class="check-icon">check_circle</mat-icon>
-                        }
-                      </div>
-                    }
+                  <div class="form-row" style="margin-top: 0.5rem;">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Google Client Secret</mat-label>
+                      <input matInput type="password" formControlName="client_secret" placeholder="Enter Google Client Secret" [required]="!hasGmailSecret()">
+                      <mat-hint *ngIf="hasGmailSecret()">Google Client Secret is already configured. Leave empty to keep the current secret.</mat-hint>
+                    </mat-form-field>
                   </div>
-                </div>
-
-                <!-- Step 2: Config Type (only after provider selected) -->
-                @if (selectedProvider()) {
-                  <div class="ai-step" style="animation: fadeSlideIn 0.3s ease">
-                    <div class="step-label">
-                      <span class="step-number">2</span>
-                      Configuration Type
-                    </div>
-                    <div class="config-type-cards">
-                      <div
-                        class="config-type-card"
-                        [class.selected]="selectedConfigType() === 'cloud_api'"
-                        (click)="selectConfigType('cloud_api')"
-                      >
-                        <mat-icon>cloud</mat-icon>
-                        <div>
-                          <strong>Cloud API</strong>
-                          <p>Use the provider's official API directly</p>
-                        </div>
-                      </div>
-                      <div
-                        class="config-type-card"
-                        [class.selected]="selectedConfigType() === 'custom_endpoint'"
-                        (click)="selectConfigType('custom_endpoint')"
-                      >
-                        <mat-icon>dns</mat-icon>
-                        <div>
-                          <strong>Custom Endpoint</strong>
-                          <p>Bring your own endpoint (Azure, proxy, etc.)</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                }
-
-                <!-- Step 3: Credentials Form -->
-                @if (selectedProvider() && selectedConfigType()) {
-                  <div class="ai-step" style="animation: fadeSlideIn 0.3s ease">
-                    <div class="step-label">
-                      <span class="step-number">3</span>
-                      Enter Credentials
-                    </div>
-                    <form [formGroup]="aiConfigForm" (ngSubmit)="saveAIConfig()" class="ai-form">
-                      <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>API Key</mat-label>
-                          <input
-                            matInput
-                            [type]="showAPIKey() ? 'text' : 'password'"
-                            formControlName="api_key"
-                            [placeholder]="getSelectedProvider()?.placeholder || 'Enter your API key'"
-                            required
-                          >
-                          <button
-                            matSuffix
-                            mat-icon-button
-                            type="button"
-                            (click)="showAPIKey.set(!showAPIKey())"
-                            tabindex="-1"
-                          >
-                            <mat-icon>{{ showAPIKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
-                          </button>
-                        </mat-form-field>
-                      </div>
-
-                      <div class="form-row">
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>Model Name</mat-label>
-                          <input
-                            matInput
-                            formControlName="model_name"
-                            [placeholder]="getModelPlaceholder()"
-                            required
-                          >
-                          @if (getSelectedProvider()?.defaultModels?.length) {
-                            <mat-hint>
-                              Popular: {{ getSelectedProvider()!.defaultModels.join(', ') }}
-                            </mat-hint>
-                          }
-                        </mat-form-field>
-                      </div>
-
-                      @if (selectedConfigType() === 'custom_endpoint') {
-                        <div class="form-row" style="animation: fadeSlideIn 0.2s ease">
-                          <mat-form-field appearance="outline" class="full-width">
-                            <mat-label>Base URL</mat-label>
-                            <input
-                              matInput
-                              formControlName="base_url"
-                              placeholder="https://your-endpoint.example.com"
-                              required
-                            >
-                            <mat-hint>Your custom API endpoint URL</mat-hint>
-                          </mat-form-field>
-                        </div>
+                  
+                  <div class="form-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem;">
+                    <button mat-button type="button" *ngIf="gmailEditMode() || hasGmailSecret()" (click)="gmailConfig() ? gmailEditMode.set(false) : deleteGmailConfig()" class="remove-btn">
+                      <span>Cancel</span>
+                    </button>
+                    <button mat-flat-button color="primary" type="submit" [disabled]="gmailConfigForm.invalid || savingGmailConfig()" class="save-btn">
+                      @if (savingGmailConfig()) {
+                        <mat-spinner diameter="18" style="display: inline-block;"></mat-spinner>
+                      } @else {
+                        <mat-icon>save</mat-icon>
+                        <span>Save Gmail API Settings</span>
                       }
-
-                      <div class="ai-form-actions">
-                        @if (aiEditMode()) {
-                          <button mat-button type="button" (click)="cancelAIEdit()">Cancel</button>
-                        }
-                        <button
-                          mat-flat-button
-                          color="primary"
-                          class="save-btn"
-                          type="submit"
-                          [disabled]="aiConfigForm.invalid || savingAIConfig()"
-                        >
-                          @if (savingAIConfig()) {
-                            <mat-spinner diameter="18"></mat-spinner>
-                          } @else {
-                            <ng-container>
-                              <mat-icon>save</mat-icon>
-                              Save Configuration
-                            </ng-container>
-                          }
-                        </button>
-                      </div>
-                    </form>
+                    </button>
                   </div>
-                }
+                </form>
               }
             </div>
           </div>
@@ -963,303 +852,6 @@ interface AIProviderOption {
             </div>
           </div>
 
-          <!-- Telephony Configuration Card -->
-          <div class="card settings-card telephony-config-card">
-            <div class="card-header">
-              <mat-icon>phone</mat-icon>
-              <h3>Telephony Configuration</h3>
-            </div>
-            <div class="card-body">
-              @if (loadingTelephonyConfig()) {
-                <div class="ai-loading">
-                  <mat-spinner diameter="24"></mat-spinner>
-                  <span>Loading telephony configuration...</span>
-                </div>
-              }
-
-              @else if (telephonyConfig() && !telephonyEditMode()) {
-                <div class="ai-saved-config">
-                  <div class="ai-saved-header" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                      <div class="ai-provider-badge twilio">
-                        <span class="provider-icon">📞</span>
-                        <span class="provider-label">Twilio Voice</span>
-                      </div>
-                      <span class="config-type-tag" [class.connected]="telephonyConfig()!.connection_status === 'connected'" [class.failed]="telephonyConfig()!.connection_status !== 'connected'">
-                        {{ telephonyConfig()!.connection_status | titlecase }}
-                      </span>
-                    </div>
-                    <button mat-icon-button type="button" (click)="showSetupGuide.set(!showSetupGuide())" [title]="showSetupGuide() ? 'Hide Setup Guide' : 'Show Setup Guide'" style="color: #3b82f6; width: 36px; height: 36px; line-height: 36px; display: inline-flex; align-items: center; justify-content: center; min-width: 0; padding: 0;">
-                      <mat-icon style="margin: 0; font-size: 20px; width: 20px; height: 20px;">info_outline</mat-icon>
-                    </button>
-                  </div>
-
-                  <div class="ai-saved-details">
-                    <div class="detail-row">
-                      <span class="detail-label">Integration Name</span>
-                      <span class="detail-value">{{ telephonyConfig()!.name }}</span>
-                    </div>
-                    <div class="detail-row">
-                      <span class="detail-label">Account SID</span>
-                      <span class="detail-value model-value">{{ telephonyConfig()!.account_sid }}</span>
-                    </div>
-                    <div class="detail-row">
-                      <span class="detail-label">Phone Number</span>
-                      <span class="detail-value">{{ telephonyConfig()!.phone_number }}</span>
-                    </div>
-                    <div class="detail-row">
-                      <span class="detail-label">Transcription</span>
-                      <span class="detail-value">{{ telephonyConfig()!.transcription_provider | titlecase }}</span>
-                    </div>
-                    @if (telephonyConfig()!.webhook_url) {
-                      <div class="detail-row">
-                        <span class="detail-label">Voice Webhook</span>
-                        <span class="detail-value endpoint-value" style="cursor: pointer; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" [title]="telephonyConfig()!.webhook_url" (click)="copyWebhookUrl(telephonyConfig()!.webhook_url!)">
-                          {{ telephonyConfig()!.webhook_url }}
-                        </span>
-                      </div>
-                    }
-                  </div>
-
-                  @if (showSetupGuide()) {
-                    <div class="telephony-setup-guide" style="margin-top: 1rem; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 1rem; margin-bottom: 1rem;">
-                      <h4 style="margin-bottom: 0.5rem;">
-                        <mat-icon style="font-size: 20px; width: 20px; height: 20px; vertical-align: middle;">info</mat-icon>
-                        Twilio BYOC Setup Guide
-                      </h4>
-                      <p style="font-size: 0.75rem; color: #cbd5e1; margin-bottom: 0.75rem; opacity: 0.75;">
-                        Configure your Twilio account webhooks using your unique URLs below:
-                      </p>
-                      <ol style="font-size: 0.75rem; color: #cbd5e1;">
-                        <li><strong>Set Up Outbound Calls (TwiML App)</strong>:
-                          <ul style="margin-top: 0.25rem; padding-left: 1.25rem; list-style-type: disc; color: #cbd5e1; opacity: 0.75;">
-                            <li>Go to <strong>Voice > TwiML Apps</strong> in Twilio and select your app.</li>
-                            <li>Set the Voice <strong>Request URL</strong> (HTTP POST) to:
-                              <br/>
-                              <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%; cursor: pointer; margin-top: 0.25rem; word-break: break-all;" (click)="copyWebhookUrl(telephonyConfig()!.webhook_url!.replace('/incoming/', '/voice/'))" title="Click to copy">
-                                {{ telephonyConfig()!.webhook_url!.replace('/incoming/', '/voice/') }}
-                              </code>
-                            </li>
-                            <li style="margin-top: 0.5rem;">Set the Voice <strong>Status Callback URL</strong> (HTTP POST) to:
-                              <br/>
-                              <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%; cursor: pointer; margin-top: 0.25rem; word-break: break-all;" (click)="copyWebhookUrl(telephonyConfig()!.webhook_url!.replace('/incoming/', '/status/'))" title="Click to copy">
-                                {{ telephonyConfig()!.webhook_url!.replace('/incoming/', '/status/') }}
-                              </code>
-                            </li>
-                          </ul>
-                        </li>
-                        <li style="margin-top: 0.75rem;"><strong>Set Up Incoming Calls (Active Phone Number)</strong>:
-                          <ul style="margin-top: 0.25rem; padding-left: 1.25rem; list-style-type: disc; color: #cbd5e1; opacity: 0.75;">
-                            <li>Go to <strong>Phone Numbers > Active Numbers</strong> and click your number.</li>
-                            <li>Scroll to the <strong>Voice</strong> configuration section.</li>
-                            <li>Set <strong>Configure With</strong> to <strong>Webhook</strong>.</li>
-                            <li>Set the <strong>A Call Comes In</strong> Webhook URL (HTTP POST) to:
-                              <br/>
-                              <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%; cursor: pointer; margin-top: 0.25rem; word-break: break-all;" (click)="copyWebhookUrl(telephonyConfig()!.webhook_url!)" title="Click to copy">
-                                {{ telephonyConfig()!.webhook_url! }}
-                              </code>
-                            </li>
-                          </ul>
-                        </li>
-                      </ol>
-                    </div>
-                  }
-
-                  <div class="ai-saved-actions">
-                    <button mat-flat-button class="reconfigure-btn" (click)="editTelephony()">
-                      <mat-icon>edit</mat-icon> Reconfigure
-                    </button>
-                    <button mat-flat-button color="primary" style="background: rgba(59, 130, 246, 0.08); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.15);" [disabled]="testingConnection()" (click)="testTelephonyConnection()">
-                      @if (testingConnection()) {
-                        <mat-spinner diameter="18"></mat-spinner>
-                      } @else {
-                        <mat-icon>network_check</mat-icon> Test Connection
-                      }
-                    </button>
-                    <button mat-button class="remove-btn" [disabled]="deletingTelephonyConfig()" (click)="deleteTelephonyConfig()">
-                      @if (deletingTelephonyConfig()) {
-                        <mat-spinner diameter="16"></mat-spinner>
-                      } @else {
-                        <ng-container>
-                          <mat-icon>delete_outline</mat-icon> Remove
-                        </ng-container>
-                      }
-                    </button>
-                  </div>
-                </div>
-              }
-
-              @else {
-                <!-- Twilio BYOC Setup Instructions Guide -->
-                <div class="telephony-setup-guide">
-                  <h4>
-                    <mat-icon style="font-size: 20px; width: 20px; height: 20px; vertical-align: middle;">info</mat-icon>
-                    Twilio BYOC Setup Guide
-                  </h4>
-                  <p>
-                    Configure your Twilio account for softphone calling and real-time AI transcription support:
-                  </p>
-                  <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); color: #f59e0b; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.75rem; line-height: 1.4; margin-bottom: 1rem; font-weight: 500;">
-                    💡 <strong>First-Time Setup Note:</strong> To solve the chicken-and-egg loop (where Twilio requires the webhook URL to create a TwiML App, but our CRM requires the TwiML App SID to generate your webhook URL): you can create your TwiML App with a placeholder URL first, paste the generated App SID into the form below to save the integration, and then copy the final, unique Webhook URLs from the saved summary card back into Twilio!
-                  </div>
-                  <ol>
-                    <li>Copy your <strong>Account SID</strong> from your Twilio Console home page.</li>
-                    <li>Go to <strong>Account > API Keys & Tokens</strong>. Create a new <strong>API Key</strong> (Standard type) and save the generated <strong>API Key SID (starts with SK...)</strong> and <strong>API Secret</strong>. We use these to generate secure voice capability tokens for your browser softphone.</li>
-                    <li>Buy or select a <strong>Twilio Phone Number</strong>. Make sure it has Voice capabilities.</li>
-                    <li><strong>Set Up Outbound Calls (TwiML App)</strong>:
-                      <ul style="margin-top: 0.25rem; padding-left: 1.25rem; list-style-type: disc;">
-                        <li>Go to <strong>Voice > TwiML Apps</strong> and click <strong>Create new TwiML App</strong>.</li>
-                        <li>Set the Voice <strong>Request URL</strong> (configured as HTTP POST) to:
-                          <br/>
-                          <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; word-break: break-all; margin-top: 0.25rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%;">
-                            @if (telephonyConfig()?.webhook_url; as url) {
-                              {{ url.replace('/incoming/', '/voice/') }}
-                            } @else {
-                              https://&lt;your-domain&gt;/api/v1/telephony/webhooks/voice/&lt;provider_id&gt;/
-                            }
-                          </code>
-                        </li>
-                        <li style="margin-top: 0.5rem;">Set the Voice <strong>Status Callback URL</strong> (configured as HTTP POST) to:
-                          <br/>
-                          <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; word-break: break-all; margin-top: 0.25rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%;">
-                            @if (telephonyConfig()?.webhook_url; as url) {
-                              {{ url.replace('/incoming/', '/status/') }}
-                            } @else {
-                              https://&lt;your-domain&gt;/api/v1/telephony/webhooks/status/&lt;provider_id&gt;/
-                            }
-                          </code>
-                        </li>
-                        <li>Copy the generated <strong>TwiML App SID (starts with AP...)</strong> and paste it in the form below under <em>Twilio Application SID</em>.</li>
-                      </ul>
-                    </li>
-                    <li style="margin-top: 0.75rem;"><strong>Set Up Incoming Calls (Active Phone Number)</strong>:
-                      <ul style="margin-top: 0.25rem; padding-left: 1.25rem; list-style-type: disc;">
-                        <li>Go to <strong>Phone Numbers > Manage > Active Numbers</strong> and click on your active number.</li>
-                        <li>Scroll down to the <strong>Voice</strong> configuration section.</li>
-                        <li>Set <strong>Configure With</strong> to <strong>Webhook</strong>.</li>
-                        <li>Set the <strong>A Call Comes In</strong> Webhook URL (configured as HTTP POST) to:
-                          <br/>
-                          <code style="display: inline-block; background: rgba(0,0,0,0.25); padding: 0.25rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.7rem; word-break: break-all; margin-top: 0.25rem; color: #60a5fa; border: 1px solid rgba(255,255,255,0.03); max-width: 100%;">
-                            @if (telephonyConfig()?.webhook_url; as url) {
-                              {{ url }}
-                            } @else {
-                              https://&lt;your-domain&gt;/api/v1/telephony/webhooks/incoming/&lt;provider_id&gt;/
-                            }
-                          </code>
-                        </li>
-                      </ul>
-                    </li>
-                  </ol>
-                  <p style="margin: 0.75rem 0 0 0; font-size: 0.7rem; color: #64748b; font-style: italic;" *ngIf="!telephonyConfig()?.id">
-                    Note: Your unique Voice Webhooks (including provider_id) will be generated and displayed in the summary card after you save the credentials.
-                  </p>
-                </div>
-
-                <!-- Step 1: Telephony Provider Selection -->
-                <div class="ai-step">
-                  <div class="step-label">
-                    <span class="step-number">1</span>
-                    Choose your Telephony Provider
-                  </div>
-                  <div class="provider-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem;">
-                    <div
-                      class="provider-card selected"
-                      style="border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.05); padding: 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; position: relative;"
-                    >
-                      <span class="provider-card-icon" style="font-size: 1.5rem;">📞</span>
-                      <span class="provider-card-name" style="font-weight: 600;">Twilio</span>
-                      <mat-icon class="check-icon" style="position: absolute; right: 8px; top: 8px; color: #3b82f6; font-size: 18px; width: 18px; height: 18px;">check_circle</mat-icon>
-                    </div>
-
-                    <div
-                      class="provider-card disabled"
-                      style="border: 1px dashed rgba(255, 255, 255, 0.1); padding: 1rem; border-radius: 8px; cursor: not-allowed; display: flex; align-items: center; gap: 0.75rem; opacity: 0.4;"
-                    >
-                      <span class="provider-card-icon" style="font-size: 1.5rem;">☎️</span>
-                      <span class="provider-card-name" style="font-weight: 500;">Plivo (Coming Soon)</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Step 2: Configure Credentials -->
-                <div class="ai-step" style="margin-top: 1.5rem;">
-                  <div class="step-label" style="margin-bottom: 1rem;">
-                    <span class="step-number">2</span>
-                    Configure Credentials
-                  </div>
-
-                  <form [formGroup]="telephonyForm" (ngSubmit)="saveTelephonyConfig()" class="ai-form" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div class="form-row">
-                      <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Integration Name</mat-label>
-                        <input matInput formControlName="name" required />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Twilio Account SID</mat-label>
-                        <input matInput formControlName="account_sid" required />
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Twilio Phone Number</mat-label>
-                        <input matInput formControlName="phone_number" required placeholder="+1234567890" />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Twilio API Key</mat-label>
-                        <input matInput formControlName="api_key" placeholder="SK..." />
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Twilio API Secret</mat-label>
-                        <input matInput type="password" formControlName="api_secret" />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                      <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Twilio Application SID (TwiML App)</mat-label>
-                        <input matInput formControlName="application_sid" placeholder="AP..." />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Transcription Provider</mat-label>
-                        <mat-select formControlName="transcription_provider">
-                          <mat-option value="none">None / Local Only</mat-option>
-                          <mat-option value="deepgram">Deepgram API</mat-option>
-                          <mat-option value="whisper">OpenAI Whisper</mat-option>
-                        </mat-select>
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline" *ngIf="telephonyForm.get('transcription_provider')?.value !== 'none'">
-                        <mat-label>Transcription Key</mat-label>
-                        <input matInput type="password" formControlName="transcription_key" />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
-                      <button mat-button type="button" *ngIf="telephonyConfig()" (click)="cancelTelephonyEdit()">Cancel</button>
-                      <button mat-flat-button color="primary" class="save-btn" type="submit" [disabled]="telephonyForm.invalid || savingTelephonyConfig()">
-                        @if (savingTelephonyConfig()) {
-                          <mat-spinner diameter="18"></mat-spinner>
-                        } @else {
-                          <ng-container>
-                            <mat-icon>save</mat-icon> Save Integration
-                          </ng-container>
-                        }
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              }
-            </div>
-          </div>
         </div>
 
         <!-- Sidebar / Team Members -->
@@ -2532,6 +2124,77 @@ interface AIProviderOption {
     :host-context(body.light-theme) .telephony-setup-guide h4 {
       color: #1d4ed8 !important;
     }
+
+    .gmail-setup-guide {
+      background: rgba(96, 165, 250, 0.05);
+      border: 1px solid rgba(96, 165, 250, 0.15);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      line-height: 1.5;
+    }
+    .gmail-setup-guide h4 {
+      margin: 0;
+      color: #60a5fa;
+      font-weight: 600;
+    }
+    .gmail-setup-guide ol {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+    .gmail-setup-guide li {
+      margin-bottom: 0.4rem;
+    }
+    .gmail-setup-guide ul {
+      margin: 0.2rem 0;
+      padding-left: 1.2rem;
+    }
+    :host-context(body.light-theme) .gmail-setup-guide {
+      background: #f8fafc;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      color: #334155;
+    }
+    :host-context(body.light-theme) .gmail-setup-guide h4 {
+      color: #1d4ed8;
+    }
+
+    .details-list {
+      background: rgba(0, 0, 0, 0.15);
+      padding: 1rem;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 0.5rem;
+    }
+    .detail-row:last-child {
+      border: none;
+      padding: 0;
+    }
+    .detail-row span {
+      color: #64748b;
+    }
+    .detail-row strong {
+      color: #e2e8f0;
+    }
+    :host-context(body.light-theme) .details-list {
+      background: #f1f5f9;
+    }
+    :host-context(body.light-theme) .detail-row strong {
+      color: #0f172a;
+    }
   `]
 })
 export class SettingsComponent implements OnInit {
@@ -2574,12 +2237,13 @@ export class SettingsComponent implements OnInit {
   readonly smtpEditMode = signal(false);
   readonly updatingMember = signal(false);
 
-  // AI Config signals
-  readonly loadingAIConfig = signal(false);
-  readonly savingAIConfig = signal(false);
-  readonly deletingAIConfig = signal(false);
-  readonly aiConfig = signal<AIConfig | null>(null);
-  readonly aiEditMode = signal(false);
+  // Gmail Config signals
+  readonly savingGmailConfig = signal(false);
+  readonly deletingGmailConfig = signal(false);
+  readonly hasGmailSecret = signal(false);
+  readonly showGmailGuide = signal(false);
+  readonly gmailConfig = signal<any>(null);
+  readonly gmailEditMode = signal<boolean>(false);
 
   // LinkedIn Config signals
   readonly loadingLinkedInConfig = signal(false);
@@ -2591,27 +2255,6 @@ export class SettingsComponent implements OnInit {
   readonly selectedConfigType = signal<string>('');
   readonly showAPIKey = signal(false);
 
-  // Telephony Config signals
-  private readonly telephonyService = inject(TelephonyService);
-  readonly loadingTelephonyConfig = signal(false);
-  readonly savingTelephonyConfig = signal(false);
-  readonly deletingTelephonyConfig = signal(false);
-  readonly testingConnection = signal(false);
-  readonly telephonyConfig = signal<TelephonySettings | null>(null);
-  readonly telephonyEditMode = signal(false);
-  readonly showSetupGuide = signal(false);
-
-  readonly telephonyForm: FormGroup = this.fb.group({
-    provider_type: ['twilio', Validators.required],
-    name: ['My Twilio Account', Validators.required],
-    account_sid: ['', Validators.required],
-    api_key: [''],
-    api_secret: [''],
-    application_sid: [''],
-    phone_number: ['', Validators.required],
-    transcription_provider: ['none'],
-    transcription_key: ['']
-  });
 
   // LLM Stats signals
   readonly loadingStats = signal(false);
@@ -2695,10 +2338,9 @@ export class SettingsComponent implements OnInit {
     job_title: ['']
   });
 
-  readonly aiConfigForm: FormGroup = this.fb.group({
-    api_key: ['', [Validators.required]],
-    model_name: ['', [Validators.required]],
-    base_url: ['']
+  readonly gmailConfigForm: FormGroup = this.fb.group({
+    client_id: ['', [Validators.required]],
+    client_secret: ['']
   });
 
   readonly linkedinConfigForm: FormGroup = this.fb.group({
@@ -2745,11 +2387,12 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loadTeam();
-    this.loadAIConfig();
+    if (this.isAdmin()) {
+      this.loadGmailConfig();
+    }
     this.loadPrompts();
     this.loadLinkedInConfig();
     this.loadLLMStats();
-    this.loadTelephonyConfig();
   }
 
   // ─── Profile ────────────────────────────────
@@ -3063,136 +2706,61 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  // ─── AI Configuration ──────────────────────
-  loadAIConfig(): void {
-    this.loadingAIConfig.set(true);
-    this.apiService.get<AIConfig>('/ai/config/').subscribe({
+  // ─── Gmail API Configuration ───────────────
+  loadGmailConfig(): void {
+    this.apiService.get<any>('/emails/google/oauth-config/').subscribe({
       next: (res) => {
-        this.loadingAIConfig.set(false);
-        if (res && res.configured !== false) {
-          this.aiConfig.set(res);
+        if (res) {
+          this.gmailConfig.set(res);
+          this.gmailConfigForm.patchValue({
+            client_id: res.client_id
+          });
+          this.hasGmailSecret.set(res.has_secret);
         } else {
-          this.aiConfig.set(null);
+          this.gmailConfig.set(null);
+          this.hasGmailSecret.set(false);
         }
       },
       error: () => {
-        this.loadingAIConfig.set(false);
-        this.aiConfig.set(null);
+        this.gmailConfig.set(null);
+        this.hasGmailSecret.set(false);
       }
     });
   }
 
-  selectProvider(id: string): void {
-    this.selectedProvider.set(id);
-    // Reset config type and form when switching providers
-    this.selectedConfigType.set('');
-    this.aiConfigForm.reset();
-    this.showAPIKey.set(false);
-  }
-
-  selectConfigType(type: string): void {
-    this.selectedConfigType.set(type);
-    // Update base_url validator
-    if (type === 'custom_endpoint') {
-      this.aiConfigForm.get('base_url')?.setValidators([Validators.required]);
-    } else {
-      this.aiConfigForm.get('base_url')?.clearValidators();
-      this.aiConfigForm.get('base_url')?.setValue('');
-    }
-    this.aiConfigForm.get('base_url')?.updateValueAndValidity();
-  }
-
-  getSelectedProvider(): AIProviderOption | undefined {
-    return this.providers.find(p => p.id === this.selectedProvider());
-  }
-
-  getProviderIcon(providerId: string): string {
-    return this.providers.find(p => p.id === providerId)?.icon || '🤖';
-  }
-
-  getProviderName(providerId: string): string {
-    return this.providers.find(p => p.id === providerId)?.name || providerId;
-  }
-
-  getModelPlaceholder(): string {
-    const p = this.getSelectedProvider();
-    return p ? p.defaultModels[0] : 'model-name';
-  }
-
-  startAIEdit(): void {
-    this.aiEditMode.set(true);
-    const config = this.aiConfig();
-    if (config) {
-      this.selectedProvider.set(config.provider);
-      this.selectedConfigType.set(config.config_type);
-      this.aiConfigForm.patchValue({
-        model_name: config.model_name,
-        base_url: config.base_url || '',
-        api_key: '' // always empty — user must re-enter
-      });
-      if (config.config_type === 'custom_endpoint') {
-        this.aiConfigForm.get('base_url')?.setValidators([Validators.required]);
-      } else {
-        this.aiConfigForm.get('base_url')?.clearValidators();
-      }
-      this.aiConfigForm.get('base_url')?.updateValueAndValidity();
-    }
-  }
-
-  cancelAIEdit(): void {
-    this.aiEditMode.set(false);
-    this.selectedProvider.set('');
-    this.selectedConfigType.set('');
-    this.aiConfigForm.reset();
-    this.showAPIKey.set(false);
-  }
-
-  saveAIConfig(): void {
-    if (this.aiConfigForm.invalid || !this.selectedProvider() || !this.selectedConfigType()) return;
-
-    this.savingAIConfig.set(true);
-    const payload = {
-      provider: this.selectedProvider(),
-      config_type: this.selectedConfigType(),
-      api_key: this.aiConfigForm.value.api_key,
-      model_name: this.aiConfigForm.value.model_name,
-      base_url: this.aiConfigForm.value.base_url || ''
-    };
-
-    this.apiService.put<AIConfig>('/ai/config/', payload).subscribe({
+  saveGmailConfig(): void {
+    if (this.gmailConfigForm.invalid) return;
+    this.savingGmailConfig.set(true);
+    const val = this.gmailConfigForm.value;
+    this.apiService.post<any>('/emails/google/oauth-config/', val).subscribe({
       next: (res) => {
-        this.savingAIConfig.set(false);
-        this.aiConfig.set(res);
-        this.aiEditMode.set(false);
-        this.selectedProvider.set('');
-        this.selectedConfigType.set('');
-        this.aiConfigForm.reset();
-        this.showAPIKey.set(false);
-        this.notification.success('AI configuration saved successfully');
+        this.savingGmailConfig.set(false);
+        this.gmailEditMode.set(false);
+        this.notification.success('Gmail API credentials saved successfully.');
+        this.loadGmailConfig();
       },
       error: (err) => {
-        this.savingAIConfig.set(false);
-        const msg = err.error?.error?.message || 'Failed to save AI configuration';
+        this.savingGmailConfig.set(false);
+        const msg = err.error?.error || 'Failed to save credentials.';
         this.notification.error(msg);
       }
     });
   }
 
-  deleteAIConfig(): void {
-    this.deletingAIConfig.set(true);
-    this.apiService.delete('/ai/config/').subscribe({
+  deleteGmailConfig(): void {
+    this.deletingGmailConfig.set(true);
+    this.apiService.post<any>('/emails/google/oauth-config/', { client_id: '', client_secret: '', delete: true }).subscribe({
       next: () => {
-        this.deletingAIConfig.set(false);
-        this.aiConfig.set(null);
-        this.aiEditMode.set(false);
-        this.selectedProvider.set('');
-        this.selectedConfigType.set('');
-        this.aiConfigForm.reset();
-        this.notification.success('AI configuration removed. System defaults will be used.');
+        this.deletingGmailConfig.set(false);
+        this.gmailConfigForm.reset();
+        this.gmailConfig.set(null);
+        this.gmailEditMode.set(false);
+        this.hasGmailSecret.set(false);
+        this.notification.success('Gmail API configuration removed.');
       },
       error: () => {
-        this.deletingAIConfig.set(false);
-        this.notification.error('Failed to remove AI configuration');
+        this.deletingGmailConfig.set(false);
+        this.notification.error('Failed to remove configuration.');
       }
     });
   }
@@ -3512,117 +3080,4 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  // ─── Telephony Integrations ──────────────────
-  loadTelephonyConfig(): void {
-    this.loadingTelephonyConfig.set(true);
-    this.telephonyService.getSettings().subscribe({
-      next: (res) => {
-        this.loadingTelephonyConfig.set(false);
-        const list = (res as any).results || res;
-        if (list && list.length > 0) {
-          const config = list[0];
-          this.telephonyConfig.set(config);
-          this.telephonyForm.patchValue({
-            provider_type: config.provider_type,
-            name: config.name,
-            account_sid: config.account_sid,
-            application_sid: config.application_sid || '',
-            phone_number: config.phone_number,
-            transcription_provider: config.transcription_provider
-          });
-        } else {
-          this.telephonyConfig.set(null);
-        }
-      },
-      error: () => {
-        this.loadingTelephonyConfig.set(false);
-      }
-    });
-  }
-
-  saveTelephonyConfig(): void {
-    if (this.telephonyForm.invalid) return;
-
-    this.savingTelephonyConfig.set(true);
-    const settingsObj: TelephonySettings = {
-      ...this.telephonyForm.value
-    };
-
-    if (this.telephonyConfig()?.id) {
-      settingsObj.id = this.telephonyConfig()!.id;
-    }
-
-    this.telephonyService.saveSettings(settingsObj).subscribe({
-      next: (res) => {
-        this.savingTelephonyConfig.set(false);
-        this.telephonyConfig.set(res);
-        this.telephonyEditMode.set(false);
-        this.notification.success('Telephony integration configured successfully.');
-        this.loadTelephonyConfig();
-      },
-      error: (err) => {
-        this.savingTelephonyConfig.set(false);
-        const msg = err.error?.error?.message || 'Failed to save telephony configuration';
-        this.notification.error(msg);
-      }
-    });
-  }
-
-  testTelephonyConnection(): void {
-    const config = this.telephonyConfig();
-    if (!config || !config.id) return;
-
-    this.testingConnection.set(true);
-    this.telephonyService.testConnection(config.id).subscribe({
-      next: (res) => {
-        this.testingConnection.set(false);
-        if (res.connected) {
-          this.notification.success('Connection to Twilio API verified successfully.');
-        } else {
-          this.notification.error('Twilio credentials verification failed.');
-        }
-        this.loadTelephonyConfig();
-      },
-      error: () => {
-        this.testingConnection.set(false);
-        this.notification.error('Test connection API error.');
-        this.loadTelephonyConfig();
-      }
-    });
-  }
-
-  editTelephony(): void {
-    this.telephonyEditMode.set(true);
-  }
-
-  cancelTelephonyEdit(): void {
-    this.telephonyEditMode.set(false);
-  }
-
-  deleteTelephonyConfig(): void {
-    const config = this.telephonyConfig();
-    if (!config || !config.id) return;
-
-    if (confirm('Are you sure you want to remove this Telephony configuration?')) {
-      this.deletingTelephonyConfig.set(true);
-      this.apiService.delete(`/telephony/settings/${config.id}/`).subscribe({
-        next: () => {
-          this.deletingTelephonyConfig.set(false);
-          this.telephonyConfig.set(null);
-          this.telephonyForm.reset({ provider_type: 'twilio', name: 'My Twilio Account', transcription_provider: 'none' });
-          this.notification.success('Telephony configuration deleted successfully.');
-        },
-        error: () => {
-          this.deletingTelephonyConfig.set(false);
-          this.notification.error('Failed to delete configuration.');
-        }
-      });
-    }
-  }
-
-  copyWebhookUrl(url: string): void {
-    navigator.clipboard.writeText(url).then(() => {
-      this.notification.success('Webhook URL copied to clipboard.');
-    });
-  }
 }

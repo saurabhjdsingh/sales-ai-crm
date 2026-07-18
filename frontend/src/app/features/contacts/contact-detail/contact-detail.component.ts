@@ -105,6 +105,19 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
                 <span>Owner: {{ contact.owner_detail?.name || 'Unassigned' }}</span>
               </div>
             </div>
+
+            <!-- Action bar for emails sync -->
+            <div class="profile-card-actions">
+              <button mat-stroked-button (click)="syncEmails(contact.id)" class="sync-email-btn" [disabled]="syncingEmails()">
+                @if (syncingEmails()) {
+                  <mat-spinner diameter="18" style="display: inline-block; margin-right: 6px;"></mat-spinner>
+                  <span>Syncing...</span>
+                } @else {
+                  <mat-icon>sync</mat-icon>
+                  <span>Sync Emails</span>
+                }
+              </button>
+            </div>
           </div>
 
           <!-- Bottom Tabs Panel -->
@@ -642,6 +655,18 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
+
+    .profile-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 1rem;
+    }
+
+    :host-context(body.light-theme) .profile-card-actions {
+      border-top-color: rgba(0, 0, 0, 0.06);
+    }
   `]
 })
 export class ContactDetailComponent implements OnInit {
@@ -663,12 +688,15 @@ export class ContactDetailComponent implements OnInit {
     content: ['', [Validators.required]]
   });
 
+  readonly syncingEmails = signal(false);
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const id = params.get('id');
       if (id) {
         this.store.loadContact(id);
         this.loadLinkedData(id);
+        this.syncEmails(id, true);
       }
     });
   }
@@ -839,5 +867,38 @@ export class ContactDetailComponent implements OnInit {
 
   renderMarkdown(content: string): string {
     return marked.parse(content) as string;
+  }
+
+  syncEmails(contactId: string, isAutosync = false): void {
+    if (!contactId) return;
+    if (!isAutosync) {
+      this.syncingEmails.set(true);
+    }
+    this.apiService.post<any>('/emails/sync/', { contact_id: contactId }).subscribe({
+      next: (res) => {
+        if (res.status === 'syncing') {
+          if (!isAutosync) {
+            this.notification.success('Email synchronization started in the background.');
+            setTimeout(() => {
+              this.syncingEmails.set(false);
+              this.store.loadContact(contactId);
+              this.loadLinkedData(contactId);
+            }, 4000);
+          }
+        } else {
+          this.syncingEmails.set(false);
+          if (!isAutosync) {
+            this.notification.error('Please integrate Gmail.');
+          }
+        }
+      },
+      error: (err) => {
+        this.syncingEmails.set(false);
+        if (!isAutosync) {
+          const errMsg = err.error?.message || 'Please integrate Gmail';
+          this.notification.error(errMsg);
+        }
+      }
+    });
   }
 }

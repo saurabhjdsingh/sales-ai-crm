@@ -69,6 +69,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/settings/settings.component').then(m => m.SettingsComponent)
       },
       {
+        path: 'integrations',
+        loadComponent: () => import('./features/integrations/integrations.component').then(m => m.IntegrationsComponent)
+      },
+      {
         path: 'calls',
         loadComponent: () => import('./features/telephony/calls.component').then(m => m.CallsComponent)
       }

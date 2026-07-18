@@ -83,6 +83,19 @@ import { marked } from 'marked';
             </div>
             
             <p class="description" *ngIf="company.description">{{ company.description }}</p>
+
+            <!-- Action bar for emails sync -->
+            <div class="profile-card-actions">
+              <button mat-stroked-button (click)="syncEmails(company.id)" class="sync-email-btn" [disabled]="syncingEmails()">
+                @if (syncingEmails()) {
+                  <mat-spinner diameter="18" style="display: inline-block; margin-right: 6px;"></mat-spinner>
+                  <span>Syncing...</span>
+                } @else {
+                  <mat-icon>sync</mat-icon>
+                  <span>Sync Emails</span>
+                }
+              </button>
+            </div>
           </div>
 
           <!-- Bottom Tabs Panel -->
@@ -979,6 +992,18 @@ import { marked } from 'marked';
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
+
+    .profile-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 1rem;
+    }
+
+    :host-context(body.light-theme) .profile-card-actions {
+      border-top-color: rgba(0, 0, 0, 0.06);
+    }
   `]
 })
 export class CompanyDetailComponent implements OnInit {
@@ -999,12 +1024,48 @@ export class CompanyDetailComponent implements OnInit {
     content: ['', [Validators.required]]
   });
 
+  readonly syncingEmails = signal(false);
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const id = params.get('id');
       if (id) {
         this.store.loadCompany(id);
         this.loadLinkedData(id);
+        this.syncEmails(id, true);
+      }
+    });
+  }
+
+  syncEmails(companyId: string, isAutosync = false): void {
+    if (!companyId) return;
+    if (!isAutosync) {
+      this.syncingEmails.set(true);
+    }
+    this.apiService.post<any>('/emails/sync/', { company_id: companyId }).subscribe({
+      next: (res) => {
+        if (res.status === 'syncing') {
+          if (!isAutosync) {
+            this.notification.success('Email synchronization started in the background.');
+            setTimeout(() => {
+              this.syncingEmails.set(false);
+              this.store.loadCompany(companyId);
+              this.loadLinkedData(companyId);
+            }, 4000);
+          }
+        } else {
+          this.syncingEmails.set(false);
+          if (!isAutosync) {
+            this.notification.error('Please integrate Gmail.');
+          }
+        }
+      },
+      error: (err) => {
+        this.syncingEmails.set(false);
+        if (!isAutosync) {
+          const errMsg = err.error?.message || 'Please integrate Gmail';
+          this.notification.error(errMsg);
+        }
       }
     });
   }

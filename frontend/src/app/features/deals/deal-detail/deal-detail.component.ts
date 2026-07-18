@@ -98,6 +98,19 @@ import { marked } from 'marked';
             </div>
             
             <p class="description" *ngIf="deal.description">{{ deal.description }}</p>
+
+            <!-- Action bar for emails sync -->
+            <div class="profile-card-actions">
+              <button mat-stroked-button (click)="syncEmails(deal.id)" class="sync-email-btn" [disabled]="syncingEmails()">
+                @if (syncingEmails()) {
+                  <mat-spinner diameter="18" style="display: inline-block; margin-right: 6px;"></mat-spinner>
+                  <span>Syncing...</span>
+                } @else {
+                  <mat-icon>sync</mat-icon>
+                  <span>Sync Emails</span>
+                }
+              </button>
+            </div>
           </div>
 
           <!-- Bottom Tabs Panel -->
@@ -807,6 +820,18 @@ import { marked } from 'marked';
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
+
+    .profile-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 1rem;
+    }
+
+    :host-context(body.light-theme) .profile-card-actions {
+      border-top-color: rgba(0, 0, 0, 0.06);
+    }
   `]
 })
 export class DealDetailComponent implements OnInit {
@@ -831,12 +856,48 @@ export class DealDetailComponent implements OnInit {
     content: ['', [Validators.required]]
   });
 
+  readonly syncingEmails = signal(false);
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const id = params.get('id');
       if (id) {
         this.store.loadDeal(id);
         this.loadLinkedData(id);
+        this.syncEmails(id, true);
+      }
+    });
+  }
+
+  syncEmails(dealId: string, isAutosync = false): void {
+    if (!dealId) return;
+    if (!isAutosync) {
+      this.syncingEmails.set(true);
+    }
+    this.apiService.post<any>('/emails/sync/', { deal_id: dealId }).subscribe({
+      next: (res) => {
+        if (res.status === 'syncing') {
+          if (!isAutosync) {
+            this.notification.success('Email synchronization started in the background.');
+            setTimeout(() => {
+              this.syncingEmails.set(false);
+              this.store.loadDeal(dealId);
+              this.loadLinkedData(dealId);
+            }, 4000);
+          }
+        } else {
+          this.syncingEmails.set(false);
+          if (!isAutosync) {
+            this.notification.error('Please integrate Gmail.');
+          }
+        }
+      },
+      error: (err) => {
+        this.syncingEmails.set(false);
+        if (!isAutosync) {
+          const errMsg = err.error?.message || 'Please integrate Gmail';
+          this.notification.error(errMsg);
+        }
       }
     });
   }

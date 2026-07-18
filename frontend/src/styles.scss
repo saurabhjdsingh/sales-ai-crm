@@ -80,19 +80,51 @@ body:not(.light-theme) .dark-dialog-panel {
 
 /* Toast SnackBar styles */
 .success-snackbar {
-  background-color: #065f46 !important; // Dark green
+  background-color: #052e16 !important;
   color: #a7f3d0 !important;
   font-weight: 600;
   border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 6px;
+  border-radius: 8px;
+  
+  --mdc-snackbar-container-color: #052e16 !important;
+  --mdc-snackbar-supporting-text-color: #a7f3d0 !important;
+  --mat-snack-bar-button-color: #a7f3d0 !important;
+
+  .mdc-snackbar__surface {
+    background-color: #052e16 !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+    border-radius: 8px !important;
+  }
+  .mat-mdc-snack-bar-label {
+    color: #a7f3d0 !important;
+  }
+  .mat-mdc-snack-bar-action button {
+    color: #a7f3d0 !important;
+  }
 }
 
 .error-snackbar {
-  background-color: #991b1b !important; // Dark red
+  background-color: #450a0a !important;
   color: #fecaca !important;
   font-weight: 600;
   border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px;
+  border-radius: 8px;
+
+  --mdc-snackbar-container-color: #450a0a !important;
+  --mdc-snackbar-supporting-text-color: #fecaca !important;
+  --mat-snack-bar-button-color: #fecaca !important;
+
+  .mdc-snackbar__surface {
+    background-color: #450a0a !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    border-radius: 8px !important;
+  }
+  .mat-mdc-snack-bar-label {
+    color: #fecaca !important;
+  }
+  .mat-mdc-snack-bar-action button {
+    color: #fecaca !important;
+  }
 }
 
 /* Light Theme Overrides */
