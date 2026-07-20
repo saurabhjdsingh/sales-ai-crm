@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, effect, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,6 +18,7 @@ import { NotificationService } from '../../core/services/notification.service';
 import { ApiService } from '../../core/services/api.service';
 import { ConversationIntelligenceService } from '../conversation-intelligence/conversation-intelligence.service';
 import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
+import { marked } from 'marked';
 
 @Component({
   selector: 'app-phone-widget',
@@ -38,7 +39,7 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
   ],
   template: `
     <!-- Floating Softphone Widget -->
-    <div class="phone-widget-container" cdkDrag [class.expanded]="expanded()" [class.review-mode]="currentScreen() === 'review'">
+    <div class="phone-widget-container" cdkDrag cdkDragBoundary="body" [class.expanded]="expanded()" [class.review-mode]="currentScreen() === 'review'">
       
       <!-- Minimized Floating Pill -->
       <button class="minimized-pill" cdkDragHandle *ngIf="!expanded()" (click)="toggleExpand()" [class.ringing]="isRinging()">
@@ -306,70 +307,123 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
       <!-- Collapsible AI Assist Side Panel -->
       <div class="ai-assist-panel card" *ngIf="expanded() && callState.aiAssistEnabled() && currentScreen() === 'active'">
         <div class="panel-header">
-          <div class="flex items-center gap-2">
+          <div class="header-title">
             <mat-icon class="ai-icon">psychology</mat-icon>
             <h3>AI Assist Copilot</h3>
           </div>
+          <!-- View Switcher Tabs -->
+          <div class="assist-tab-bar">
+            <button type="button" class="tab-btn" [class.active]="aiAssistTab() === 'all'" (click)="aiAssistTab.set('all')">
+              <mat-icon>grid_view</mat-icon>
+              <span>Split View</span>
+            </button>
+            <button type="button" class="tab-btn" [class.active]="aiAssistTab() === 'insights'" (click)="aiAssistTab.set('insights')">
+              <mat-icon>insights</mat-icon>
+              <span>Insights</span>
+            </button>
+            <button type="button" class="tab-btn" [class.active]="aiAssistTab() === 'transcript'" (click)="aiAssistTab.set('transcript')">
+              <mat-icon>subtitles</mat-icon>
+              <span>Transcript</span>
+            </button>
+            <button type="button" class="tab-btn" [class.active]="aiAssistTab() === 'chat'" (click)="aiAssistTab.set('chat')">
+              <mat-icon>chat</mat-icon>
+              <span>AI Chat</span>
+            </button>
+          </div>
         </div>
-        <div class="panel-body flex-col">
-          <!-- Real-time Insights Feed -->
-          <div class="insights-feed">
-            <div class="insight-badge objections" *ngIf="callState.objections().length">
-              <h5>Objections Detected</h5>
-              <ul>
-                <li *ngFor="let o of callState.objections()">{{ o }}</li>
-              </ul>
-            </div>
+
+        <div class="panel-body" [ngClass]="aiAssistTab()">
+          
+          <!-- LEFT SIDE / INSIGHTS & TRANSCRIPT -->
+          <div class="assist-column left-col" *ngIf="aiAssistTab() === 'all' || aiAssistTab() === 'insights' || aiAssistTab() === 'transcript'">
             
-            <div class="insight-badge buying" *ngIf="callState.buyingSignals().length">
-              <h5>Buying Signals</h5>
-              <ul>
-                <li *ngFor="let s of callState.buyingSignals()">{{ s }}</li>
-              </ul>
-            </div>
-
-            <div class="suggested-questions" *ngIf="callState.suggestedQuestions().length">
-              <h5>Suggested Questions to Ask</h5>
-              <ul>
-                <li *ngFor="let q of callState.suggestedQuestions()">{{ q }}</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Live Transcript Log -->
-          <div class="transcript-feed">
-            <div class="transcript-title">Live Transcript Feed</div>
-            <div class="transcript-scroll" #transcriptContainer>
-              <div class="empty-transcript" *ngIf="callState.transcript().length === 0">
-                Listening for conversation dialogue segments...
+            <!-- Real-time Insights Feed -->
+            <div class="insights-feed" *ngIf="aiAssistTab() === 'all' || aiAssistTab() === 'insights'">
+              <div class="insight-badge objections" *ngIf="callState.objections().length">
+                <h5><mat-icon>warning</mat-icon> Objections Detected</h5>
+                <ul>
+                  <li *ngFor="let o of callState.objections()">{{ o }}</li>
+                </ul>
               </div>
-              @for (seg of callState.transcript(); track seg.timestamp) {
-                <div class="seg" [class.agent]="seg.speaker === 'agent'">
-                  <span class="spk">{{ seg.speaker === 'agent' ? 'You' : 'Customer' }}:</span>
-                  <p class="txt">{{ seg.text }}</p>
+              
+              <div class="insight-badge buying" *ngIf="callState.buyingSignals().length">
+                <h5><mat-icon>trending_up</mat-icon> Buying Signals</h5>
+                <ul>
+                  <li *ngFor="let s of callState.buyingSignals()">{{ s }}</li>
+                </ul>
+              </div>
+
+              <div class="suggested-questions" *ngIf="callState.suggestedQuestions().length">
+                <h5><mat-icon>help_outline</mat-icon> Suggested Questions</h5>
+                <ul>
+                  <li *ngFor="let q of callState.suggestedQuestions()">{{ q }}</li>
+                </ul>
+              </div>
+
+              <div class="no-insights" *ngIf="!callState.objections().length && !callState.buyingSignals().length && !callState.suggestedQuestions().length">
+                <mat-icon>auto_awesome</mat-icon>
+                <span>Analyzing live speech for objections & signals...</span>
+              </div>
+            </div>
+
+            <!-- Live Transcript Log -->
+            <div class="transcript-feed" *ngIf="aiAssistTab() === 'all' || aiAssistTab() === 'transcript'">
+              <div class="transcript-title">
+                <mat-icon>graphic_eq</mat-icon> Live Transcript Stream
+              </div>
+              <div class="transcript-scroll" #transcriptContainer>
+                <div class="empty-transcript" *ngIf="callState.transcript().length === 0">
+                  Listening for conversation dialogue segments...
                 </div>
-              }
+                @for (seg of callState.transcript(); track seg.timestamp) {
+                  <div class="seg" [class.agent]="seg.speaker === 'agent'">
+                    <span class="spk">{{ seg.speaker === 'agent' ? 'You' : 'Customer' }}:</span>
+                    <p class="txt">{{ seg.text }}</p>
+                  </div>
+                }
+              </div>
+            </div>
+
+          </div>
+
+          <!-- RIGHT SIDE / COPILOT CHAT PANE -->
+          <div class="assist-column right-col" *ngIf="aiAssistTab() === 'all' || aiAssistTab() === 'chat'">
+            <div class="copilot-chat-pane">
+              <div class="chat-header">
+                <span>AI Call Assistant</span>
+              </div>
+
+              <!-- Quick Action Chips -->
+              <div class="quick-action-chips">
+                <button type="button" (click)="sendQuickPrompt('How should I address the customer objections?')">
+                  💡 Handle Objections
+                </button>
+                <button type="button" (click)="sendQuickPrompt('Summarize key points discussed so far')">
+                  📝 Summarize Call
+                </button>
+                <button type="button" (click)="sendQuickPrompt('What are the best discovery questions to ask next?')">
+                  ❓ Next Questions
+                </button>
+              </div>
+
+              <div class="chat-messages" #chatContainer>
+                <div class="message system" *ngIf="callState.copilotMessages().length === 0">
+                  Ask AI questions regarding live call transcript or CRM context.
+                </div>
+                <div class="message" *ngFor="let m of callState.copilotMessages()" [class.assistant]="m.role === 'assistant'">
+                  <span class="sender">{{ m.role === 'user' ? 'You' : 'AI Copilot' }}:</span>
+                  <div class="msg-body" [innerHTML]="renderCopilotMessage(m.content)"></div>
+                </div>
+              </div>
+              <div class="chat-input-container">
+                <input type="text" [(ngModel)]="chatInput" placeholder="Ask AI Copilot..." (keyup.enter)="askCopilot()" />
+                <button mat-icon-button (click)="askCopilot()" [disabled]="!chatInput || loadingChat()">
+                  <mat-icon>send</mat-icon>
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- AI Copilot Chat Pane -->
-          <div class="copilot-chat-pane">
-            <div class="chat-messages" #chatContainer>
-              <div class="message system" *ngIf="callState.copilotMessages().length === 0">
-                Ask AI questions regarding this call or linked CRM context.
-              </div>
-              <div class="message" *ngFor="let m of callState.copilotMessages()" [class.assistant]="m.role === 'assistant'">
-                <span class="sender">{{ m.role === 'user' ? 'You' : 'AI Copilot' }}:</span>
-                <p>{{ m.content }}</p>
-              </div>
-            </div>
-            <div class="chat-input-container">
-              <input type="text" [(ngModel)]="chatInput" placeholder="Ask Copilot..." (keyup.enter)="askCopilot()" />
-              <button mat-icon-button (click)="askCopilot()" [disabled]="!chatInput || loadingChat()">
-                <mat-icon>send</mat-icon>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
       
@@ -430,8 +484,9 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
     }
 
     .expanded-panel {
-      width: 340px;
-      height: 480px;
+      width: 350px;
+      height: 540px;
+      max-height: calc(100vh - 48px);
       background: #0b1329;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 16px;
@@ -445,20 +500,22 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
     .phone-widget-container.review-mode {
       .expanded-panel {
         width: 780px;
-        height: 520px;
+        height: 540px;
       }
     }
 
     .ai-assist-panel {
-      width: 320px;
-      height: 480px;
-      background: #090f1f;
+      width: 620px;
+      height: 540px;
+      max-height: calc(100vh - 48px);
+      background: #070d19;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: width 0.25s ease, height 0.25s ease;
     }
 
     .panel-header {
@@ -469,28 +526,97 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
       align-items: center;
       background: rgba(255, 255, 255, 0.01);
 
-      .header-info {
+      .header-title {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        
         h3 { margin: 0; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
-        .pulse-dot { font-size: 8px; width: 8px; height: 8px; color: #10b981; animation: blink 1s infinite; }
       }
       .ai-icon { color: #ec4899; }
     }
 
-    .panel-body {
+    .assist-tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+
+      .tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: transparent;
+        border: none;
+        color: #64748b;
+        font-size: 0.7rem;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+
+        mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+        &:hover { color: #cbd5e1; }
+        &.active {
+          background: #3b82f6;
+          color: white;
+          font-weight: 600;
+          box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+        }
+      }
+    }
+
+    .expanded-panel .panel-body {
       flex: 1;
-      padding: 1.25rem;
+      padding: 1rem;
       overflow-y: auto;
+      overflow-x: hidden;
       display: flex;
       flex-direction: column;
+    }
 
-      &.flex-col { display: flex; flex-direction: column; gap: 0.75rem; }
+    .ai-assist-panel .panel-body {
+      flex: 1;
+      height: calc(100% - 48px);
+      padding: 0.75rem;
+      overflow: hidden;
+      display: flex;
+      gap: 0.75rem;
+      min-height: 0;
+
+      &.all {
+        display: flex;
+        flex-direction: row;
+        .assist-column.left-col { flex: 1.1; min-width: 0; height: 100%; }
+        .assist-column.right-col { flex: 1.1; min-width: 0; height: 100%; }
+      }
+
+      &.insights, &.transcript, &.chat {
+        .assist-column { flex: 1; min-width: 0; width: 100%; height: 100%; }
+      }
+    }
+
+    .assist-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     /* Dialer styling */
+    .screen-dialer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+    }
+
     .dialer-input-container {
       display: flex;
       align-items: center;
@@ -498,7 +624,6 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
       border-radius: 8px;
       background: rgba(0, 0, 0, 0.2);
       padding: 0.25rem 0.5rem;
-      margin-bottom: 1rem;
 
       .phone-input {
         flex: 1;
@@ -516,17 +641,17 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
     .keypad-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.5rem;
-      margin-bottom: 1.25rem;
+      gap: 0.4rem;
+      margin-bottom: 0.5rem;
 
       &.mini { gap: 0.25rem; }
 
       .key-btn {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
         color: #e2e8f0;
         border-radius: 8px;
-        padding: 0.75rem;
+        padding: 0.45rem;
         cursor: pointer;
         display: flex;
         justify-content: center;
@@ -534,17 +659,40 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
         transition: all 0.15s ease;
 
         &:hover { background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-        .num { font-size: 1.1rem; font-weight: 600; }
+        .num { font-size: 1rem; font-weight: 600; }
       }
     }
 
     .options-container {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-      margin-bottom: 1.25rem;
-      ::ng-deep .mdc-checkbox { padding: 0; margin-right: 0.5rem; }
-      ::ng-deep .mdc-label { font-size: 0.8rem; color: #94a3b8; }
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+      ::ng-deep .mdc-checkbox { padding: 0; margin-right: 0.4rem; }
+      ::ng-deep .mdc-label { font-size: 0.825rem; color: #94a3b8; font-weight: 500; }
+    }
+
+    .notes-area {
+      width: 100%;
+      margin-top: 0.5rem;
+
+      textarea {
+        width: 100%;
+        height: 75px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        color: #f8fafc;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.825rem;
+        outline: none;
+        resize: none;
+        box-sizing: border-box;
+
+        &:focus {
+          border-color: #3b82f6;
+        }
+      }
     }
 
     .action-btn {
@@ -849,104 +997,192 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
       flex-direction: column;
       gap: 0.5rem;
       max-height: 150px;
+      flex-shrink: 0;
       overflow-y: auto;
 
+      .no-insights {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px dashed rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        font-size: 0.75rem;
+        color: #64748b;
+        mat-icon { font-size: 16px; width: 16px; height: 16px; color: #3b82f6; }
+      }
+
       .insight-badge {
-        padding: 0.5rem;
-        border-radius: 6px;
+        padding: 0.6rem;
+        border-radius: 8px;
         font-size: 0.75rem;
 
-        h5 { margin: 0 0 0.25rem 0; font-size: 0.75rem; }
+        h5 {
+          margin: 0 0 0.35rem 0;
+          font-size: 0.75rem;
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          mat-icon { font-size: 14px; width: 14px; height: 14px; }
+        }
         ul { margin: 0; padding-left: 1rem; }
-        li { margin-bottom: 0.15rem; }
+        li { margin-bottom: 0.2rem; line-height: 1.3; }
 
-        &.objections { background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.1); h5 { color: #f87171; } }
-        &.buying { background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1); h5 { color: #34d399; } }
+        &.objections { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); h5 { color: #f87171; } }
+        &.buying { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); h5 { color: #34d399; } }
       }
 
       .suggested-questions {
-        background: rgba(59, 130, 246, 0.05);
-        border: 1px solid rgba(59, 130, 246, 0.1);
-        padding: 0.5rem;
-        border-radius: 6px;
+        background: rgba(59, 130, 246, 0.08);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        padding: 0.6rem;
+        border-radius: 8px;
         font-size: 0.75rem;
-        h5 { margin: 0 0 0.25rem 0; color: #60a5fa; }
+        h5 { margin: 0 0 0.35rem 0; color: #60a5fa; display: flex; align-items: center; gap: 0.35rem; mat-icon { font-size: 14px; width: 14px; height: 14px; } }
         ul { margin: 0; padding-left: 1rem; }
+        li { margin-bottom: 0.2rem; line-height: 1.3; }
       }
     }
 
     .transcript-feed {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      background: rgba(0, 0, 0, 0.15);
-      border-radius: 8px;
-      padding: 0.5rem;
-      min-height: 120px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      padding: 0.6rem;
+      overflow: hidden;
 
-      .transcript-title { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.25rem; }
+      .transcript-title {
+        flex-shrink: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        mat-icon { font-size: 14px; width: 14px; height: 14px; color: #10b981; }
+      }
       
       .transcript-scroll {
         flex: 1;
+        min-height: 0;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
-        max-height: 150px;
+        gap: 0.5rem;
+        padding-right: 0.25rem;
 
-        .empty-transcript { font-size: 0.75rem; color: #475569; font-style: italic; padding: 1rem 0; text-align: center; }
+        .empty-transcript { font-size: 0.75rem; color: #475569; font-style: italic; padding: 1.5rem 0; text-align: center; }
 
         .seg {
-          font-size: 0.75rem;
+          font-size: 0.775rem;
           align-self: flex-start;
-          background: rgba(255, 255, 255, 0.03);
-          padding: 0.3rem 0.5rem;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 0.4rem 0.6rem;
           border-radius: 8px 8px 8px 0;
-          max-width: 85%;
-          line-height: 1.3;
+          max-width: 90%;
+          line-height: 1.4;
+          color: #e2e8f0;
 
           &.agent {
             align-self: flex-end;
-            background: rgba(59, 130, 246, 0.1);
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.25);
             border-radius: 8px 8px 0 8px;
+            color: #93c5fd;
           }
 
-          .spk { font-size: 0.65rem; font-weight: 700; color: #64748b; margin-right: 0.25rem; }
+          .spk { font-size: 0.65rem; font-weight: 700; color: #94a3b8; margin-right: 0.25rem; }
           .txt { margin: 0; display: inline; }
         }
       }
     }
 
     .copilot-chat-pane {
+      flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
       overflow: hidden;
-      background: rgba(0, 0, 0, 0.2);
+      background: rgba(0, 0, 0, 0.3);
+
+      .chat-header {
+        flex-shrink: 0;
+        padding: 0.4rem 0.6rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }
+
+      .quick-action-chips {
+        flex-shrink: 0;
+        display: flex;
+        gap: 0.35rem;
+        padding: 0.4rem 0.5rem;
+        overflow-x: auto;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+        button {
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          color: #60a5fa;
+          font-size: 0.675rem;
+          padding: 0.25rem 0.5rem;
+          border-radius: 12px;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+
+          &:hover {
+            background: rgba(59, 130, 246, 0.25);
+            color: white;
+          }
+        }
+      }
 
       .chat-messages {
-        height: 80px;
+        flex: 1;
+        min-height: 0;
         overflow-y: auto;
-        padding: 0.5rem;
+        padding: 0.6rem;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
-        font-size: 0.75rem;
+        gap: 0.5rem;
+        font-size: 0.775rem;
 
         .message {
           &.system { color: #64748b; font-style: italic; text-align: center; }
-          &.assistant { color: #60a5fa; }
-          p { margin: 0.15rem 0 0 0; }
-          .sender { font-weight: 700; }
+          &.assistant {
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.08);
+            border-radius: 8px;
+            padding: 0.4rem 0.6rem;
+          }
+          p { margin: 0.15rem 0 0 0; line-height: 1.35; }
+          .sender { font-weight: 700; font-size: 0.675rem; color: #94a3b8; }
         }
       }
 
       .chat-input-container {
+        flex-shrink: 0;
         display: flex;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-        input { flex: 1; background: transparent; border: none; padding: 0.4rem; color: white; font-size: 0.75rem; outline: none; }
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(0, 0, 0, 0.2);
+        padding: 0.25rem 0.4rem;
+        align-items: center;
+        input { flex: 1; background: transparent; border: none; padding: 0.4rem; color: white; font-size: 0.775rem; outline: none; }
         button { color: #3b82f6; }
       }
     }
@@ -1020,105 +1256,125 @@ import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
     :host-context(body.light-theme) {
       .expanded-panel {
         background: #ffffff;
-        border-color: rgba(0, 0, 0, 0.08);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        border-color: #cbd5e1;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
         h3, h2, h4 { color: #0f172a; }
       }
 
       .panel-header {
-        border-bottom-color: rgba(0, 0, 0, 0.06);
-        background: rgba(0, 0, 0, 0.01);
-        .header-info h3 { color: #64748b; }
+        border-bottom-color: #e2e8f0;
+        background: #f8fafc;
+        .header-title h3, .header-info h3 { color: #334155; }
       }
 
       .dialer-input-container {
-        border-color: rgba(0, 0, 0, 0.08);
-        background: #f8fafc;
+        border-color: #cbd5e1;
+        background: #ffffff;
         .phone-input { color: #0f172a; }
       }
 
       .keypad-grid .key-btn {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.05);
-        color: #334155;
+        border-color: #e2e8f0;
+        color: #0f172a;
+        font-weight: 700;
         &:hover { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
       }
 
-      .options-container ::ng-deep .mdc-label { color: #64748b; }
+      .options-container ::ng-deep .mdc-label { color: #1e293b; font-weight: 600; }
 
       .crm-context-card {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.06);
+        border-color: #e2e8f0;
         .contact-card-header h4 { color: #0f172a; }
       }
 
       .active-call-meta h3 { color: #0f172a; }
       .controls-grid .control-btn {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.05);
-        color: #475569;
-        &:hover { background: rgba(59, 130, 246, 0.05); }
+        border-color: #e2e8f0;
+        color: #1e293b;
+        font-weight: 600;
+        &:hover { background: rgba(59, 130, 246, 0.08); color: #2563eb; }
+        &.active { background: rgba(59, 130, 246, 0.15); color: #2563eb; border-color: #3b82f6; }
       }
 
       .notes-area textarea {
-        background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.08);
-        color: #334155;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
       }
 
       .form-group {
         .summary-field, .stage-select {
-          background: #f8fafc;
-          border-color: rgba(0, 0, 0, 0.08);
-          color: #334155;
+          background: #ffffff;
+          border-color: #cbd5e1;
+          color: #0f172a;
         }
       }
 
       .tasks-checklist {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.08);
+        border-color: #e2e8f0;
         .task-checkbox-item label {
-          color: #334155;
+          color: #1e293b;
         }
       }
 
       .draft-card {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.05);
-        .draft-preview { color: #475569; }
+        border-color: #e2e8f0;
+        .draft-preview { color: #334155; }
       }
 
       /* AI Panel Light Overrides */
       .ai-assist-panel {
         background: #ffffff;
-        border-color: rgba(0, 0, 0, 0.08);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        border-color: #cbd5e1;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
         h3 { color: #0f172a; }
+      }
+
+      .assist-tab-bar {
+        background: #f1f5f9;
+        border-color: #e2e8f0;
+        .tab-btn {
+          color: #475569;
+          &:hover { color: #0f172a; }
+          &.active { background: #3b82f6; color: #ffffff; }
+        }
       }
 
       .transcript-feed {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.05);
+        border-color: #e2e8f0;
+        .transcript-title { color: #475569; }
         .transcript-scroll .seg {
-          background: #f1f5f9;
-          color: #334155;
-          &.agent { background: rgba(59, 130, 246, 0.05); color: #1e3a8a; }
+          background: #ffffff;
+          border-color: #e2e8f0;
+          color: #0f172a;
+          &.agent { background: rgba(59, 130, 246, 0.08); color: #1e3a8a; border-color: rgba(59, 130, 246, 0.2); }
         }
       }
 
       .copilot-chat-pane {
         background: #f8fafc;
-        border-color: rgba(0, 0, 0, 0.05);
+        border-color: #e2e8f0;
+        .chat-header { background: #ffffff; color: #475569; border-bottom-color: #e2e8f0; }
         .chat-input-container {
-          border-top-color: rgba(0, 0, 0, 0.05);
-          input { color: #334155; }
+          border-top-color: #e2e8f0;
+          background: #ffffff;
+          input { color: #0f172a; }
         }
-        .chat-messages .message p { color: #334155; }
+        .chat-messages .message p { color: #0f172a; }
       }
     }
   `]
 })
 export class PhoneWidgetComponent implements OnInit {
+  @ViewChild('chatContainer') chatContainer?: ElementRef;
+  @ViewChild('transcriptContainer') transcriptContainer?: ElementRef;
   readonly callState = inject(CallStateService);
   readonly twilioService = inject(TwilioVoiceService);
   readonly telephonyService = inject(TelephonyService);
@@ -1131,6 +1387,7 @@ export class PhoneWidgetComponent implements OnInit {
   // Widget visual signals
   readonly expanded = signal<boolean>(false);
   readonly currentScreen = signal<'dialer' | 'ringing_out' | 'ringing_in' | 'active' | 'review'>('dialer');
+  readonly aiAssistTab = signal<'all' | 'insights' | 'transcript' | 'chat'>('all');
 
   // Input states
   dialNumber = '';
@@ -1202,7 +1459,7 @@ export class PhoneWidgetComponent implements OnInit {
     this.twilioService.onDisconnectCallback = () => {
       if (this.currentScreen() === 'active' || this.currentScreen() === 'ringing_out') {
         const active = this.callState.activeCall();
-        
+
         // Bypass AI analysis if user turned AI Assist OFF or didn't check AI Analysis
         if (!this.callState.aiAssistEnabled() || !this.aiAnalysisCheck) {
           this.notification.success('Call ended.');
@@ -1216,7 +1473,7 @@ export class PhoneWidgetComponent implements OnInit {
 
         // Transition to review screen
         this.currentScreen.set('review');
-        
+
         // Save manual notes if typed during call
         if (active && this.agentNotes) {
           this.apiService.patch<any>(`/telephony/calls/${active.id}/`, { notes: this.agentNotes }).subscribe();
@@ -1268,11 +1525,11 @@ export class PhoneWidgetComponent implements OnInit {
   placeCall(): void {
     if (!this.dialNumber) return;
     this.callState.resetCallState();
-    
+
     // Resolve matching Contact Context if dialing from Dialpad
     this.telephonyService.lookupPhoneNumber(this.dialNumber).subscribe(context => {
       this.callState.crmContext.set(context);
-      
+
       const payload = {
         phone: this.dialNumber,
         contact_id: context.contact?.id,
@@ -1304,7 +1561,7 @@ export class PhoneWidgetComponent implements OnInit {
 
     this.currentScreen.set('active');
     this.callState.aiAssistEnabled.set(this.aiAssistCheck);
-    
+
     // Sync checkboxes to backend Call record for incoming calls
     this.apiService.patch<any>(`/telephony/calls/${active.id}/`, {
       ai_assist_enabled: this.aiAssistCheck,
@@ -1313,7 +1570,7 @@ export class PhoneWidgetComponent implements OnInit {
 
     this.callState.startTimer();
     this.callState.appendTranscriptLine('agent', 'Hello! Thank you for calling. How can I help you today?');
-    
+
     if (this.callState.isSimulated()) {
       // Run mock response timer
       setTimeout(() => {
@@ -1334,7 +1591,7 @@ export class PhoneWidgetComponent implements OnInit {
     if (!active) return;
 
     this.twilioService.hangup();
-    
+
     // Bypass AI analysis if user turned AI Assist OFF or didn't check AI Analysis
     if (!this.callState.aiAssistEnabled() || !this.aiAnalysisCheck) {
       this.notification.success('Call ended.');
@@ -1345,10 +1602,10 @@ export class PhoneWidgetComponent implements OnInit {
       this.router.navigateByUrl('/calls');
       return;
     }
-    
+
     // Transition to review screen
     this.currentScreen.set('review');
-    
+
     // Set manual notes to call
     if (this.agentNotes) {
       this.apiService.patch<any>(`/telephony/calls/${active.id}/`, { notes: this.agentNotes }).subscribe();
@@ -1373,7 +1630,7 @@ export class PhoneWidgetComponent implements OnInit {
           this.callState.suggestions.set(data.summary);
           this.reviewSummary = data.summary?.executive_summary || '';
           this.reviewDealStage = data.summary?.suggested_deal_stage || '';
-          
+
           // Pre-check all suggested tasks
           this.taskApprovedMap = {};
           if (data.summary && data.summary.tasks) {
@@ -1411,7 +1668,7 @@ export class PhoneWidgetComponent implements OnInit {
           this.callState.suggestions.set(data.summary);
           this.reviewSummary = data.summary?.summary || '';
           this.reviewDealStage = data.summary?.suggested_deal_stage || '';
-          
+
           // Pre-check all suggested tasks
           this.taskApprovedMap = {};
           if (data.suggested_tasks) {
@@ -1554,6 +1811,7 @@ export class PhoneWidgetComponent implements OnInit {
     this.chatInput = '';
     this.callState.appendCopilotMessage('user', query);
     this.loadingChat.set(true);
+    this.scrollToChatBottom();
 
     this.apiService.post<any>(`/ai/conversations/${convId}/messages/`, {
       message: query
@@ -1561,11 +1819,44 @@ export class PhoneWidgetComponent implements OnInit {
       next: (res) => {
         this.callState.appendCopilotMessage('assistant', res.content);
         this.loadingChat.set(false);
+        this.scrollToChatBottom();
       },
       error: () => {
         this.notification.error('Failed to get answer from Copilot.');
         this.loadingChat.set(false);
       }
+    });
+  }
+
+  scrollToChatBottom(): void {
+    setTimeout(() => {
+      if (this.chatContainer?.nativeElement) {
+        this.chatContainer.nativeElement.scrollTop = this.chatContainer.nativeElement.scrollHeight;
+      }
+    }, 50);
+  }
+
+  scrollToTranscriptBottom(): void {
+    setTimeout(() => {
+      if (this.transcriptContainer?.nativeElement) {
+        this.transcriptContainer.nativeElement.scrollTop = this.transcriptContainer.nativeElement.scrollHeight;
+      }
+    }, 50);
+  }
+
+  sendQuickPrompt(promptText: string): void {
+    this.chatInput = promptText;
+    this.askCopilot();
+  }
+
+  renderCopilotMessage(content: string): string {
+    if (!content) return '';
+    let html = marked.parse(content) as string;
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
     });
   }
 

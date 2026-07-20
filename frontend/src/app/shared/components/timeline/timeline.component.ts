@@ -121,7 +121,7 @@ import { NotificationService } from '../../../core/services/notification.service
                   }
 
                   @if (act.description) {
-                    <p class="item-desc" [class.email-preview]="act.activity_type === 'email'">{{ act.description }}</p>
+                    <p class="item-desc" [class.email-preview]="act.activity_type === 'email'" [innerHTML]="formatTextWithLinks(act.description)"></p>
                   }
 
                   @if (act.activity_type === 'email' && act.metadata?.thread_id) {
@@ -493,6 +493,21 @@ export class TimelineComponent implements OnChanges {
         data: { threadId },
         panelClass: 'dark-dialog-panel'
       });
+    });
+  }
+
+  formatTextWithLinks(text: string | undefined): string {
+    if (!text) return '';
+    const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    let html = text.replace(urlPattern, (url) => {
+      const href = url.startsWith('http') ? url : `https://${url}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">${url}</a>`;
+    });
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
     });
   }
 }

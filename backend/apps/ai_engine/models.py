@@ -128,6 +128,7 @@ class AIMessage(models.Model):
     content = models.TextField()
     model_used = models.CharField(max_length=50, blank=True, default="")
     tokens_used = models.IntegerField(null=True, blank=True)
+    debug_report = models.JSONField(default=dict, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

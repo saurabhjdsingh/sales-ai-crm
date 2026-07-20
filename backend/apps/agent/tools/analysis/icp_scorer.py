@@ -76,7 +76,9 @@ class ICPScorerTool(BaseTool):
             )
 
             provider = get_llm_provider(user=context.user)
-            icp_system = PromptService.get_prompt(context.user, "icp_system")
+            org_persona = PromptService.get_prompt(context.user, "copilot_system")
+            icp_rules = PromptService.get_prompt(context.user, "icp_system")
+            icp_system = f"{org_persona}\n\n{icp_rules}"
             response = provider.chat(
                 messages=[{"role": "user", "content": user_prompt}],
                 system_prompt=icp_system,

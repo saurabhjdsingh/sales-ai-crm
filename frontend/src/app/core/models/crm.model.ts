@@ -69,6 +69,8 @@ export interface Contact {
   id: string;
   company: string;
   company_name?: string;
+  company_website?: string;
+  company_size?: string;
   first_name: string;
   last_name: string;
   full_name: string;
@@ -264,6 +266,7 @@ export interface AIMessage {
   content: string;
   model_used?: string;
   tokens_used?: number;
+  debug_report?: any;
   created_at: string;
 }
 

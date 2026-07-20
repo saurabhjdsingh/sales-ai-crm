@@ -50,6 +50,7 @@ interface AIPrompt {
   label: string;
   description: string;
   category: string;
+  is_internal?: boolean;
   template_variables: string[];
   default_content: string;
   content: string;
@@ -566,9 +567,26 @@ interface AIProviderOption {
             </div>
             <div class="card-body">
               <p class="prompts-intro">
-                Customize the instructions sent to the AI for copilot chat, research, and ICP scoring.
-                Defaults are pre-loaded — edit any prompt and save to use your version globally.
+                Tell the AI about your organization, products, target ICP, and sales guidelines.
+                All AI features (Copilot Chat, ICP Scoring, AI Analysis, Call Intelligence, and Research) automatically execute using this organization persona.
               </p>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <span style="font-size: 0.8rem; color: #94a3b8;">
+                  Showing {{ getVisiblePrompts().length }} organization prompt(s)
+                </span>
+                <button
+                  type="button"
+                  mat-button
+                  style="color: #64748b; font-size: 0.8rem;"
+                  (click)="showTechnicalPrompts.set(!showTechnicalPrompts())"
+                >
+                  <mat-icon style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;">
+                    {{ showTechnicalPrompts() ? 'visibility_off' : 'tune' }}
+                  </mat-icon>
+                  {{ showTechnicalPrompts() ? 'Hide Technical Templates' : 'Show Advanced Technical Templates' }}
+                </button>
+              </div>
 
               @if (loadingPrompts()) {
                 <div class="ai-loading">
@@ -577,7 +595,7 @@ interface AIProviderOption {
                 </div>
               } @else {
                 <div class="prompt-list">
-                  @for (prompt of aiPrompts(); track prompt.key) {
+                  @for (prompt of getVisiblePrompts(); track prompt.key) {
                     <div class="prompt-item" [class.expanded]="expandedPromptKey() === prompt.key">
                       <button
                         type="button"
@@ -2263,6 +2281,7 @@ export class SettingsComponent implements OnInit {
   // AI Prompts signals
   readonly loadingPrompts = signal(false);
   readonly aiPrompts = signal<AIPrompt[]>([]);
+  readonly showTechnicalPrompts = signal<boolean>(false);
   readonly expandedPromptKey = signal<string | null>(null);
   readonly promptDrafts = signal<Record<string, string>>({});
   readonly savingPromptKey = signal<string | null>(null);
@@ -2781,6 +2800,14 @@ export class SettingsComponent implements OnInit {
         this.notification.error('Failed to load AI prompts');
       }
     });
+  }
+
+  getVisiblePrompts(): AIPrompt[] {
+    if (this.showTechnicalPrompts()) {
+      return this.aiPrompts();
+    }
+    const technicalKeys = ['copilot_context', 'agent_system', 'research_user'];
+    return this.aiPrompts().filter((p) => !p.is_internal && p.category !== 'technical' && !technicalKeys.includes(p.key));
   }
 
   togglePrompt(key: string): void {

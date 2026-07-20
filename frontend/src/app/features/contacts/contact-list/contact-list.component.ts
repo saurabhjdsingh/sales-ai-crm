@@ -78,9 +78,24 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-select">
+          <mat-label>Company Size</mat-label>
+          <mat-select formControlName="company_size">
+            <mat-option value="">All Sizes</mat-option>
+            <mat-option value="1-10">1-10 employees</mat-option>
+            <mat-option value="11-50">11-50 employees</mat-option>
+            <mat-option value="51-100">51-100 employees</mat-option>
+            <mat-option value="101-200">101-200 employees</mat-option>
+            <mat-option value="201-500">201-500 employees</mat-option>
+            <mat-option value="500+">500+ employees</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-select">
           <mat-label>Sort Contacts</mat-label>
           <mat-select formControlName="ordering">
             <mat-option value="">Default Sort</mat-option>
+            <mat-option value="company__company_size">Company Size (Ascending)</mat-option>
+            <mat-option value="-company__company_size">Company Size (Descending)</mat-option>
             <mat-option value="-has_email">Has Email First</mat-option>
             <mat-option value="has_email">No Email First</mat-option>
             <mat-option value="-has_phone">Has Phone First</mat-option>
@@ -140,6 +155,14 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
               <a [routerLink]="['/companies', element.company]" class="company-link">
                 {{ element.company_name }}
               </a>
+            </td>
+          </ng-container>
+
+          <!-- Company Size Column -->
+          <ng-container matColumnDef="company_size">
+            <th mat-header-cell *matHeaderCellDef>Size</th>
+            <td mat-cell *matCellDef="let element">
+              <span style="font-size: 0.825rem; color: #94a3b8;">{{ element.company_size || '—' }}</span>
             </td>
           </ng-container>
 
@@ -555,12 +578,13 @@ export class ContactListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns: string[] = ['select', 'name', 'company', 'email', 'stage', 'owner', 'actions'];
+  readonly displayedColumns: string[] = ['select', 'name', 'company', 'company_size', 'email', 'stage', 'owner', 'actions'];
   selection = new SelectionModel<string>(true, []);
 
   readonly filterForm: FormGroup = this.fb.group({
     search: [''],
     stage: [''],
+    company_size: [''],
     country: [''],
     ordering: ['']
   });

@@ -27,6 +27,7 @@ class PromptService:
                     "label": definition.label,
                     "description": definition.description,
                     "category": definition.category,
+                    "is_internal": getattr(definition, "is_internal", False),
                     "template_variables": list(definition.template_variables),
                     "default_content": definition.default_content,
                     "content": custom.content if custom else definition.default_content,

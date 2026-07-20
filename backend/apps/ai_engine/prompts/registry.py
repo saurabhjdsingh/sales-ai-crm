@@ -21,51 +21,57 @@ class PromptDefinition:
     default_content: str
     category: str
     template_variables: tuple[str, ...] = ()
+    is_internal: bool = False
 
 
 PROMPT_REGISTRY: dict[str, PromptDefinition] = {
     "copilot_system": PromptDefinition(
         key="copilot_system",
-        label="Copilot System Prompt",
-        description="Core instructions for the AI Sales Copilot when chatting about CRM entities.",
+        label="Organization AI Persona & System Prompt",
+        description="Tell the AI about your organization, products/services, sales strategy, target audience, and guidelines. Used across AI Copilot, Analysis, Calls, and ICP scoring.",
         default_content=COPILOT_SYSTEM_PROMPT,
-        category="copilot",
-    ),
-    "copilot_context": PromptDefinition(
-        key="copilot_context",
-        label="Copilot Context Template",
-        description="Template appended to the system prompt with live CRM context. Must include {context}.",
-        default_content=COPILOT_CONTEXT_TEMPLATE,
-        category="copilot",
-        template_variables=("{context}",),
-    ),
-    "agent_system": PromptDefinition(
-        key="agent_system",
-        label="Agent System Prompt",
-        description="Instructions for the autonomous agent on when and how to use tools.",
-        default_content=AGENT_SYSTEM_PROMPT,
-        category="copilot",
+        category="organization",
+        is_internal=False,
     ),
     "icp_system": PromptDefinition(
         key="icp_system",
-        label="ICP Scoring Prompt",
-        description="Instructions for scoring companies against your Ideal Customer Profile (0–100).",
+        label="ICP Scoring Guidelines",
+        description="Instructions and scoring criteria for evaluating prospect fit (0–100).",
         default_content=ICP_SYSTEM_PROMPT,
         category="analysis",
+        is_internal=False,
     ),
     "research_system": PromptDefinition(
         key="research_system",
-        label="Company Research System Prompt",
-        description="System instructions when running automated company research.",
+        label="Company Research Persona",
+        description="Instructions for automated company web research and analysis.",
         default_content=RESEARCH_SYSTEM_PROMPT,
         category="research",
+        is_internal=False,
+    ),
+    "copilot_context": PromptDefinition(
+        key="copilot_context",
+        label="Copilot Context Template (Internal)",
+        description="Internal system template for inserting runtime CRM context. Must include {context}.",
+        default_content=COPILOT_CONTEXT_TEMPLATE,
+        category="technical",
+        template_variables=("{context}",),
+        is_internal=True,
+    ),
+    "agent_system": PromptDefinition(
+        key="agent_system",
+        label="Agent System Prompt (Internal)",
+        description="Internal instructions for tool calling, execution rules, and loop prevention.",
+        default_content=AGENT_SYSTEM_PROMPT,
+        category="technical",
+        is_internal=True,
     ),
     "research_user": PromptDefinition(
         key="research_user",
-        label="Company Research User Prompt",
-        description="User message template for company research. Supports company field placeholders.",
+        label="Company Research User Prompt (Internal)",
+        description="Internal user message format for website research.",
         default_content=RESEARCH_USER_PROMPT,
-        category="research",
+        category="technical",
         template_variables=(
             "{company_name}",
             "{website}",
@@ -74,6 +80,7 @@ PROMPT_REGISTRY: dict[str, PromptDefinition] = {
             "{country}",
             "{company_size}",
         ),
+        is_internal=True,
     ),
 }
 

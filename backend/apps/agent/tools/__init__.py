@@ -8,6 +8,7 @@ from apps.agent.tools.crm import (
     task_tool,
     notes_tool,
 )
+from apps.agent.tools import knowledge
 from apps.agent.tools.research import (
     website_research,
     linkedin_company,

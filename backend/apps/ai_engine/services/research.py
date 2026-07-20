@@ -52,7 +52,9 @@ class ResearchService:
                 company_size=company.company_size or "Not provided",
             )
 
-            research_system = PromptService.get_prompt(self.user, "research_system")
+            org_persona = PromptService.get_prompt(self.user, "copilot_system")
+            rs_rules = PromptService.get_prompt(self.user, "research_system")
+            research_system = f"{org_persona}\n\n{rs_rules}"
             response = self.provider.chat(
                 messages=[{"role": "user", "content": user_prompt}],
                 system_prompt=research_system,

@@ -99,7 +99,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                     <mat-icon>check_box_outline_blank</mat-icon>
                   </button>
                   <div class="task-details">
-                    <div class="task-title">{{ t.title }}</div>
+                    <div class="task-title" [innerHTML]="formatTextWithLinks(t.title)"></div>
                     <div class="task-meta">
                       <span class="type-badge" [ngClass]="t.task_type">{{ t.task_type | uppercase }}</span>
                       <span class="divider">·</span>
@@ -209,7 +209,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                   <th mat-header-cell *matHeaderCellDef>Task Title</th>
                   <td mat-cell *matCellDef="let element">
                     <div class="name-cell">
-                      <span class="task-title-text" [ngClass]="{ 'line-through': element.status === 'completed' }">{{ element.title }}</span>
+                      <span class="task-title-text" [ngClass]="{ 'line-through': element.status === 'completed' }" [innerHTML]="formatTextWithLinks(element.title)"></span>
                       <span class="association-sub" *ngIf="element.company_name">
                         Linked Account: {{ element.company_name }}
                       </span>
@@ -877,6 +877,21 @@ export class TaskListComponent implements OnInit {
           this.store.loadTasks(this.store.page(), this.filterForm.value);
         });
       }
+    });
+  }
+
+  formatTextWithLinks(text: string | undefined): string {
+    if (!text) return '';
+    const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    let html = text.replace(urlPattern, (url) => {
+      const href = url.startsWith('http') ? url : `https://${url}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">${url}</a>`;
+    });
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
     });
   }
 }

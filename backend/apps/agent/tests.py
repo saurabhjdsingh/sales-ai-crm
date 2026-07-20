@@ -174,3 +174,45 @@ class AgentFrameworkTestCase(TestCase):
         self.assertEqual(ai_message.content, "Mocked assistant content")
         self.assertEqual(ai_message.model_used, "mock-model")
 
+    def test_base_context_builder(self):
+        """Verify lightweight Base Context preloading."""
+        from apps.ai_engine.services.context_builder import ContextBuilder
+        cb = ContextBuilder()
+        base_ctx = cb.build_base_context(
+            user=self.user,
+            conversation=self.conversation,
+            company_id=self.company.id,
+        )
+        self.assertIn("Base Context", base_ctx)
+        self.assertIn(self.company.name, base_ctx)
+        self.assertIn("Dynamic Tool Access", base_ctx)
+
+    def test_crm_knowledge_layer_tools(self):
+        """Verify CRM Knowledge Layer tools execution."""
+        router = ToolRouter()
+        context = AgentContext.from_conversation(self.conversation, self.user)
+
+        # 1. get_company tool
+        res_comp = router.route_tool_call("get_company", {"company_id": str(self.company.id)}, context)
+        self.assertTrue(res_comp.success)
+        self.assertEqual(res_comp.data["name"], self.company.name)
+
+        # 2. search_companies tool
+        res_search = router.route_tool_call("search_companies", {"query": "Target"}, context)
+        self.assertTrue(res_search.success)
+        self.assertGreater(len(res_search.data["companies"]), 0)
+
+        # 3. get_recent_timeline_activities tool
+        res_act = router.route_tool_call("get_recent_timeline_activities", {"company_id": str(self.company.id)}, context)
+        self.assertTrue(res_act.success)
+
+    def test_orchestrator_debug_report(self):
+        """Verify Context Debugger report attached to AIMessage."""
+        orchestrator = AgentOrchestrator(user=self.user)
+        ai_message = orchestrator.process_message(self.conversation, "What are the recent activities?")
+        self.assertIsNotNone(ai_message.debug_report)
+        self.assertIn("base_context", ai_message.debug_report)
+        self.assertIn("timings", ai_message.debug_report)
+        self.assertIn("token_usage", ai_message.debug_report)
+
+

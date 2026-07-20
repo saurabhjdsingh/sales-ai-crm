@@ -12,7 +12,9 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
     """Lightweight serializer for contact list view."""
 
     full_name = serializers.CharField(read_only=True)
-    company_name = serializers.CharField(source="company.name", read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
+    company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
+    company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
 
     class Meta:
         model = Contact
@@ -26,6 +28,8 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             "job_title",
             "company",
             "company_name",
+            "company_website",
+            "company_size",
             "stage",
             "owner",
             "owner_detail",
@@ -38,7 +42,9 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
     """Full serializer for contact detail view."""
 
     full_name = serializers.CharField(read_only=True)
-    company_name = serializers.CharField(source="company.name", read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
+    company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
+    company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
 
     class Meta:
         model = Contact
@@ -57,6 +63,8 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "country",
             "company",
             "company_name",
+            "company_website",
+            "company_size",
             "stage",
             "owner",
             "owner_detail",

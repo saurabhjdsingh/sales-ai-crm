@@ -134,7 +134,7 @@ class AISendMessageView(APIView):
             use_agent=use_agent,
         )
 
-        return Response(AIMessageSerializer(ai_message).data)
+        return Response(AIMessageSerializer(ai_message, context={"request": request}).data)
 
 
 class AIPromptListView(APIView):

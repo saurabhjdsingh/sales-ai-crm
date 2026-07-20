@@ -15,13 +15,100 @@ logger = logging.getLogger(__name__)
 class ContextBuilder:
     """
     Assembles structured context for AI conversations.
-    Pulls data from companies, contacts, deals, activities, notes,
-    tasks, and research — then formats it as structured text.
+    Supports lightweight Base Context preloading for hybrid context + tool calling architecture.
     """
 
     MAX_ACTIVITIES = 20
     MAX_NOTES = 10
     MAX_TASKS = 10
+
+    def build_base_context(
+        self,
+        user=None,
+        conversation=None,
+        entity_type: str = None,
+        company_id=None,
+        contact_id=None,
+        deal_id=None,
+        call_id=None,
+        page_type: str = None,
+    ) -> str:
+        """
+        Builds lightweight Base Context (~100-200 tokens).
+        Always includes:
+        - Current User
+        - Current Organization
+        - Current Page Type
+        - Current Company ID / Contact ID / Deal ID / Call ID
+        """
+        from apps.accounts.models import OrganizationSettings
+        try:
+            org_name = OrganizationSettings.get_solo().organization_name
+        except Exception:
+            org_name = "Sales AI CRM"
+
+        user_name = user.get_full_name() if (user and hasattr(user, "get_full_name")) else "Unknown User"
+        user_email = getattr(user, "email", "N/A")
+        user_role = getattr(user, "role", "sales_rep")
+
+        # Resolve entity / IDs from conversation if passed
+        if conversation:
+            entity_type = entity_type or getattr(conversation, "entity_type", None)
+            company_id = company_id or getattr(conversation, "company_id", None)
+            contact_id = contact_id or getattr(conversation, "contact_id", None)
+            deal_id = deal_id or getattr(conversation, "deal_id", None)
+            call_id = call_id or getattr(conversation, "call_id", None)
+
+        effective_page_type = page_type or (f"{entity_type}_detail" if entity_type else "global_copilot")
+
+        lines = [
+            "## Base Context",
+            f"- Current User: {user_name} ({user_email}, Role: {user_role})",
+            f"- Current Organization: {org_name}",
+            f"- Current Page Type: {effective_page_type}",
+        ]
+
+        if company_id:
+            lines.append(f"- Current Company ID: {company_id}")
+            try:
+                from apps.companies.models import Company
+                comp = Company.objects.filter(id=company_id).first()
+                if comp:
+                    lines.append(f"- Current Company Name: {comp.name}")
+            except Exception:
+                pass
+
+        if contact_id:
+            lines.append(f"- Current Contact ID: {contact_id}")
+            try:
+                from apps.contacts.models import Contact
+                cont = Contact.objects.filter(id=contact_id).first()
+                if cont:
+                    lines.append(f"- Current Contact Name: {cont.full_name}")
+            except Exception:
+                pass
+
+        if deal_id:
+            lines.append(f"- Current Deal ID: {deal_id}")
+            try:
+                from apps.deals.models import Deal
+                dl = Deal.objects.filter(id=deal_id).first()
+                if dl:
+                    lines.append(f"- Current Deal Name: {dl.name}")
+            except Exception:
+                pass
+
+        if call_id:
+            lines.append(f"- Current Call ID: {call_id}")
+
+        lines.extend([
+            "",
+            "## Dynamic Tool Access",
+            "Notice: Detailed CRM records (full company profile, contacts, deals, notes, tasks, timeline activities, emails, call transcripts, and research) are NOT preloaded to save tokens.",
+            "Use internal read-only tools (e.g., get_company, get_contact, get_deal, get_notes, get_tasks, get_recent_timeline_activities, search_timeline_activities, get_recent_email_threads, get_email_thread, search_email_threads, get_recent_call_transcripts, get_call_summary, get_website_research, get_linkedin_research, search_notes, search_contacts, search_companies, search_deals) to fetch exact information needed to answer the user request."
+        ])
+
+        return "\n".join(lines)
 
     def build_call_context(self, call_id: UUID) -> str:
         """Build context for a call-scoped AI conversation."""

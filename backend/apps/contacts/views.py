@@ -22,7 +22,7 @@ class ContactViewSet(CRMViewMixin, viewsets.ModelViewSet):
 
     filterset_class = ContactFilter
     search_fields = ["first_name", "last_name", "email", "job_title", "company__name"]
-    ordering_fields = ["last_name", "created_at", "updated_at", "stage", "has_email", "has_phone"]
+    ordering_fields = ["last_name", "created_at", "updated_at", "stage", "has_email", "has_phone", "company__company_size"]
     ordering = ["-created_at"]
 
     def get_queryset(self):

@@ -40,10 +40,22 @@ class CompanyResearchSerializer(serializers.ModelSerializer):
 
 
 class AIMessageSerializer(serializers.ModelSerializer):
+    debug_report = serializers.SerializerMethodField()
+
     class Meta:
         model = AIMessage
-        fields = ["id", "role", "content", "model_used", "tokens_used", "created_at"]
+        fields = ["id", "role", "content", "model_used", "tokens_used", "debug_report", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+    def get_debug_report(self, obj):
+        request = self.context.get("request")
+        if request:
+            user = getattr(request, "user", None)
+            is_staff = getattr(user, "is_staff", False) or getattr(user, "is_admin", False) or getattr(user, "is_superuser", False)
+            debug_flag = request.query_params.get("debug") == "true" or request.headers.get("X-Developer-Debug") == "true"
+            if is_staff or debug_flag:
+                return obj.debug_report
+        return None
 
 
 class AIConversationListSerializer(serializers.ModelSerializer):
@@ -128,6 +140,7 @@ class AIPromptSerializer(serializers.Serializer):
     label = serializers.CharField()
     description = serializers.CharField()
     category = serializers.CharField()
+    is_internal = serializers.BooleanField(default=False)
     template_variables = serializers.ListField(child=serializers.CharField())
     default_content = serializers.CharField()
     content = serializers.CharField()

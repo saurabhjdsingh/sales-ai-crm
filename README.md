@@ -9,13 +9,14 @@ Now integrated with a **Provider-Independent Conversation Intelligence Pipeline*
 ## ✨ Key Features
 
 - 🏷️ **White-Labeled Branding**: Fully customize the CRM with your organization's name, custom browser tab title, favicon, and logo. Rectangular and square logos are automatically auto-fitted to prevent cropping.
-- 📧 **Branded System Emails**: Beautifully formatted HTML emails for user invitations and reminders, featuring your custom company logo and name branding.
-- ⚙️ **Custom SMTP Integration**: Configure custom SMTP details (e.g. AWS SES, SendGrid, Mailgun) directly from the settings panel on your organization's behalf. Passwords are encrypted on-disk using Django secret key wrappers.
-- 🕒 **Inactivity Task Reminders**: Automated Celery task runner that detects upcoming tasks due in 1 hour and sends email reminders if the owner has been inactive for the last 6 hours.
-- 📊 **AI Prospecting & ICP Scoring**: Intercept, score, and prioritize leads using customized LLM prompts (Claude 3.5 Sonnet / GPT-4o).
+- 📧 **Gmail OAuth2 & Branded System Emails**: Connect user Gmail accounts via OAuth2 for automatic bidirectional email thread syncing to CRM contacts. Also features custom SMTP settings and branded HTML emails for invitations and task reminders.
+- ⚙️ **Custom SMTP & Integrations Panel**: Configure custom SMTP details (AWS SES, SendGrid, Mailgun) directly from Settings. Encrypted on-disk using Django secret key wrappers.
+- 🕒 **Inactivity Task Reminders**: Automated Celery task runner that detects upcoming tasks due in 1 hour and sends email reminders if the owner has been inactive for 6 hours.
+- 📊 **Universal AI Prospecting & ICP Scoring**: Intercept, score, and prioritize leads using customized LLM prompts (Claude 3.5 Sonnet / GPT-4o). Fully customizable via organization system prompts and AI personas without hardcoded domain bias.
 - 🧑‍🤝‍🧑 **Onboarding & Team Invites**: Invite new members via admin panels. Invitees receive secure, cryptographically signed email links to set passwords on a public onboarding screen.
 - 🎙️ **Independent Conversation Intelligence**: Browser audio stream capture (sales rep microphone and remote customer audio track) processed independently via dual WebSocket connections. Feeds a local Whisper container for 100% free transcription without relying on Twilio cloud recording.
-- 🧠 **Post-Call AI Review**: Automatically generates executive summaries, objections, buying signals, and recommended CRM checklists/follow-up tasks after calls. Logs outcomes straight to PostgreSQL on confirmation.
+- 🧠 **Interactive AI Assist Copilot & Post-Call Review**: Real-time floating softphone widget with an integrated side-panel Copilot. Features live speech objection detection, buying signal extraction, in-call discovery questions, entity-scoped AI Chat, and post-call review workflows that log outcomes straight to PostgreSQL.
+- 📇 **Enhanced Contact & Lead Management**: Direct clickable company website links, employee size filtering/sorting across contact lists, and automatic target tab handling (`target="_blank"`) for all external activity links.
 
 ---
 
@@ -89,13 +90,15 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 ## 📂 Project Structure
 
 ```
-├── backend/                  # Django REST API, ASGI, models, and celery services
+├── backend/                  # Django REST API, ASGI, models, and Celery services
 │   ├── apps/
 │   │   ├── accounts/         # User profiles, team invitations, SMTP settings
 │   │   ├── common/           # Branded email dispatch and encryption services
 │   │   ├── companies/        # Company directory and auto-range normalization
-│   │   ├── ai_engine/        # AI copilots, prompt templates, and LLM pricing
-│   │   ├── telephony/        # Twilio call connection and Dialpad WebRTC
+│   │   ├── contacts/         # Contacts directory, company size sorting & detail context
+│   │   ├── integrations/     # Gmail OAuth2 connection, token storage & thread sync tasks
+│   │   ├── ai_engine/        # AI copilots, custom prompt templates, and LLM pricing
+│   │   ├── telephony/        # Twilio call connection, softphone WebRTC & TwiML endpoints
 │   │   ├── conversation_intelligence/ # Audio sockets, Whisper docker client, and AI summary
 │   │   └── tasks/            # Task lists and email reminder jobs
 │   └── config/               # Celery scheduler settings and main WSGI/ASGI entrypoints
@@ -107,8 +110,10 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 │   ├── src/app/features/     # Dashboard and operational views
 │   │   ├── auth/             # Login & public password-onboarding (accept-invite) screens
 │   │   ├── companies/        # Companies list with ICP sorting and creation
-│   │   ├── settings/         # Organization settings, branding, SMTP, and Telephony config
-│   │   ├── conversation_intelligence/ # Independent WS streaming service
+│   │   ├── contacts/         # Contact list with company size filter and company website links
+│   │   ├── integrations/     # Gmail integration status & OAuth connect panel
+│   │   ├── settings/         # Organization settings, branding, SMTP, and AI Persona config
+│   │   ├── telephony/        # Softphone Widget, AI Assist Copilot, twin WS streaming & call history
 │   │   ├── dashboard/        # Top prospects lists and lead activity metrics
 │   │   └── tasks/            # Task board, pipeline statuses, and workflows
 │   └── src/app/shared/       # Shared layouts, components, and global tables

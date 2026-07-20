@@ -96,9 +96,15 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
                 <mat-icon>place</mat-icon>
                 <span>{{ contact.country }}</span>
               </div>
+              <div class="info-item" *ngIf="contact.company_website">
+                <mat-icon>language</mat-icon>
+                <a [href]="formatExternalUrl(contact.company_website)" target="_blank" rel="noopener noreferrer" class="web-link">
+                  {{ contact.company_website }}
+                </a>
+              </div>
               <div class="info-item" *ngIf="contact.linkedin_url">
                 <mat-icon>link</mat-icon>
-                <a [href]="formatExternalUrl(contact.linkedin_url)" target="_blank" class="linkedin-link">LinkedIn Profile</a>
+                <a [href]="formatExternalUrl(contact.linkedin_url)" target="_blank" rel="noopener noreferrer" class="linkedin-link">LinkedIn Profile</a>
               </div>
               <div class="info-item">
                 <mat-icon>assignment_ind</mat-icon>
@@ -866,7 +872,14 @@ export class ContactDetailComponent implements OnInit {
   }
 
   renderMarkdown(content: string): string {
-    return marked.parse(content) as string;
+    if (!content) return '';
+    let html = marked.parse(content) as string;
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
+    });
   }
 
   syncEmails(contactId: string, isAutosync = false): void {

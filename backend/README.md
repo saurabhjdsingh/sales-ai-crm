@@ -1,6 +1,6 @@
-# Radar 36 — AI Sales CRM Backend
+# Sales AI CRM — Backend API & Services
 
-A Django 5 REST API backend powering an autonomous AI Sales CRM with agentic tool-calling capabilities, LinkedIn browser automation, and multi-provider LLM support.
+A Django 5 REST API backend powering an autonomous Sales AI CRM with agentic tool-calling capabilities, Gmail OAuth2 thread syncing, local Whisper speech-to-text, and multi-provider LLM support.
 
 ---
 
@@ -18,7 +18,7 @@ A Django 5 REST API backend powering an autonomous AI Sales CRM with agentic too
   - [Registered Tools](#registered-tools)
   - [Agent Orchestrator Loop](#agent-orchestrator-loop)
   - [Human-in-the-Loop Approvals](#human-in-the-loop-approvals)
-- [LinkedIn Integration](#linkedin-integration)
+- [LinkedIn & Gmail Integrations](#linkedin--gmail-integrations)
   - [Cookie-Based Authentication](#cookie-based-authentication)
   - [Browser Automation Stack](#browser-automation-stack)
   - [LinkedIn Tools](#linkedin-tools)
@@ -44,6 +44,7 @@ A Django 5 REST API backend powering an autonomous AI Sales CRM with agentic too
 | **AI Providers** | Anthropic Claude SDK, OpenAI SDK |
 | **Browser Automation** | Playwright (Chromium, headless) |
 | **Auth** | JWT via `djangorestframework-simplejwt` |
+| **Integrations** | Google Gmail API (OAuth2) |
 | **Web Scraping** | `httpx` + `beautifulsoup4` + `lxml` |
 | **Encryption** | `cryptography` (Fernet symmetric encryption) |
 | **WebSockets / ASGI** | Daphne 4.2 + Django Channels 4.3 |
@@ -58,11 +59,11 @@ A Django 5 REST API backend powering an autonomous AI Sales CRM with agentic too
 ```
 backend/
 ├── apps/
-│   ├── accounts/         # User auth, JWT, team management
+│   ├── accounts/         # User auth, JWT, team management, SMTP settings
 │   ├── activities/       # Activity timeline logging
 │   ├── agent/            # ★ Agentic AI Framework (tool calling, orchestrator, browser)
 │   │   ├── browser/      # Playwright browser providers (base, playwright, linkedin)
-│   │   ├── prompts/      # System prompts for ICP scoring
+│   │   ├── prompts/      # System prompts for ICP scoring & research
 │   │   ├── services/     # AgentOrchestrator, AgentContext, ToolRouter
 │   │   ├── tools/        # All registered tools
 │   │   │   ├── crm/      # CRM context, search, timeline, tasks, notes
@@ -74,10 +75,11 @@ backend/
 │   │   ├── views.py
 │   │   ├── tasks.py      # Celery background tasks
 │   │   └── urls.py
+│   ├── integrations/     # Gmail OAuth2 connect, token storage, and thread sync
 │   ├── ai_engine/        # LLM provider abstraction, copilot service, context builder
 │   ├── common/           # Shared models, enums, encryption utilities
 │   ├── companies/        # Company CRUD, ICP scoring fields
-│   ├── contacts/         # Contact CRUD, LinkedIn URLs
+│   ├── contacts/         # Contact CRUD, company size sorting, LinkedIn URLs
 │   ├── deals/            # Deal pipeline management
 │   ├── notes/            # Entity-scoped notes
 │   ├── conversation_intelligence/ # Standalone speech & transcription pipeline
@@ -87,7 +89,7 @@ backend/
 │   │   ├── services/     # Conversation business service layer
 │   │   ├── tasks/        # Post-call AI analysis Celery jobs
 │   │   └── websocket/    # ASGI consumer and JWT middleware
-│   ├── tasks/            # CRM task management
+│   ├── tasks/            # CRM task management & email reminders
 │   ├── imports/          # CSV import engine
 │   ├── dashboard/        # Analytics & metrics
 │   ├── reports/          # Reporting views

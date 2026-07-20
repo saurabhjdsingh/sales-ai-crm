@@ -1265,6 +1265,13 @@ export class CompanyDetailComponent implements OnInit {
   }
 
   renderMarkdown(content: string): string {
-    return marked.parse(content) as string;
+    if (!content) return '';
+    let html = marked.parse(content) as string;
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
+    });
   }
 }
