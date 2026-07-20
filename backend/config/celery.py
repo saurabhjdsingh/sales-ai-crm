@@ -34,4 +34,8 @@ app.conf.beat_schedule = {
         "task": "apps.common.tasks.cleanup_soft_deleted_records",
         "schedule": crontab(day_of_week=0, hour=2, minute=0),
     },
+    "snapshot-daily-productivity": {
+        "task": "apps.dashboard.tasks.snapshot_daily_productivity",
+        "schedule": crontab(hour=23, minute=55),
+    },
 }

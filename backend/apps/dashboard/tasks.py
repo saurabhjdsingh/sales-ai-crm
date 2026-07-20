@@ -34,3 +34,19 @@ def generate_daily_digest():
         )
 
     return {"users_processed": users.count()}
+
+
+@shared_task(name="apps.dashboard.tasks.snapshot_daily_productivity")
+def snapshot_daily_productivity():
+    """
+    Nightly task to freeze daily productivity snapshots for all active users.
+    Runs at 23:55 each day to capture end-of-day totals.
+    """
+    from django.utils import timezone
+
+    from apps.dashboard.services import ProductivityService
+
+    today = timezone.localdate()
+    count = ProductivityService.snapshot_all_users_for_date(today)
+
+    return {"date": today.isoformat(), "users_snapshotted": count}

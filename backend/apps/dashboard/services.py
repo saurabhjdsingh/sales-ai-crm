@@ -218,3 +218,186 @@ class DashboardService:
             }
             for c in companies
         ]
+
+
+class ProductivityService:
+    """
+    Computes and caches daily productivity metrics.
+
+    Counts unique CRM entities a user worked on per calendar day.
+    Uses existing audit fields (updated_by, created_by, updated_at, created_at)
+    on BaseModel — zero intrusion to existing views/services.
+
+    For today: always recomputes (day is ongoing).
+    For past dates: returns cached DailyProductivity row, computing only on first access.
+    """
+
+    @staticmethod
+    def compute_for_date(user, target_date) -> dict:
+        """
+        Count unique entities worked on by *user* on *target_date*.
+        Returns a dict of metric counts.
+        """
+        from apps.activities.models import Activity
+        from apps.companies.models import Company
+        from apps.contacts.models import Contact
+        from apps.deals.models import Deal
+        from apps.emails.models import EmailThread
+        from apps.notes.models import Note
+        from apps.tasks.models import Task
+        from apps.telephony.models import Call
+
+        return {
+            "companies_worked": Company.objects.filter(
+                updated_by=user,
+                updated_at__date=target_date,
+            ).count(),
+            "contacts_worked": Contact.objects.filter(
+                updated_by=user,
+                updated_at__date=target_date,
+            ).count(),
+            "deals_worked": Deal.objects.filter(
+                updated_by=user,
+                updated_at__date=target_date,
+            ).count(),
+            "tasks_worked": Task.objects.filter(
+                updated_by=user,
+                updated_at__date=target_date,
+            ).count(),
+            "activities_logged": Activity.objects.filter(
+                performed_by=user,
+                created_at__date=target_date,
+            ).count(),
+            "notes_added": Note.objects.filter(
+                created_by=user,
+                created_at__date=target_date,
+            ).count(),
+            "calls_completed": Call.objects.filter(
+                user=user,
+                status="completed",
+                updated_at__date=target_date,
+            ).count(),
+            "emails_imported": EmailThread.objects.filter(
+                created_by=user,
+                created_at__date=target_date,
+            ).count(),
+        }
+
+    @staticmethod
+    def get_or_compute_snapshot(user, target_date) -> "DailyProductivity":
+        """
+        Return a DailyProductivity row for the given user and date.
+        - For today: always recomputes (the day is still in progress).
+        - For past dates: returns cached row if it exists; otherwise computes & saves.
+        """
+        from apps.dashboard.models import DailyProductivity
+
+        today = timezone.localdate()
+        is_today = target_date == today
+
+        if not is_today:
+            try:
+                return DailyProductivity.objects.get(user=user, date=target_date)
+            except DailyProductivity.DoesNotExist:
+                pass
+
+        metrics = ProductivityService.compute_for_date(user, target_date)
+
+        snapshot, _created = DailyProductivity.objects.update_or_create(
+            user=user,
+            date=target_date,
+            defaults=metrics,
+        )
+        return snapshot
+
+    @staticmethod
+    def get_date_range(user, start_date, end_date) -> list:
+        """
+        Return a list of daily productivity dicts for the given date range.
+        Missing dates are filled with zeroes so the frontend always gets
+        a contiguous series.
+        """
+        from datetime import date as date_type
+
+        from apps.dashboard.models import DailyProductivity
+
+        snapshots = {}
+
+        # For past dates, try to load cached snapshots first
+        today = timezone.localdate()
+        cached = DailyProductivity.objects.filter(
+            user=user,
+            date__gte=start_date,
+            date__lte=end_date,
+        )
+        for s in cached:
+            snapshots[s.date] = s
+
+        # Compute any missing dates (including today which always recomputes)
+        current = start_date
+        results = []
+        while current <= end_date:
+            if current == today or current not in snapshots:
+                snap = ProductivityService.get_or_compute_snapshot(user, current)
+                snapshots[current] = snap
+
+            s = snapshots[current]
+            results.append({
+                "date": current.isoformat(),
+                "companies_worked": s.companies_worked,
+                "contacts_worked": s.contacts_worked,
+                "deals_worked": s.deals_worked,
+                "tasks_worked": s.tasks_worked,
+                "activities_logged": s.activities_logged,
+                "notes_added": s.notes_added,
+                "calls_completed": s.calls_completed,
+                "emails_imported": s.emails_imported,
+                "total_actions": s.total_actions,
+            })
+            current += timedelta(days=1)
+
+        return results
+
+    @staticmethod
+    def get_graph_data(user, start_date, end_date) -> dict:
+        """
+        Return time-series data formatted for charting.
+        """
+        daily = ProductivityService.get_date_range(user, start_date, end_date)
+
+        labels = [d["date"] for d in daily]
+        datasets = {
+            "companies_worked": [d["companies_worked"] for d in daily],
+            "contacts_worked": [d["contacts_worked"] for d in daily],
+            "deals_worked": [d["deals_worked"] for d in daily],
+            "tasks_worked": [d["tasks_worked"] for d in daily],
+            "activities_logged": [d["activities_logged"] for d in daily],
+            "notes_added": [d["notes_added"] for d in daily],
+            "calls_completed": [d["calls_completed"] for d in daily],
+            "emails_imported": [d["emails_imported"] for d in daily],
+            "total_actions": [d["total_actions"] for d in daily],
+        }
+
+        return {"labels": labels, "datasets": datasets}
+
+    @staticmethod
+    def snapshot_all_users_for_date(target_date) -> int:
+        """
+        Compute and cache productivity for all active users for a given date.
+        Used by the nightly Celery task.
+        """
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        users = User.objects.filter(is_active=True)
+        count = 0
+        for user in users:
+            ProductivityService.get_or_compute_snapshot(user, target_date)
+            count += 1
+
+        logger.info(
+            "Snapshotted daily productivity for %d users on %s",
+            count,
+            target_date.isoformat(),
+        )
+        return count
