@@ -35,8 +35,8 @@ def sync_emails_task(
         logger.warning(f"Email account not found for user {user.username}. Sync cancelled.")
         return
 
-    if account.status != "connected":
-        logger.warning(f"Email account for user {user.username} is not connected (status: {account.status}). Sync cancelled.")
+    if account.status == "disconnected" or not account.refresh_token_encrypted:
+        logger.warning(f"Email account for user {user.username} is disconnected (status: {account.status}). Sync cancelled.")
         return
 
     sync_service = EmailSyncService(account)

@@ -95,8 +95,9 @@ class GmailProvider(BaseEmailProvider):
     def _get_headers(self, account: Any) -> Dict[str, str]:
         # Handle automatic refresh
         access_token = account.get_access_token()
-        # Check if expired (or close to it)
-        if account.token_expiry <= datetime.now(timezone.utc):
+        from datetime import timedelta
+        # Check if expired or expiring within 5 minutes (300s buffer)
+        if account.token_expiry <= datetime.now(timezone.utc) + timedelta(minutes=5):
             try:
                 logger.info(f"Refreshing Google access token for {account.email}")
                 tokens = self.refresh_token(account.get_refresh_token())
@@ -107,15 +108,17 @@ class GmailProvider(BaseEmailProvider):
                     account.set_refresh_token(tokens["refresh_token"])
                 # Update expiry
                 expires_in = tokens.get("expires_in", 3600)
-                account.token_expiry = datetime.now(timezone.utc) + httpx.Limits().keepalive_expiry # wait, timedelta
-                from datetime import timedelta
                 account.token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                 account.status = "connected"
                 account.save(update_fields=["access_token_encrypted", "refresh_token_encrypted", "token_expiry", "status"])
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error refreshing Google OAuth token for {account.email}: {e}")
+                if e.response.status_code == 400 and "invalid_grant" in e.response.text:
+                    account.status = "error"
+                    account.save(update_fields=["status"])
+                raise e
             except Exception as e:
                 logger.error(f"Failed to automatically refresh token for {account.email}: {e}")
-                account.status = "error"
-                account.save(update_fields=["status"])
                 raise e
         return {"Authorization": f"Bearer {access_token}"}
 

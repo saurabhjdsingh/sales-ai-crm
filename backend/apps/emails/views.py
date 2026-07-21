@@ -189,7 +189,7 @@ class SyncEmailsView(APIView):
         # Check if the user has a connected EmailAccount
         try:
             account = EmailAccount.objects.get(user=request.user)
-            if account.status != "connected":
+            if account.status == "disconnected" or not account.refresh_token_encrypted:
                 return Response(
                     {"status": "not_integrated", "message": "Please integrate Gmail"},
                     status=status.HTTP_400_BAD_REQUEST
