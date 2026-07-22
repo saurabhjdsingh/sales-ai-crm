@@ -226,6 +226,7 @@ export class SidebarComponent {
     { label: 'Contacts', route: '/contacts', icon: 'people' },
     { label: 'Deals', route: '/deals', icon: 'monetization_on' },
     { label: 'Tasks', route: '/tasks', icon: 'assignment' },
+    { label: 'Sequences', route: '/sequences', icon: 'auto_awesome' },
     { label: 'Calls', route: '/calls', icon: 'call' },
     { label: 'Import Center', route: '/imports', icon: 'cloud_upload' },
     { label: 'Reports', route: '/reports', icon: 'bar_chart' },

@@ -9,10 +9,15 @@ Now integrated with a **Provider-Independent Conversation Intelligence Pipeline*
 ## ✨ Key Features
 
 - 🏷️ **White-Labeled Branding**: Fully customize the CRM with your organization's name, custom browser tab title, favicon, and logo. Rectangular and square logos are automatically auto-fitted to prevent cropping.
-- 📧 **Gmail OAuth2 & Branded System Emails**: Connect user Gmail accounts via OAuth2 for automatic bidirectional email thread syncing to CRM contacts. Also features custom SMTP settings and branded HTML emails for invitations and task reminders.
-- ⚙️ **Custom SMTP & Integrations Panel**: Configure custom SMTP details (AWS SES, SendGrid, Mailgun) directly from Settings. Encrypted on-disk using Django secret key wrappers.
+- 📬 **Dual-Mailbox Strategy & Deliverability Guard**: Support for dual connected email accounts per user:
+  - **Primary Mailbox**: Handles daily inbox sync and receives all prospect responses.
+  - **Secondary Outbound Mailbox**: Dedicated sales outreach sender connected via **Secondary Google OAuth2** or **Custom SMTP (SendGrid, Mailgun, Amazon SES, Custom Domain)**.
+  - Automatically forces `Reply-To: <primary_email>` on all outbound sequence steps and direct outreach to protect primary domain deliverability and inbox sender score.
+- ⚡ **Automated AI Sales Sequences**: Create and enroll leads into multi-step automated outreach campaigns. Supports delay steps, AI email generation steps, manual review checkpoints, and real-time enrolled contact progress tracking.
+- ✉️ **Direct Contact Outreach & Interactive AI Email Drafts**: Dedicated **Email Threads** column in Contact details with glimpse previews, direction badges (Sent/Received), and open/click/reply tracking metrics. Features an interactive AI email composer with real-time editing and quick thread reply popups.
+- 📊 **Universal AI Prospecting, ICP Scoring & Usage Purpose Tracking**: Score and prioritize leads using customized LLM prompts (Claude 3.5 Sonnet / GPT-4o). Track AI token usage and dollar costs broken down by purpose (AI Email Generation, ICP Scoring, Copilot Chat) directly in Settings.
+- ⚙️ **Custom SMTP & Integrations Panel**: Configure secondary outbound SMTP details directly from Integrations Settings. Encrypted on-disk using Django secret key wrappers.
 - 🕒 **Inactivity Task Reminders**: Automated Celery task runner that detects upcoming tasks due in 1 hour and sends email reminders if the owner has been inactive for 6 hours.
-- 📊 **Universal AI Prospecting & ICP Scoring**: Intercept, score, and prioritize leads using customized LLM prompts (Claude 3.5 Sonnet / GPT-4o). Fully customizable via organization system prompts and AI personas without hardcoded domain bias.
 - 🧑‍🤝‍🧑 **Onboarding & Team Invites**: Invite new members via admin panels. Invitees receive secure, cryptographically signed email links to set passwords on a public onboarding screen.
 - 🎙️ **Independent Conversation Intelligence**: Browser audio stream capture (sales rep microphone and remote customer audio track) processed independently via dual WebSocket connections. Feeds a local Whisper container for 100% free transcription without relying on Twilio cloud recording.
 - 🧠 **Interactive AI Assist Copilot & Post-Call Review**: Real-time floating softphone widget with an integrated side-panel Copilot. Features live speech objection detection, buying signal extraction, in-call discovery questions, entity-scoped AI Chat, and post-call review workflows that log outcomes straight to PostgreSQL.
@@ -96,8 +101,9 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 │   │   ├── common/           # Branded email dispatch and encryption services
 │   │   ├── companies/        # Company directory and auto-range normalization
 │   │   ├── contacts/         # Contacts directory, company size sorting & detail context
-│   │   ├── integrations/     # Gmail OAuth2 connection, token storage & thread sync tasks
-│   │   ├── ai_engine/        # AI copilots, custom prompt templates, and LLM pricing
+│   │   ├── emails/           # Dual-Mailbox (Primary/Secondary), Custom SMTP provider, thread sync & outreach
+│   │   ├── sequences/        # Multi-step AI sales sequence engine & Celery Beat dispatchers
+│   │   ├── ai_engine/        # AI copilots, custom prompt templates, LLM pricing & usage purpose analytics
 │   │   ├── telephony/        # Twilio call connection, softphone WebRTC & TwiML endpoints
 │   │   ├── conversation_intelligence/ # Audio sockets, Whisper docker client, and AI summary
 │   │   └── tasks/            # Task lists and email reminder jobs
@@ -110,9 +116,10 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 │   ├── src/app/features/     # Dashboard and operational views
 │   │   ├── auth/             # Login & public password-onboarding (accept-invite) screens
 │   │   ├── companies/        # Companies list with ICP sorting and creation
-│   │   ├── contacts/         # Contact list with company size filter and company website links
-│   │   ├── integrations/     # Gmail integration status & OAuth connect panel
-│   │   ├── settings/         # Organization settings, branding, SMTP, and AI Persona config
+│   │   ├── contacts/         # Contact list with 4 columns (Timeline, Tasks, Notes, Email Threads & AI Draft Generator)
+│   │   ├── integrations/     # Primary/Secondary mailbox OAuth & Custom SMTP config panel
+│   │   ├── settings/         # Organization settings, branding, SMTP, AI Persona & AI Usage purpose card
+│   │   ├── sequences/        # Automated AI sequence creator, enrollment & enrolled progress column
 │   │   ├── telephony/        # Softphone Widget, AI Assist Copilot, twin WS streaming & call history
 │   │   ├── dashboard/        # Top prospects lists and lead activity metrics
 │   │   └── tasks/            # Task board, pipeline statuses, and workflows

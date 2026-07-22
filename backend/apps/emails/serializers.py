@@ -5,8 +5,21 @@ from apps.emails.models import EmailAccount, EmailThread, EmailMessage, EmailAtt
 class EmailAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailAccount
-        fields = ["id", "email", "provider_type", "status", "created_at"]
-        read_only_fields = ["id", "provider_type", "status", "created_at"]
+        fields = [
+            "id",
+            "email",
+            "provider_type",
+            "account_role",
+            "is_default_outbound",
+            "smtp_host",
+            "smtp_port",
+            "smtp_username",
+            "smtp_use_tls",
+            "smtp_use_ssl",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
 
 
 class EmailAttachmentSerializer(serializers.ModelSerializer):
@@ -35,6 +48,12 @@ class EmailMessageSerializer(serializers.ModelSerializer):
             "labels",
             "attachments",
             "imported_at",
+            "tracking_token",
+            "open_count",
+            "click_count",
+            "has_replied",
+            "last_opened_at",
+            "last_clicked_at",
         ]
 
 
@@ -58,6 +77,11 @@ class EmailThreadSerializer(serializers.ModelSerializer):
             "contact_name",
             "deal",
             "messages",
+            "open_count",
+            "click_count",
+            "has_replied",
+            "last_opened_at",
+            "last_clicked_at",
         ]
         read_only_fields = ["id", "gmail_thread_id"]
 

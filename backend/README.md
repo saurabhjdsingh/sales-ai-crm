@@ -75,8 +75,10 @@ backend/
 │   │   ├── views.py
 │   │   ├── tasks.py      # Celery background tasks
 │   │   └── urls.py
-│   ├── integrations/     # Gmail OAuth2 connect, token storage, and thread sync
-│   ├── ai_engine/        # LLM provider abstraction, copilot service, context builder
+│   ├── emails/           # Dual-Mailbox strategy (Primary/Secondary), SmtpProvider, thread sync & outreach
+│   ├── sequences/        # Multi-step AI sales sequence engine & Celery Beat step evaluation
+│   ├── integrations/     # Google OAuth2 integration and token exchange
+│   ├── ai_engine/        # LLM provider abstraction, copilot service, context builder, usage cost tracking
 │   ├── common/           # Shared models, enums, encryption utilities
 │   ├── companies/        # Company CRUD, ICP scoring fields
 │   ├── contacts/         # Contact CRUD, company size sorting, LinkedIn URLs
@@ -172,12 +174,12 @@ The API will be available at `http://localhost:8000/api/v1/`.
 
 ## Django Apps
 
-| App | Purpose |
-|---|---|
-| `accounts` | User registration, JWT authentication, team invite/management |
+| `emails` | **Dual-Mailbox Strategy** (Primary/Secondary Outbound), SmtpProvider, thread sync, direct outreach & tracking |
+| `sequences` | **Multi-step AI Sales Sequence Engine** — campaign rules, wait delay checking, step dispatchers |
+| `accounts` | User registration, JWT authentication, team invite/management, SMTP settings |
 | `activities` | Polymorphic activity timeline (auto-logged on entity changes) |
 | `agent` | **Agentic AI Framework** — tool registry, orchestrator, browser automation, LinkedIn |
-| `ai_engine` | LLM provider abstraction, copilot chat service, CRM context builder |
+| `ai_engine` | LLM provider abstraction, copilot chat service, CRM context builder, usage purpose analytics |
 | `common` | Shared base models (`TimeStampedModel`), enums, Fernet encryption utilities |
 | `companies` | Company CRUD, ICP score/explanation fields, industry tagging |
 | `contacts` | Contact CRUD, LinkedIn URL field, company association |

@@ -41,7 +41,7 @@ export class TaskService {
     return this.api.post<void>('/tasks/bulk-delete/', { ids });
   }
 
-  completeTask(id: string): Observable<Task> {
-    return this.api.post<Task>(`/tasks/${id}/complete/`, {});
+  completeTask(id: string, payload?: { outcome?: string; outcome_notes?: string; stop_sequence?: boolean; stop_reason?: string }): Observable<Task> {
+    return this.api.post<Task>(`/tasks/${id}/complete/`, payload || {});
   }
 }

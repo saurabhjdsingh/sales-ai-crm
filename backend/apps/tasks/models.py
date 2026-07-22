@@ -50,6 +50,18 @@ class Task(BaseModel):
     )
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    # Task Outcome support for Sequences and Sales Workflow
+    outcome = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Structured task completion outcome (e.g. Answered, Voicemail, Requested Callback)",
+    )
+    outcome_notes = models.TextField(blank=True, default="")
+    requires_outcome = models.BooleanField(default=False)
+    sequence_execution_id = models.UUIDField(null=True, blank=True, db_index=True)
+
     # Polymorphic association to parent entities
     company = models.ForeignKey(
         "companies.Company",

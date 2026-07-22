@@ -25,10 +25,14 @@ api_v1_patterns = [
     path("telephony/", include("apps.telephony.urls")),
     path("conversation-intelligence/", include("apps.conversation_intelligence.urls")),
     path("emails/", include("apps.emails.urls")),
+    path("sequences/", include("apps.sequences.urls")),
 ]
+
+from apps.sequences.views import StealthClickRedirectView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("r/<str:click_token>", StealthClickRedirectView.as_view(), name="stealth_click_redirect"),
     path("api/v1/", include(api_v1_patterns)),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

@@ -224,6 +224,14 @@ class EmailSyncService:
                         deal_id=deal_id
                     )
 
+                    # Trigger Sequence reply detection auto-stop
+                    if direction == "incoming" and (contact_id or thread.contact_id):
+                        try:
+                            from apps.sequences.services.auto_stop import AutoStopService
+                            AutoStopService.check_and_stop_for_reply(contact_id or thread.contact_id)
+                        except Exception as e:
+                            logger.error("Error triggering sequence reply auto-stop: %s", e)
+
                     # Link any other CRM contacts participating in this message
                     self._link_additional_contacts_to_message(
                         gmail_message_id=m_data["gmail_message_id"],

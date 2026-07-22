@@ -304,6 +304,16 @@ export class TaskFormComponent implements OnInit {
       }
     });
 
+    this.taskForm.get('contact')?.valueChanges.subscribe((contactId) => {
+      if (contactId && !this.taskForm.get('company')?.value) {
+        this.apiService.get<any>(`/contacts/${contactId}/`).subscribe((c) => {
+          if (c && c.company) {
+            this.taskForm.patchValue({ company: c.company });
+          }
+        });
+      }
+    });
+
     this.apiService.get<any>('/deals/', { page_size: 100 }).subscribe((res) => {
       this.deals.set(res.results.map((d: any) => ({ id: d.id, name: d.name })));
       if (this.data && this.data.deal) {

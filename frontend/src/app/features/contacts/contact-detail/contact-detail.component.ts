@@ -11,7 +11,7 @@ import { ContactFormComponent } from '../contact-form/contact-form.component';
 import { TimelineComponent } from '../../../shared/components/timeline/timeline.component';
 import { AIChatPanelComponent } from '../../../shared/components/ai-chat-panel/ai-chat-panel.component';
 import { ApiService } from '../../../core/services/api.service';
-import { Note, Task } from '../../../core/models/crm.model';
+import { EmailThread, Note, Task } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -19,6 +19,9 @@ import { marked } from 'marked';
 import { TelephonyService } from '../../telephony/telephony.service';
 import { CallStateService } from '../../telephony/call-state.service';
 import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
+import { SequenceService } from '../../sequences/services/sequence.service';
+import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-dialog/sequence-enroll-dialog.component';
+import { ContactEmailComposerComponent } from '../contact-email-composer/contact-email-composer.component';
 
 @Component({
   selector: 'app-contact-detail',
@@ -112,8 +115,12 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
               </div>
             </div>
 
-            <!-- Action bar for emails sync -->
-            <div class="profile-card-actions">
+            <!-- Action bar for emails sync & sequences -->
+            <div class="profile-card-actions" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+              <button mat-stroked-button (click)="openEnrollSequenceDialog(contact)" class="enroll-btn">
+                <mat-icon style="color: #60a5fa;">auto_awesome</mat-icon>
+                <span>Enroll in Sequence</span>
+              </button>
               <button mat-stroked-button (click)="syncEmails(contact.id)" class="sync-email-btn" [disabled]="syncingEmails()">
                 @if (syncingEmails()) {
                   <mat-spinner diameter="18" style="display: inline-block; margin-right: 6px;"></mat-spinner>
@@ -204,6 +211,95 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
                         </button>
                       </div>
                       <div class="note-body" [innerHTML]="renderMarkdown(n.content)"></div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </mat-tab>
+
+            <!-- Emails Tab -->
+            <mat-tab label="Emails">
+              <div class="tab-content">
+                <div class="tab-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <mat-icon style="color: #60a5fa;">email</mat-icon>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">Email Threads</h3>
+                  </div>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" (click)="openEmailComposer(undefined, 'Draft follow-up outreach email for ' + contact.full_name)" class="ai-email-action-btn">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">auto_awesome</mat-icon>
+                      <span>Generate AI Email</span>
+                    </button>
+                    <button type="button" (click)="openEmailComposer()" class="custom-email-action-btn">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">edit</mat-icon>
+                      <span>Compose Custom</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="email-threads-list" style="display: flex; flex-direction: column; gap: 1rem;">
+                  @for (t of emailThreads(); track t.id) {
+                    <div class="thread-card">
+                      <!-- Card Header with Direction Badge and Subject -->
+                      <div class="thread-card-header">
+                        <div class="thread-title-area">
+                          <span class="direction-badge" [ngClass]="getThreadDirection(t)">
+                            <mat-icon style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle; margin-right: 2px;">
+                              {{ getThreadDirection(t) === 'incoming' ? 'call_received' : 'send' }}
+                            </mat-icon>
+                            {{ getThreadDirection(t) === 'incoming' ? 'Received' : 'Sent' }}
+                          </span>
+                          <h4 class="thread-subject-title">{{ t.subject || '(No Subject)' }}</h4>
+                        </div>
+
+                        <!-- Telemetry Stats Bar -->
+                        <div class="thread-telemetry">
+                          <span title="Opens count" class="telemetry-item opens">
+                            <mat-icon class="telemetry-icon">visibility</mat-icon> {{ t.open_count || 0 }}
+                          </span>
+                          <span title="Clicks count" class="telemetry-item clicks">
+                            <mat-icon class="telemetry-icon">touch_app</mat-icon> {{ t.click_count || 0 }}
+                          </span>
+                          <span title="Replied status" class="telemetry-item replied" [class.has-replied]="t.has_replied">
+                            <mat-icon class="telemetry-icon">{{ t.has_replied ? 'reply_all' : 'mark_email_read' }}</mat-icon>
+                            {{ t.has_replied ? 'Replied' : 'Sent' }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="thread-meta-row">
+                        <span class="meta-participants"><strong>Participants:</strong> {{ t.participants.join(', ') || 'N/A' }}</span>
+                        <span class="meta-date">{{ t.last_message_time | date:'medium' }}</span>
+                      </div>
+
+                      <!-- Email Description Glimpse -->
+                      <p class="thread-glimpse-desc" [innerHTML]="formatTextWithLinks(t.snippet || (t.messages && t.messages.length ? t.messages[t.messages.length - 1].plain_text_body : ''))"></p>
+
+                      <!-- Thread Action Bar -->
+                      <div class="thread-action-bar">
+                        <button type="button" (click)="viewEmailConversation(t.id)" class="thread-action-view-btn">
+                          <mat-icon style="font-size: 15px; width: 15px; height: 15px;">chat</mat-icon>
+                          <span>View Full Conversation</span>
+                        </button>
+
+                        <div class="reply-action-group">
+                          <button type="button" (click)="openEmailComposer(t, 'Reply to thread regarding ' + t.subject)" class="thread-action-ai-btn">
+                            <mat-icon style="font-size: 15px; width: 15px; height: 15px;">auto_fix_high</mat-icon>
+                            <span>Reply with AI</span>
+                          </button>
+                          <button type="button" (click)="openEmailComposer(t)" class="thread-action-reply-btn">
+                            <mat-icon style="font-size: 15px; width: 15px; height: 15px;">reply</mat-icon>
+                            <span>Reply</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  @if (emailThreads().length === 0) {
+                    <div class="tab-empty-state">
+                      <mat-icon style="font-size: 32px; width: 32px; height: 32px; color: #64748b;">mail_outline</mat-icon>
+                      <p>No email threads found for this contact yet. Click 'Generate AI Email' above or 'Sync Emails' to fetch your inbox.</p>
                     </div>
                   }
                 </div>
@@ -583,6 +679,192 @@ import { TwilioVoiceService } from '../../telephony/twilio-voice.service';
       margin-bottom: 0.5rem;
     }
 
+    .ai-email-action-btn {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.2s;
+    }
+    .ai-email-action-btn:hover { opacity: 0.9; }
+
+    .custom-email-action-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      border-radius: 6px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .custom-email-action-btn:hover { background: rgba(255, 255, 255, 0.05); color: #ffffff; }
+
+    .thread-action-ai-btn {
+      background: rgba(192, 132, 252, 0.1);
+      border: 1px solid rgba(192, 132, 252, 0.25);
+      color: #c084fc;
+      border-radius: 6px;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .thread-action-ai-btn:hover { background: rgba(192, 132, 252, 0.2); }
+
+    .thread-action-reply-btn {
+      background: rgba(96, 165, 250, 0.1);
+      border: 1px solid rgba(96, 165, 250, 0.25);
+      color: #60a5fa;
+      border-radius: 6px;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .thread-action-reply-btn:hover { background: rgba(96, 165, 250, 0.2); }
+
+    .thread-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .thread-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .thread-title-area {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .direction-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      letter-spacing: 0.04em;
+    }
+    .direction-badge.outgoing { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .direction-badge.incoming { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    .thread-subject-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .thread-telemetry {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .telemetry-item {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .telemetry-item.opens { color: #60a5fa; }
+    .telemetry-item.clicks { color: #a78bfa; }
+    .telemetry-item.replied { color: #64748b; }
+    .telemetry-item.replied.has-replied { color: #34d399; }
+    .telemetry-icon { font-size: 15px; width: 15px; height: 15px; }
+
+    .thread-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+
+    .thread-glimpse-desc {
+      font-size: 0.83rem;
+      color: #cbd5e1;
+      margin: 0;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 0.6rem 0.75rem;
+      border-radius: 6px;
+      border-left: 3px solid #3b82f6;
+    }
+
+    .thread-action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      padding-top: 0.6rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .reply-action-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .thread-action-view-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      border-radius: 6px;
+      padding: 0.38rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.2s;
+    }
+    .thread-action-view-btn:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff; }
+
     .note-meta-info {
       display: flex;
       align-items: center;
@@ -687,8 +969,86 @@ export class ContactDetailComponent implements OnInit {
   private readonly callState = inject(CallStateService);
   private readonly twilioService = inject(TwilioVoiceService);
 
+  private readonly sequenceService = inject(SequenceService);
+
   readonly tasks = signal<Task[]>([]);
   readonly notes = signal<Note[]>([]);
+  readonly emailThreads = signal<EmailThread[]>([]);
+
+  getThreadDirection(thread: EmailThread): string {
+    if (thread.messages && thread.messages.length > 0) {
+      const lastMsg = thread.messages[thread.messages.length - 1];
+      return lastMsg.direction || 'outgoing';
+    }
+    return 'outgoing';
+  }
+
+  formatTextWithLinks(text: string | undefined): string {
+    if (!text) return '';
+    const urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    let html = text.replace(urlPattern, (url) => {
+      const href = url.startsWith('http') ? url : `https://${url}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">${url}</a>`;
+    });
+    return html.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('target=')) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer"${rest}>`;
+      }
+      return match.replace(/target="[^"]*"/gi, 'target="_blank" rel="noopener noreferrer"');
+    });
+  }
+
+  openEnrollSequenceDialog(contact: any): void {
+    this.dialog.open(SequenceEnrollDialogComponent, {
+      width: '500px',
+      data: {
+        contactId: contact.id,
+        contactName: contact.full_name
+      }
+    });
+  }
+
+  openEmailComposer(thread?: EmailThread, initialPrompt?: string): void {
+    const contact = this.store.selectedContact();
+    if (!contact) return;
+
+    const ref = this.dialog.open(ContactEmailComposerComponent, {
+      width: '640px',
+      data: {
+        contact,
+        thread,
+        initialPrompt
+      },
+      panelClass: 'dark-dialog-panel'
+    });
+
+    ref.afterClosed().subscribe((sentEmail) => {
+      if (sentEmail) {
+        const id = contact.id;
+        this.loadLinkedData(id);
+      }
+    });
+  }
+
+  viewEmailConversation(threadId: string): void {
+    if (!threadId) return;
+
+    import('../../../shared/components/timeline/email-conversation-dialog.component').then((m) => {
+      const ref = this.dialog.open(m.EmailConversationDialogComponent, {
+        width: '750px',
+        maxHeight: '90vh',
+        data: { threadId },
+        panelClass: 'dark-dialog-panel'
+      });
+
+      ref.afterClosed().subscribe((res) => {
+        if (res && res.action === 'reply' && res.thread) {
+          const prompt = res.isAI ? `Reply to email thread regarding ${res.thread.subject}` : undefined;
+          this.openEmailComposer(res.thread, prompt);
+        }
+      });
+    });
+  }
 
   readonly noteForm: FormGroup = this.fb.group({
     content: ['', [Validators.required]]
@@ -748,6 +1108,17 @@ export class ContactDetailComponent implements OnInit {
       next: (res) => {
         const data = Array.isArray(res) ? res : (res?.results || []);
         this.notes.set(data);
+      }
+    });
+
+    // Load email threads & telemetry
+    this.loadEmailThreads(contactId);
+  }
+
+  loadEmailThreads(contactId: string): void {
+    this.apiService.get<any>('/emails/contact-threads/', { contact_id: contactId }).subscribe({
+      next: (threads) => {
+        this.emailThreads.set(Array.isArray(threads) ? threads : []);
       }
     });
   }

@@ -3,21 +3,43 @@ from django.conf import settings
 from apps.common.models import BaseModel
 
 
+class AccountRole(models.TextChoices):
+    PRIMARY = "primary", "Primary Inbox"
+    SECONDARY_OUTBOUND = "secondary_outbound", "Secondary Outbound Sender"
+
+
 class EmailAccount(BaseModel):
     """
     Stores credentials and status of a user's connected email provider account.
-    Currently supports one Gmail account per CRM user.
+    Supports Primary Inbox (Gmail/Outlook) and Secondary Outbound Sender (Gmail/SMTP).
     """
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="email_account"
+        related_name="email_accounts"
     )
     email = models.EmailField(unique=True)
-    provider_type = models.CharField(max_length=50, default="gmail")
-    access_token_encrypted = models.TextField()
-    refresh_token_encrypted = models.TextField()
-    token_expiry = models.DateTimeField()
+    provider_type = models.CharField(max_length=50, default="gmail")  # gmail, outlook, smtp
+    account_role = models.CharField(
+        max_length=30,
+        choices=AccountRole.choices,
+        default=AccountRole.PRIMARY
+    )
+    is_default_outbound = models.BooleanField(default=False)
+
+    # OAuth Tokens
+    access_token_encrypted = models.TextField(blank=True, default="")
+    refresh_token_encrypted = models.TextField(blank=True, default="")
+    token_expiry = models.DateTimeField(null=True, blank=True)
+
+    # Custom SMTP Credentials
+    smtp_host = models.CharField(max_length=255, blank=True, default="")
+    smtp_port = models.IntegerField(default=587, blank=True, null=True)
+    smtp_username = models.CharField(max_length=255, blank=True, default="")
+    smtp_password_encrypted = models.TextField(blank=True, default="")
+    smtp_use_tls = models.BooleanField(default=True)
+    smtp_use_ssl = models.BooleanField(default=False)
+
     status = models.CharField(
         max_length=50,
         default="connected"
@@ -29,9 +51,11 @@ class EmailAccount(BaseModel):
         verbose_name_plural = "Email Accounts"
 
     def __str__(self):
-        return f"{self.email} ({self.provider_type}) - {self.user.username}"
+        return f"{self.email} ({self.provider_type} - {self.account_role}) - {self.user.username}"
 
     def get_access_token(self) -> str:
+        if not self.access_token_encrypted:
+            return ""
         from apps.common.encryption import decrypt_api_key
         return decrypt_api_key(self.access_token_encrypted)
 
@@ -40,12 +64,24 @@ class EmailAccount(BaseModel):
         self.access_token_encrypted = encrypt_api_key(token)
 
     def get_refresh_token(self) -> str:
+        if not self.refresh_token_encrypted:
+            return ""
         from apps.common.encryption import decrypt_api_key
         return decrypt_api_key(self.refresh_token_encrypted)
 
     def set_refresh_token(self, token: str):
         from apps.common.encryption import encrypt_api_key
         self.refresh_token_encrypted = encrypt_api_key(token)
+
+    def get_smtp_password(self) -> str:
+        if not self.smtp_password_encrypted:
+            return ""
+        from apps.common.encryption import decrypt_api_key
+        return decrypt_api_key(self.smtp_password_encrypted)
+
+    def set_smtp_password(self, password: str):
+        from apps.common.encryption import encrypt_api_key
+        self.smtp_password_encrypted = encrypt_api_key(password)
 
 
 class EmailThread(BaseModel):
@@ -81,6 +117,13 @@ class EmailThread(BaseModel):
         related_name="email_threads"
     )
 
+    # Telemetry tracking metrics
+    open_count = models.IntegerField(default=0)
+    click_count = models.IntegerField(default=0)
+    has_replied = models.BooleanField(default=False)
+    last_opened_at = models.DateTimeField(null=True, blank=True)
+    last_clicked_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "emails_emailthread"
         verbose_name = "Email Thread"
@@ -113,6 +156,14 @@ class EmailMessage(BaseModel):
     internal_date = models.DateTimeField(db_index=True)
     labels = models.JSONField(default=list, blank=True)
     imported_at = models.DateTimeField(auto_now_add=True)
+
+    # Telemetry tracking metrics for outbound contact emails
+    tracking_token = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    open_count = models.IntegerField(default=0)
+    click_count = models.IntegerField(default=0)
+    has_replied = models.BooleanField(default=False)
+    last_opened_at = models.DateTimeField(null=True, blank=True)
+    last_clicked_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "emails_emailmessage"

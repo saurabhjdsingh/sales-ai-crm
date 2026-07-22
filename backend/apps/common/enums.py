@@ -100,6 +100,18 @@ class TaskRepeat(models.TextChoices):
     MONTHLY = "monthly", "Monthly"
 
 
+class TaskOutcome(models.TextChoices):
+    ANSWERED = "answered", "Answered"
+    NOT_PICKED_UP = "not_picked_up", "Not Picked Up"
+    VOICEMAIL = "voicemail", "Voicemail"
+    WRONG_NUMBER = "wrong_number", "Wrong Number"
+    REQUESTED_CALLBACK = "requested_callback", "Requested Callback"
+    NOT_INTERESTED = "not_interested", "Not Interested"
+    MEETING_BOOKED = "meeting_booked", "Meeting Booked"
+    PROPOSAL_SENT = "proposal_sent", "Proposal Sent"
+    COMPLETED_OTHER = "completed_other", "Completed (Other)"
+
+
 class ActivityType(models.TextChoices):
     IMPORT = "import", "Import"
     EMAIL = "email", "Email"
@@ -114,6 +126,18 @@ class ActivityType(models.TextChoices):
     DOCUMENT_UPLOADED = "document_uploaded", "Document Uploaded"
     WHATSAPP = "whatsapp", "WhatsApp Message"
     LINKEDIN_MESSAGE = "linkedin_message", "LinkedIn Message"
+    SEQUENCE_ENROLLED = "sequence_enrolled", "Sequence Enrolled"
+    SEQUENCE_EMAIL_DRAFTED = "sequence_email_drafted", "Sequence AI Draft Ready"
+    SEQUENCE_EMAIL_SENT = "sequence_email_sent", "Sequence Email Sent"
+    SEQUENCE_EMAIL_OPENED = "sequence_email_opened", "Sequence Email Opened"
+    SEQUENCE_LINK_CLICKED = "sequence_link_clicked", "Sequence Link Clicked"
+    SEQUENCE_TASK_CREATED = "sequence_task_created", "Sequence Task Created"
+    SEQUENCE_TASK_COMPLETED = "sequence_task_completed", "Sequence Task Completed"
+    SEQUENCE_PAUSED = "sequence_paused", "Sequence Paused"
+    SEQUENCE_RESUMED = "sequence_resumed", "Sequence Resumed"
+    SEQUENCE_COMPLETED = "sequence_completed", "Sequence Completed"
+    SEQUENCE_STOPPED = "sequence_stopped", "Sequence Stopped"
+
 
 
 class ImportEntityType(models.TextChoices):

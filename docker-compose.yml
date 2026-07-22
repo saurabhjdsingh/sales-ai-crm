@@ -32,11 +32,11 @@ services:
     labels:
       - "traefik.enable=true"
       # HTTP Router (Port 80)
-      - "traefik.http.routers.backend-http.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.backend-http.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`) || PathPrefix(`/r`)"
       - "traefik.http.routers.backend-http.entrypoints=web"
       - "traefik.http.routers.backend-http.service=backend"
       # HTTPS Router (Port 443)
-      - "traefik.http.routers.backend-https.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.backend-https.rule=PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`) || PathPrefix(`/media`) || PathPrefix(`/ws`) || PathPrefix(`/r`)"
       - "traefik.http.routers.backend-https.entrypoints=websecure"
       - "traefik.http.routers.backend-https.tls=true"
       - "traefik.http.routers.backend-https.service=backend"

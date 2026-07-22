@@ -768,22 +768,78 @@ body.light-theme {
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
     }
 
-    .dialog-container {
+    .dialog-container, .composer-container {
       background-color: #ffffff !important;
       color: #334155 !important;
     }
 
-    mat-dialog-title {
+    .dialog-header, .composer-header {
+      border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+      background-color: #f8fafc !important;
+    }
+
+    .dialog-title, h2 {
       color: #0f172a !important;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
     }
 
     .dialog-content {
+      background-color: #ffffff !important;
       color: #334155 !important;
     }
 
-    mat-dialog-actions {
-      border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+    .dialog-actions, .composer-actions {
+      border-top-color: rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .prompt-input, .form-input, .form-textarea {
+      background-color: #f1f5f9 !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+      color: #0f172a !important;
+    }
+
+    .message-card {
+      background: #f8fafc !important;
+      border-color: rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .message-card.outgoing {
+      background: #eff6ff !important;
+      border-color: rgba(59, 130, 246, 0.2) !important;
+    }
+
+    .sender-name {
+      color: #0f172a !important;
+    }
+  }
+
+  .thread-card {
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+
+    .thread-subject-title {
+      color: #0f172a !important;
+    }
+
+    .thread-glimpse-desc {
+      color: #000000 !important;
+      background: #f1f5f9 !important;
+      border-left-color: #3b82f6 !important;
+    }
+
+    .thread-telemetry {
+      background: rgba(0, 0, 0, 0.04) !important;
+      border-color: rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .thread-action-view-btn {
+      background: #f1f5f9 !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+      color: #1e293b !important;
+
+      &:hover {
+        background: #e2e8f0 !important;
+        color: #000000 !important;
+      }
     }
   }
 

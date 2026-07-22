@@ -20,6 +20,7 @@ class GmailProvider(BaseEmailProvider):
 
     SCOPES = [
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/userinfo.email",
     ]
 
@@ -213,6 +214,64 @@ class GmailProvider(BaseEmailProvider):
             })
 
         return synced_threads
+
+    def send_email(
+        self,
+        account: Any,
+        to_email: str,
+        subject: str,
+        body_html: str,
+        body_text: str = "",
+        thread_id: str = None,
+        reply_to: str = None,
+    ) -> Dict[str, Any]:
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        headers = self._get_headers(account)
+
+        message = MIMEMultipart("alternative")
+        message["to"] = to_email
+        message["from"] = account.email
+        message["subject"] = subject
+        if reply_to:
+            message["reply-to"] = reply_to
+
+        if body_text:
+            part1 = MIMEText(body_text, "plain")
+            message.attach(part1)
+        if body_html:
+            part2 = MIMEText(body_html, "html")
+            message.attach(part2)
+
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+        payload: Dict[str, Any] = {"raw": raw_message}
+        if thread_id:
+            payload["threadId"] = thread_id
+
+        resp = httpx.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers=headers,
+            json=payload,
+        )
+        if resp.status_code == 401:
+            account.token_expiry = datetime.now(timezone.utc)
+            headers = self._get_headers(account)
+            resp = httpx.post(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                headers=headers,
+                json=payload,
+            )
+
+        if resp.status_code not in (200, 201):
+            logger.error(f"Gmail send_email failed: {resp.text}")
+            resp.raise_for_status()
+
+        data = resp.json()
+        return {
+            "gmail_message_id": data.get("id"),
+            "gmail_thread_id": data.get("threadId"),
+        }
 
     def _parse_message(self, msg: Dict[str, Any]) -> Dict[str, Any]:
         msg_headers = msg.get("payload", {}).get("headers", [])

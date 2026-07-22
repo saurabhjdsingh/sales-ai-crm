@@ -74,13 +74,20 @@ def get_llm_provider(user=None) -> BaseLLMProvider:
     """
     raw_provider = None
 
-    # Try per-user config first
-    if user is not None:
-        try:
-            from apps.ai_engine.models import UserAIConfig
-            from apps.common.encryption import decrypt_api_key
+    # 1. Try per-user config or active UserAIConfig saved in integration settings
+    try:
+        from apps.ai_engine.models import UserAIConfig
+        from apps.common.encryption import decrypt_api_key
 
-            config = UserAIConfig.objects.get(user=user, is_active=True, is_deleted=False)
+        config = None
+        if user is not None:
+            config = UserAIConfig.objects.filter(user=user, is_active=True, is_deleted=False).first()
+        
+        # Fall back to any active UserAIConfig saved in DB if user is None or doesn't have custom config
+        if not config:
+            config = UserAIConfig.objects.filter(is_active=True, is_deleted=False).first()
+
+        if config:
             api_key = decrypt_api_key(config.api_key_encrypted)
             base_url = config.base_url if config.config_type == "custom_endpoint" else ""
             model = config.model_name
@@ -92,10 +99,9 @@ def get_llm_provider(user=None) -> BaseLLMProvider:
                 from apps.ai_engine.services.providers.openai import OpenAIProvider
                 raw_provider = OpenAIProvider(api_key=api_key, base_url=base_url, model=model, use_env_fallback=False)
             else:
-                logger.warning("Unknown provider '%s' in user config, falling back to defaults", config.provider)
-        except Exception:
-            # UserAIConfig.DoesNotExist or decryption error — fall through to defaults
-            pass
+                logger.warning("Unknown provider '%s' in AI config, falling back to defaults", config.provider)
+    except Exception as e:
+        logger.warning("Failed to load UserAIConfig (%s), checking system defaults", e)
 
     if not raw_provider:
         # Fall back to system defaults from .env

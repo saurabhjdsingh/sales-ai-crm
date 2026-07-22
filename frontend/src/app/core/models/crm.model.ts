@@ -308,3 +308,166 @@ export interface PaginatedResult<T> {
   previous: string | null;
   results: T[];
 }
+
+export type SequenceActionType = 'ai_email' | 'manual_task' | 'wait' | 'linkedin_message' | 'phone_call' | 'sms' | 'webhook';
+export type DelayUnit = 'minutes' | 'hours' | 'days';
+export type EnrollmentStatus = 'draft' | 'running' | 'waiting' | 'waiting_approval' | 'completed' | 'stopped' | 'paused' | 'failed';
+export type DraftStatus = 'draft_pending' | 'approved' | 'sent' | 'rejected' | 'cancelled';
+
+export interface SequenceStep {
+  id?: string;
+  step_number: number;
+  action_type: SequenceActionType;
+  delay: number;
+  delay_unit: DelayUnit;
+  configuration: Record<string, any>;
+}
+
+export interface Sequence {
+  id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  track_opens: boolean;
+  track_clicks: boolean;
+  steps_count?: number;
+  active_enrollments_count?: number;
+  total_enrolled_count?: number;
+  steps?: SequenceStep[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SequenceEnrollment {
+  id: string;
+  sequence: string;
+  sequence_name?: string;
+  contact: string;
+  contact_name?: string;
+  contact_email?: string;
+  company?: string;
+  company_name?: string;
+  deal?: string;
+  status: EnrollmentStatus;
+  current_step_number: number;
+  next_execution_at?: string;
+  stop_reason?: string;
+  stopped_at?: string;
+  open_count?: number;
+  click_count?: number;
+  has_replied?: boolean;
+  last_opened_at?: string;
+  last_clicked_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SequenceEmailDraft {
+  id: string;
+  execution?: string;
+  enrollment: string;
+  sequence_name?: string;
+  contact: string;
+  contact_name?: string;
+  contact_email?: string;
+  sender?: string;
+  subject: string;
+  reply_to?: string;
+  body_html: string;
+  body_text: string;
+  context_summary?: string;
+  status: DraftStatus;
+  open_count: number;
+  first_opened_at?: string;
+  last_opened_at?: string;
+  click_count: number;
+  first_clicked_at?: string;
+  last_clicked_at?: string;
+  approved_at?: string;
+  sent_at?: string;
+  created_at: string;
+}
+
+export interface SequenceDashboardMetrics {
+  active_sequences: number;
+  total_enrolled: number;
+  running: number;
+  waiting_approval: number;
+  completed: number;
+  stopped: number;
+  paused: number;
+  reply_rate: number;
+  open_rate: number;
+  click_rate: number;
+  completion_rate: number;
+  emails_sent: number;
+  tasks_completed: number;
+}
+
+export interface EmailMessage {
+  id: string;
+  gmail_message_id: string;
+  sender: string;
+  recipients: string[];
+  cc?: string[];
+  bcc?: string[];
+  direction: string;
+  subject: string;
+  plain_text_body: string;
+  html_body: string;
+  internal_date: string;
+  labels?: string[];
+  tracking_token?: string;
+  open_count?: number;
+  click_count?: number;
+  has_replied?: boolean;
+  last_opened_at?: string;
+  last_clicked_at?: string;
+  imported_at?: string;
+}
+
+export interface EmailThread {
+  id: string;
+  gmail_thread_id: string;
+  subject: string;
+  participants: string[];
+  snippet: string;
+  last_message_time: string;
+  company?: string;
+  company_name?: string;
+  contact?: string;
+  contact_name?: string;
+  deal?: string;
+  messages: EmailMessage[];
+  open_count?: number;
+  click_count?: number;
+  has_replied?: boolean;
+  last_opened_at?: string;
+  last_clicked_at?: string;
+}
+
+export interface EmailAccount {
+  id: string;
+  email: string;
+  provider_type: 'gmail' | 'outlook' | 'smtp';
+  account_role: 'primary' | 'secondary_outbound';
+  is_default_outbound: boolean;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_username?: string;
+  smtp_use_tls?: boolean;
+  smtp_use_ssl?: boolean;
+  status: 'connected' | 'disconnected' | 'error';
+  created_at: string;
+}
+
+export interface EmailStatusResponse {
+  connected: boolean;
+  email?: string;
+  status?: string;
+  provider?: string;
+  accounts?: EmailAccount[];
+  primary_account?: EmailAccount | null;
+  secondary_account?: EmailAccount | null;
+}
+

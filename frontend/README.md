@@ -1,59 +1,93 @@
-# Frontend
+# Sales AI CRM — Angular 20 Frontend Single Page Application 🚀
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.2.
+A modern, high-performance Single Page Application built with **Angular 20**, **Angular Material**, **TypeScript**, **Signals State Management**, and custom **Vanilla CSS/SCSS**.
 
-## Development server
+---
 
-To start a local development server, run:
+## ✨ Key Features & Component Modules
 
+- 📬 **Dual-Mailbox Strategy & Integrations Panel (`app/features/integrations`)**:
+  - Connect **Primary Mailbox** via Google OAuth2 for inbox syncing and thread ingestion.
+  - Connect **Secondary Outbound Mailbox** via **Secondary Google OAuth2** or **Custom SMTP (SendGrid, Mailgun, AWS SES, Custom Domain)**.
+  - Interactive SMTP configuration dialog (`SmtpConfigDialogComponent`) with real-time connection verification.
+
+- ⚡ **AI Sales Sequences & Campaign Progress (`app/features/sequences`)**:
+  - Multi-step sequence rule builder supporting delay steps, AI email generation steps, manual review checkpoints, and contact enrollments.
+  - Contact sequence progress column rendering enrolled campaign statuses (`IN_PROGRESS`, `COMPLETED`, `REPLIED`).
+
+- ✉️ **Direct Contact Outreach & Interactive AI Email Drafts (`app/features/contacts`)**:
+  - 4-Column Contact layout: **Timeline**, **Tasks**, **Notes**, and **Email Threads**.
+  - **Email Threads Column**: Glimpse previews, direction badges (`SENT` / `RECEIVED`), timestamps, and open/click/reply tracking indicators.
+  - **View Full Conversation Dialog**: Responsive popup rendering complete thread message history with auto-hyperlinked URLs.
+  - **Interactive AI Email Composer (`ContactEmailComposerComponent`)**: Generate tailored outreach from prompts, edit body/subject in real-time, select outbound mailbox, and force primary `reply_to`.
+
+- 📊 **Settings & AI Purpose Usage Analytics (`app/features/settings`)**:
+  - Full white-labeling configuration (organization name, tab title, square & rectangular logos with auto-fit).
+  - AI Usage Purpose breakdown card tracking token consumption and dollar costs across **AI Email Generation**, **ICP Lead Scoring**, **Copilot Chat**, and **Call Intelligence**.
+
+- 📞 **Softphone Widget & Real-time AI Assist Copilot (`app/features/telephony`)**:
+  - Draggable floating softphone with twin WebSocket streams (microphone & remote WebRTC audio) to local Whisper container.
+  - Live speech analysis displaying objection badges, buying signals, and suggested discovery questions.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+| Layer | Technology |
+|---|---|
+| **Framework** | Angular 20 (Standalone Components & Signals API) |
+| **UI Components** | Angular Material (Dialogs, Form Fields, Buttons, Signals) |
+| **Styling** | Vanilla CSS, SCSS, Light/Dark Theme CSS Variables |
+| **State Management** | Lightweight Signal Stores (`computed`, `signal`) |
+| **HTTP Interceptors** | `authInterceptor` (JWT bearer), `errorInterceptor` (Token Rotation) |
+
+---
+
+## 📂 Directory Architecture
+
+```
+frontend/src/app/
+├── core/
+│   ├── auth/            # Auth guards & token storage
+│   ├── interceptors/    # JWT header & 401 refresh interceptors
+│   ├── models/          # Core TypeScript models (crm.model.ts)
+│   └── services/        # ApiService, NotificationService, BrandingService
+├── features/
+│   ├── auth/            # Login & public invite onboarding screens
+│   ├── companies/       # Companies list with ICP sorting and creation
+│   ├── contacts/        # Contacts view (4 columns, AI draft generator, thread popups)
+│   │   └── contact-email-composer/ # Real-time AI email composer modal
+│   ├── dashboard/       # Sales overview & pipeline metrics
+│   ├── integrations/    # Primary/Secondary OAuth & Custom SMTP config dialog
+│   ├── sequences/       # Automated AI sequence creator & enrollment tracking
+│   ├── settings/        # Branding, Organization Settings, AI Persona & AI Usage Purpose
+│   ├── tasks/           # Task board, pipeline statuses, workflows
+│   └── telephony/       # Softphone Widget, twin WS streaming, AI Assist Copilot
+└── shared/              # Navbar, Sidebar, Shared Table components, Timeline dialogs
+```
+
+---
+
+## 🚀 Development & Commands
+
+### Development Server
+To start a local development server:
 ```bash
+npm start
+# or
 ng serve
 ```
+Navigate to `http://localhost:4200/`. The app reloads automatically on code changes.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
+### Production Build
+To build the optimized production bundle:
 ```bash
-ng generate component component-name
+npm run build
 ```
+Build output will be stored in `dist/frontend/browser` and served via Nginx in Docker container production.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
+### Unit Tests
+To run Angular unit tests:
 ```bash
-ng generate --help
+npm test
 ```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

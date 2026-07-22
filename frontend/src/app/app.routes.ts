@@ -75,6 +75,10 @@ export const routes: Routes = [
       {
         path: 'calls',
         loadComponent: () => import('./features/telephony/calls.component').then(m => m.CallsComponent)
+      },
+      {
+        path: 'sequences',
+        loadChildren: () => import('./features/sequences/sequences.routes').then(m => m.SEQUENCE_ROUTES)
       }
     ]
   },

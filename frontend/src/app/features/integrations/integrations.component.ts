@@ -173,6 +173,114 @@ export class GmailConfigDialogComponent {
   }
 }
 
+// ─── SECONDARY OUTBOUND DIALOG ─────────────────────────────────────────────
+@Component({
+  selector: 'app-secondary-outbound-dialog',
+  standalone: true,
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+  template: `
+    <div class="dialog-container dark-theme">
+      <div class="dialog-header">
+        <div class="title-area">
+          <mat-icon style="color: #60a5fa;">dns</mat-icon>
+          <h2 mat-dialog-title>Secondary Outbound Mailbox</h2>
+        </div>
+        <button mat-icon-button (click)="close()"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <mat-dialog-content class="dialog-content">
+        <p style="font-size: 0.85rem; color: #94a3b8; margin: 0 0 1.25rem 0; line-height: 1.4;">
+          Connect a secondary email account dedicated to cold sales outreach and AI sequences. All outbound emails will send from this account while prospect replies land in your Primary inbox.
+        </p>
+
+        @if (data.secondaryAccount) {
+          <div class="connection-status connected" style="margin-bottom: 1.25rem;">
+            <mat-icon class="status-icon" style="color: #34d399;">check_circle</mat-icon>
+            <div class="status-info">
+              <h3 style="margin:0; font-size:0.95rem; font-weight:600; color:#f8fafc;">
+                {{ data.secondaryAccount.email }}
+              </h3>
+              <p style="margin:0.25rem 0 0 0; font-size:0.8rem; color:#94a3b8;">
+                Type: <strong>{{ data.secondaryAccount.provider_type | uppercase }}</strong> | Role: Secondary Outbound Sender
+              </p>
+            </div>
+          </div>
+        } @else {
+          <div class="options-grid" style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="option-card" (click)="connectGoogleOAuth()" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 0.85rem;">
+                <mat-icon style="color: #ea4335; font-size: 24px; width: 24px; height: 24px;">email</mat-icon>
+                <div>
+                  <h4 style="margin:0; font-size:0.95rem; font-weight:600; color:#f8fafc;">Connect Secondary Gmail ID (Google OAuth)</h4>
+                  <p style="margin:0.2rem 0 0 0; font-size:0.78rem; color:#94a3b8;">Authorize a secondary Gmail / Google Workspace address via OAuth</p>
+                </div>
+              </div>
+              <mat-icon style="color: #60a5fa;">chevron_right</mat-icon>
+            </div>
+
+            <div class="option-card" (click)="openCustomSmtp()" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 0.85rem;">
+                <mat-icon style="color: #60a5fa; font-size: 24px; width: 24px; height: 24px;">dns</mat-icon>
+                <div>
+                  <h4 style="margin:0; font-size:0.95rem; font-weight:600; color:#f8fafc;">Connect Custom SMTP Server</h4>
+                  <p style="margin:0.2rem 0 0 0; font-size:0.78rem; color:#94a3b8;">Configure custom SMTP credentials (SendGrid, Mailgun, SES, Custom Domain)</p>
+                </div>
+              </div>
+              <mat-icon style="color: #60a5fa;">chevron_right</mat-icon>
+            </div>
+          </div>
+        }
+      </mat-dialog-content>
+
+      <mat-dialog-actions align="end">
+        <button mat-button (click)="close()">Close</button>
+        @if (data.secondaryAccount) {
+          <button mat-flat-button color="warn" (click)="disconnect()">Disconnect Secondary Account</button>
+        }
+      </mat-dialog-actions>
+    </div>
+  `,
+  styles: [`
+    .dialog-container { background-color: #0b1329; color: #e2e8f0; border-radius: 12px; max-width: 500px; width: 100%; }
+    .dialog-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    .title-area { display: flex; align-items: center; gap: 0.75rem; }
+    .title-area h2 { margin: 0 !important; color: #f8fafc; font-size: 1.25rem; font-weight: 700; }
+    .dialog-content { padding: 1.5rem !important; }
+    .option-card:hover { border-color: rgba(96, 165, 250, 0.4) !important; background: rgba(59, 130, 246, 0.08) !important; }
+  `]
+})
+export class SecondaryOutboundDialogComponent {
+  private readonly dialogRef = inject(MatDialogRef<SecondaryOutboundDialogComponent>);
+
+  constructor(@Inject(MAT_DIALOG_DATA) public data: {
+    secondaryAccount: any;
+    onConnectGoogle: () => void;
+    onConnectSmtp: () => void;
+    onDisconnect: (accountId: string) => void;
+  }) {}
+
+  connectGoogleOAuth(): void {
+    this.dialogRef.close();
+    this.data.onConnectGoogle();
+  }
+
+  openCustomSmtp(): void {
+    this.dialogRef.close();
+    this.data.onConnectSmtp();
+  }
+
+  disconnect(): void {
+    if (this.data.secondaryAccount?.id) {
+      this.data.onDisconnect(this.data.secondaryAccount.id);
+      this.dialogRef.close();
+    }
+  }
+
+  close(): void {
+    this.dialogRef.close();
+  }
+}
+
 // ─── AI ASSISTANT CONFIG DIALOG ──────────────────────────────────────────────
 @Component({
   selector: 'app-ai-config-dialog',
@@ -1263,6 +1371,15 @@ export class IntegrationsComponent implements OnInit {
       badge: 'NOT CONFIGURED'
     },
     {
+      id: 'secondary_smtp',
+      title: 'Secondary Outbound Mailbox',
+      description: 'Connect custom SMTP/Gmail sender for sales outreach to protect primary deliverability.',
+      icon: 'dns',
+      iconClass: 'gmail',
+      category: 'Communication',
+      badge: 'NOT CONFIGURED'
+    },
+    {
       id: 'outlook',
       title: 'Outlook Integration',
       description: 'Synchronize Microsoft Office 365 or Outlook mailboxes to retrieve email interactions.',
@@ -1370,14 +1487,34 @@ export class IntegrationsComponent implements OnInit {
         panelClass: 'dark-dialog-panel'
       });
       dialogRef.afterClosed().subscribe(() => this.loadStatuses());
+    } else if (id === 'secondary_smtp') {
+      const statusRes = this.gmailConnected();
+      this.dialog.open(SecondaryOutboundDialogComponent, {
+        width: '520px',
+        panelClass: 'dark-dialog-panel',
+        data: {
+          secondaryAccount: statusRes?.secondary_account,
+          onConnectGoogle: () => this.connectGmail('secondary_outbound'),
+          onConnectSmtp: () => {
+            import('./smtp-config-dialog.component').then((m) => {
+              const ref = this.dialog.open(m.SmtpConfigDialogComponent, {
+                width: '560px',
+                panelClass: 'dark-dialog-panel'
+              });
+              ref.afterClosed().subscribe(() => this.loadStatuses());
+            });
+          },
+          onDisconnect: (accId: string) => this.disconnectAccount(accId)
+        }
+      });
     }
   }
 
   // OAuth logic
-  connectGmail(): void {
+  connectGmail(role = 'primary'): void {
     this.loading.set(true);
     const redirectUri = window.location.origin + '/integrations';
-    this.apiService.get<any>('/emails/google/auth-url/', { redirect_uri: redirectUri }).subscribe({
+    this.apiService.get<any>('/emails/google/auth-url/', { redirect_uri: redirectUri, role }).subscribe({
       next: (res) => {
         if (res.url) {
           window.location.href = res.url;
@@ -1395,17 +1532,20 @@ export class IntegrationsComponent implements OnInit {
   }
 
   disconnectGmail(): void {
+    this.disconnectAccount();
+  }
+
+  disconnectAccount(accountId?: string): void {
     this.loading.set(true);
-    this.apiService.post<any>('/emails/google/disconnect/', {}).subscribe({
+    this.apiService.post<any>('/emails/google/disconnect/', { account_id: accountId }).subscribe({
       next: () => {
-        this.gmailConnected.set(null);
         this.loading.set(false);
-        this.notification.success('Gmail disconnected successfully.');
+        this.notification.success('Email account disconnected successfully.');
         this.loadStatuses();
       },
       error: () => {
         this.loading.set(false);
-        this.notification.error('Failed to disconnect Gmail.');
+        this.notification.error('Failed to disconnect email account.');
       }
     });
   }
@@ -1413,9 +1553,11 @@ export class IntegrationsComponent implements OnInit {
   private handleOAuthCallback(code: string): void {
     this.processingCallback.set(true);
     const redirectUri = window.location.origin + '/integrations';
+    const state = this.route.snapshot.queryParamMap.get('state') || '';
     this.apiService.post<any>('/emails/google/callback/', {
       code,
-      redirect_uri: redirectUri
+      redirect_uri: redirectUri,
+      state
     }).subscribe({
       next: (res) => {
         this.processingCallback.set(false);

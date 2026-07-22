@@ -41,3 +41,17 @@ class BaseEmailProvider(ABC):
         Returns a structured, provider-independent list.
         """
         pass
+
+    @abstractmethod
+    def send_email(
+        self,
+        account: Any,
+        to_email: str,
+        subject: str,
+        body_html: str,
+        body_text: str = "",
+        thread_id: str = None,
+        reply_to: str = None,
+    ) -> Dict[str, Any]:
+        """Send an email via the provider API."""
+        pass

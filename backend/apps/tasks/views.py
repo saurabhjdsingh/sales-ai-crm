@@ -36,13 +36,29 @@ class TaskViewSet(CRMViewMixin, viewsets.ModelViewSet):
         return TaskDetailSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+        contact = serializer.validated_data.get("contact")
+        company = serializer.validated_data.get("company")
+        if contact and not company and getattr(contact, "company", None):
+            serializer.save(created_by=self.request.user, updated_by=self.request.user, company=contact.company)
+        else:
+            serializer.save(created_by=self.request.user, updated_by=self.request.user)
 
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request, pk=None):
-        """Mark a task as completed."""
+        """Mark a task as completed with optional outcome selection and sequence stopping."""
         task = self.get_object()
-        task = TaskService.complete_task(task, request.user)
+        outcome = request.data.get("outcome")
+        outcome_notes = request.data.get("outcome_notes", "")
+        stop_sequence = request.data.get("stop_sequence", False)
+        stop_reason = request.data.get("stop_reason")
+        task = TaskService.complete_task(
+            task,
+            request.user,
+            outcome=outcome,
+            outcome_notes=outcome_notes,
+            stop_sequence=stop_sequence,
+            stop_reason=stop_reason,
+        )
         return Response(TaskDetailSerializer(task).data)
 
     @action(detail=False, methods=["get"], url_path="today")

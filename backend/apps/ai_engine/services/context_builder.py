@@ -431,9 +431,7 @@ class ContextBuilder:
                 if m.cc:
                     lines.append(f"    Cc: {', '.join(m.cc)}")
                 
-                body_content = m.plain_text_body.strip()
-                if not body_content:
-                    body_content = m.snippet.strip()
+                body_content = (m.plain_text_body or m.html_body or "").strip()
                 
                 body_lines = body_content.split("\n")
                 cleaned_body_lines = []

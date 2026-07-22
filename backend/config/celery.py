@@ -38,4 +38,8 @@ app.conf.beat_schedule = {
         "task": "apps.dashboard.tasks.snapshot_daily_productivity",
         "schedule": crontab(hour=23, minute=55),
     },
+    "process-sequence-engine": {
+        "task": "apps.sequences.tasks.process_sequence_engine",
+        "schedule": crontab(minute="*"),
+    },
 }

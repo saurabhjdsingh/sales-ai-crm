@@ -2,7 +2,7 @@ import logging
 from uuid import UUID
 from celery import shared_task
 from django.contrib.auth import get_user_model
-from apps.emails.models import EmailAccount
+from apps.emails.models import EmailAccount, AccountRole
 from apps.emails.services import EmailSyncService
 
 logger = logging.getLogger(__name__)
@@ -27,12 +27,24 @@ def sync_emails_task(
     User = get_user_model()
     try:
         user = User.objects.get(id=user_id)
-        account = EmailAccount.objects.get(user=user)
+        account = EmailAccount.objects.filter(
+            user=user,
+            status="connected",
+            account_role=AccountRole.PRIMARY
+        ).first() or EmailAccount.objects.filter(
+            user=user,
+            status="connected",
+            provider_type="gmail"
+        ).first() or EmailAccount.objects.filter(
+            user=user,
+            status="connected"
+        ).first()
     except User.DoesNotExist:
         logger.error(f"User {user_id} not found for email sync.")
         return
-    except EmailAccount.DoesNotExist:
-        logger.warning(f"Email account not found for user {user.username}. Sync cancelled.")
+
+    if not account:
+        logger.warning(f"Email account not found or connected for user {user.username}. Sync cancelled.")
         return
 
     if account.status == "disconnected" or not account.refresh_token_encrypted:

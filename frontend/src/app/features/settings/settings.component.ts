@@ -64,6 +64,13 @@ interface LLMStats {
   total_output_tokens: number;
   total_tokens: number;
   total_cost: number;
+  sequence_ai_usage?: {
+    calls: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    cost: number;
+  };
   usage_by_model: Array<{
     model_name: string;
     calls: number;
@@ -693,11 +700,16 @@ interface AIProviderOption {
                 </div>
               }
               @else if (llmStats()) {
-                <div class="stats-overview" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+                <div class="stats-overview" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
                   <div class="stat-box" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px;">
                     <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Total Investment</div>
                     <div style="font-size: 1.3rem; font-weight: 700; color: #10a37f; margin-top: 0.25rem;">\${{ llmStats()!.total_cost | number:'1.2-6' }}</div>
                     <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 0.15rem;">{{ llmStats()!.total_calls }} API calls</div>
+                  </div>
+                  <div class="stat-box" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); padding: 0.75rem; border-radius: 8px;">
+                    <div style="font-size: 0.7rem; color: #c084fc; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Sales Sequences AI</div>
+                    <div style="font-size: 1.3rem; font-weight: 700; color: #c084fc; margin-top: 0.25rem;">\${{ (llmStats()!.sequence_ai_usage?.cost || 0) | number:'1.2-6' }}</div>
+                    <div style="font-size: 0.65rem; color: #e9d5ff; margin-top: 0.15rem;">{{ llmStats()!.sequence_ai_usage?.calls || 0 }} sequence AI steps</div>
                   </div>
                   <div class="stat-box" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem; border-radius: 8px;">
                     <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Total Tokens</div>
@@ -732,8 +744,10 @@ interface AIProviderOption {
                       @for (item of llmStats()!.usage_by_purpose; track item.purpose) {
                         <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center;">
                           <div>
-                            <span style="font-size: 0.8rem; font-weight: 600; color: #f1f5f9; text-transform: capitalize;">{{ item.purpose.replace('_', ' ') }}</span>
-                            <div style="font-size: 0.65rem; color: #64748b;">{{ item.calls }} calls • {{ item.total_tokens | number }} tokens</div>
+                            <span style="font-size: 0.8rem; font-weight: 600; color: #f1f5f9; text-transform: capitalize;">
+                              {{ item.purpose === 'sales_sequences' ? 'Sales Sequences AI Steps' : (item.purpose === 'contact_outreach' ? 'Contact Outreach AI Emails' : item.purpose.replace('_', ' ')) }}
+                            </span>
+                            <div style="font-size: 0.65rem; color: #64748b;">{{ item.calls }} requests • {{ item.total_tokens | number }} tokens</div>
                           </div>
                           <div style="text-align: right;">
                             <span style="font-size: 0.85rem; font-weight: 700; color: #10a37f;">\${{ item.cost | number:'1.2-6' }}</span>

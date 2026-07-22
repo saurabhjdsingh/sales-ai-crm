@@ -18,6 +18,7 @@ import { TaskStore } from '../services/task.store';
 import { TaskFormComponent } from '../task-form/task-form.component';
 import { Task } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TaskOutcomeDialogComponent } from '../../sequences/task-outcome-dialog/task-outcome-dialog.component';
 
 @Component({
   selector: 'app-task-list',
@@ -56,7 +57,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <div class="tasks-feed">
               @for (t of store.todayTasks(); track t.id) {
                 <div class="task-row">
-                  <button class="checkbox-btn" (click)="completeTask(t.id)">
+                  <button class="checkbox-btn" (click)="completeTask(t)">
                     <mat-icon>check_box_outline_blank</mat-icon>
                   </button>
                   <div class="task-details">
@@ -95,7 +96,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <div class="tasks-feed">
               @for (t of store.overdueTasks(); track t.id) {
                 <div class="task-row overdue">
-                  <button class="checkbox-btn" (click)="completeTask(t.id)">
+                  <button class="checkbox-btn" (click)="completeTask(t)">
                     <mat-icon>check_box_outline_blank</mat-icon>
                   </button>
                   <div class="task-details">
@@ -198,7 +199,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                 <ng-container matColumnDef="checkbox">
                   <th mat-header-cell *matHeaderCellDef></th>
                   <td mat-cell *matCellDef="let element" class="action-cell">
-                    <button class="checkbox-btn" (click)="completeTask(element.id)" [disabled]="element.status === 'completed'">
+                    <button class="checkbox-btn" (click)="completeTask(element)" [disabled]="element.status === 'completed'">
                       <mat-icon>{{ element.status === 'completed' ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
                     </button>
                   </td>
@@ -816,8 +817,27 @@ export class TaskListComponent implements OnInit {
     });
   }
 
-  completeTask(id: string): void {
-    this.store.completeTask(id);
+  completeTask(taskOrId: any): void {
+    const task: Task = typeof taskOrId === 'string'
+      ? (this.store.tasks().find(t => t.id === taskOrId) ||
+         this.store.todayTasks().find(t => t.id === taskOrId) ||
+         this.store.overdueTasks().find(t => t.id === taskOrId) ||
+         { id: taskOrId, title: 'Task' } as any)
+      : taskOrId;
+
+    const dialogRef = this.dialog.open(TaskOutcomeDialogComponent, {
+      width: '480px',
+      data: { task },
+      panelClass: 'dark-dialog-panel'
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.store.loadTodayTasks();
+        this.store.loadOverdueTasks();
+        this.store.loadTasks(this.store.page(), this.filterForm.value);
+      }
+    });
   }
 
   deleteTask(task: Task): void {

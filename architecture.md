@@ -152,6 +152,17 @@ The CRM captures microphone and remote WebRTC audio streams independently direct
 *   The sockets authenticate using JWT query parameters and feed the local Whisper container.
 *   A failure state machine automatically reconnects connections with exponential backoff without affecting call quality.
 
+### G. Dual-Mailbox Strategy & Provider Factory Architecture (`SmtpProvider` & `GmailProvider`)
+The email subsystem decouples transport mechanisms using a `ProviderFactory` and `BaseEmailProvider` contract:
+* **Primary Account**: Configured via Google OAuth2 for inbox syncing and thread ingestion. Prospect replies automatically route here.
+* **Secondary Outbound Account**: Configured via Secondary Google OAuth2 or Custom SMTP (`SmtpProvider`) for sales sequences and direct contact outreach.
+* **Deliverability Guard**: When sending emails, the `SendContactEmailView` and `SequenceEngineService` select the Secondary Outbound Mailbox credentials for transport while injecting `Reply-To: <primary_email>`. This ensures cold outreach deliverability issues never impact the primary email domain's sender reputation.
+
+### H. Automated AI Sales Sequence Engine (`apps/sequences`)
+* Multi-step sequence workflows manage contact outreach automation.
+* Step types include `EMAIL` (automated email), `AI_GENERATED_EMAIL` (AI draft generation based on CRM context), `WAIT` (delay step), and `TASK` (manual review checkpoint).
+* Celery Beat periodic workers execute `process_sequence_steps_task` every 5 minutes to evaluate enrolled contact progress and dispatch ready steps.
+
 ---
 
 ## 3. End-to-End Workflows
@@ -195,4 +206,20 @@ The CRM captures microphone and remote WebRTC audio streams independently direct
 3. During active calls, speech analysis streams objection badges, buying signals, and suggested discovery questions in real-time.
 4. Sales reps can switch between **Split View**, **Insights**, **Live Transcript**, and **AI Chat** tabs.
 5. Bounded flex containers (`height: 540px; max-height: calc(100vh - 48px);`) provide smooth vertical scrolling and keep chat input controls accessible at all times.
+
+### Workflow 6: Secondary Outbound Email Outreach & Deliverability Guard
+1. User configures a **Secondary Outbound Mailbox** via Google OAuth2 or Custom SMTP in Settings > Integrations.
+2. Sales rep composes a direct 1-to-1 email or triggers an AI draft from the Contact detail page.
+3. Rep reviews the generated email and clicks **Send Email**.
+4. `SendContactEmailView` authenticates transport via the Secondary Outbound Mailbox credentials and injects `Reply-To: <primary_email>`.
+5. Email pixel and link click tracking tags are attached, and sent status is logged to the Contact's Email Threads column.
+6. When the prospect replies, the response lands directly in the sales rep's primary Gmail inbox, automatically syncing back to the CRM timeline.
+
+### Workflow 7: Multi-Step AI Sales Sequences
+1. Sales rep creates a Sequence with multi-step rules (e.g. Step 1: AI Email -> Step 2: Wait 2 Days -> Step 3: Follow-up Email).
+2. Rep enrolls target Contacts into the Sequence.
+3. Celery Beat periodic task `process_sequence_steps_task` evaluates enrollments every 5 minutes:
+   * **Delay Check**: Verifies wait duration has elapsed.
+   * **AI Email Generation**: Invokes `ai_engine` to generate personalized outreach based on target contact context.
+   * **Dispatch & Tracking**: Transports message via Secondary Outbound Mailbox, updates enrolled progress state (`IN_PROGRESS`, `COMPLETED`, `REPLIED`), and logs tracking activity.
 

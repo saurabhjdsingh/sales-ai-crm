@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.telephony",
     "apps.conversation_intelligence",
     "apps.emails",
+    "apps.sequences",
 ]
 
 INSTALLED_APPS = ["daphne"] + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -331,4 +332,10 @@ LOGGING = {
 
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:4200")
 BACKEND_URL = config("BACKEND_URL", default="http://localhost:8000")
+SITE_URL = config("SITE_URL", default="")
+
+# Enable proxy headers for Cloudflare / Nginx / Reverse Proxies
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 

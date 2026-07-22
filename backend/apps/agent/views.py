@@ -304,12 +304,29 @@ class LLMStatsView(APIView):
             cost=Sum("cost")
         ).order_by("-cost")
 
+        # Specific sequence AI usage aggregates
+        seq_qs = LLMCallLog.objects.filter(prompt_purpose__in=["sales_sequences", "sequence_email", "sequence"])
+        seq_totals = seq_qs.aggregate(
+            calls=Count("id"),
+            input_tokens=Sum("input_tokens"),
+            output_tokens=Sum("output_tokens"),
+            total_tokens=Sum("total_tokens"),
+            cost=Sum("cost")
+        )
+
         data = {
             "total_calls": totals["total_calls"] or 0,
             "total_input_tokens": totals["total_input"] or 0,
             "total_output_tokens": totals["total_output"] or 0,
             "total_tokens": totals["total_tokens"] or 0,
             "total_cost": float(totals["total_cost"] or 0.0),
+            "sequence_ai_usage": {
+                "calls": seq_totals["calls"] or 0,
+                "input_tokens": seq_totals["input_tokens"] or 0,
+                "output_tokens": seq_totals["output_tokens"] or 0,
+                "total_tokens": seq_totals["total_tokens"] or 0,
+                "cost": float(seq_totals["cost"] or 0.0)
+            },
             "usage_by_model": [
                 {
                     "model_name": item["model_name"],

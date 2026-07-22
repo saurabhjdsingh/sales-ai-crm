@@ -18,7 +18,7 @@ class Activity(BaseModel):
     """
 
     activity_type = models.CharField(
-        max_length=20,
+        max_length=50,
         choices=ActivityType.choices,
         db_index=True,
     )
