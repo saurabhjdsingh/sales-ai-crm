@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule, Router } from '@angular/router';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -858,6 +858,18 @@ export class DealDetailComponent implements OnInit {
 
   readonly syncingEmails = signal(false);
 
+  constructor() {
+    effect(() => {
+      const deal = this.store.selectedDeal();
+      const companyId = typeof deal?.company === 'object' ? (deal.company as any)?.id : deal?.company;
+      if (companyId) {
+        this.loadAvailableContacts(companyId);
+      } else {
+        this.companyContacts.set([]);
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       const id = params.get('id');
@@ -918,49 +930,21 @@ export class DealDetailComponent implements OnInit {
         this.notes.set(data);
       }
     });
-
-    // Load contacts reactively whenever selected deal updates or falls back
-    const dealObj = this.store.selectedDeal();
-    if (dealObj) {
-      this.loadAvailableContacts(dealObj);
-    } else {
-      this.apiService.get<any>('/contacts/').subscribe({
-        next: (res) => {
-          const data = Array.isArray(res) ? res : (res?.results || []);
-          this.companyContacts.set(data);
-        }
-      });
-    }
   }
 
-  private loadAvailableContacts(dealObj: any): void {
-    if (!dealObj) return;
-    const params: any = {};
-    if (dealObj.company) {
-      params.company = dealObj.company;
+  private loadAvailableContacts(companyId: string): void {
+    if (!companyId) {
+      this.companyContacts.set([]);
+      return;
     }
 
-    this.apiService.get<any>('/contacts/', params).subscribe({
+    this.apiService.get<any>('/contacts/', { company: companyId, page_size: 100 }).subscribe({
       next: (res) => {
-        let data = Array.isArray(res) ? res : (res?.results || []);
-        if (data.length === 0) {
-          this.apiService.get<any>('/contacts/').subscribe({
-            next: (allRes) => {
-              const allData = Array.isArray(allRes) ? allRes : (allRes?.results || []);
-              this.companyContacts.set(allData);
-            }
-          });
-        } else {
-          this.companyContacts.set(data);
-        }
+        const data = Array.isArray(res) ? res : (res?.results || []);
+        this.companyContacts.set(data);
       },
       error: () => {
-        this.apiService.get<any>('/contacts/').subscribe({
-          next: (allRes) => {
-            const allData = Array.isArray(allRes) ? allRes : (allRes?.results || []);
-            this.companyContacts.set(allData);
-          }
-        });
+        this.companyContacts.set([]);
       }
     });
   }
