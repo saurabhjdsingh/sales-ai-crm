@@ -112,7 +112,7 @@ class TestSequenceEngine:
     def test_ai_email_draft_creation(self, sequence, contact, user, monkeypatch):
         # Mock LLM Provider response
         class DummyProvider:
-            def generate_response(self, system_prompt, prompt, response_format):
+            def generate_response(self, system_prompt, prompt, response_format, **kwargs):
                 return {
                     "subject": "Tailored Outreach for Acme",
                     "body_html": "<p>Hello John, let's connect.</p>",
@@ -122,7 +122,7 @@ class TestSequenceEngine:
 
         monkeypatch.setattr(
             "apps.ai_engine.services.providers.factory.LLMProviderFactory.get_provider",
-            lambda: DummyProvider(),
+            lambda *args, **kwargs: DummyProvider(),
         )
 
         enrollments = SequenceEngineService.enroll_contacts(
@@ -211,6 +211,65 @@ class TestSequenceEngine:
         draft.refresh_from_db()
         assert link.click_count == 1
         assert draft.click_count == 1
+
+    def test_bare_url_autolinking_and_wrapping(self, sequence, contact, user):
+        enrollment = SequenceEnrollment.objects.create(sequence=sequence, contact=contact, enrolled_by=user)
+        draft = SequenceEmailDraft.objects.create(
+            enrollment=enrollment,
+            contact=contact,
+            sender=user,
+            subject="Test Bare URL",
+            body_html="<p>Check out https://radar36.com today!</p>",
+            body_text="Check out https://radar36.com today!",
+        )
+        wrapped_html = LinkTrackerService.wrap_links_in_html("https://crm.radar36.com", draft.body_html, draft=draft)
+        assert "/r/" in wrapped_html
+        assert "https://radar36.com" in wrapped_html
+        link_click = SequenceLinkClick.objects.get(draft=draft)
+        assert link_click.original_url == "https://radar36.com"
+        assert f"/r/{link_click.click_token}" in wrapped_html
+
+    def test_contact_email_message_link_click_telemetry(self, contact, user):
+        from apps.emails.models import EmailThread, EmailMessage
+        from django.utils import timezone
+
+        thread = EmailThread.objects.create(
+            gmail_thread_id="thread_test_123",
+            subject="Contact Outreach",
+            contact=contact,
+            last_message_time=timezone.now(),
+        )
+        msg = EmailMessage.objects.create(
+            gmail_message_id="msg_test_123",
+            thread=thread,
+            sender=user.email,
+            recipients=[contact.email],
+            direction="outgoing",
+            subject="Contact Outreach",
+            plain_text_body="Check https://radar36.com",
+            html_body="<p>Check https://radar36.com</p>",
+            internal_date=timezone.now(),
+            created_by=user,
+        )
+        wrapped_html = LinkTrackerService.wrap_links_in_html(
+            base_url="https://crm.radar36.com",
+            html_content=msg.html_body,
+            email_message=msg,
+            user=user,
+        )
+        assert "/r/" in wrapped_html
+        link_click = SequenceLinkClick.objects.get(email_message=msg)
+        assert link_click.original_url == "https://radar36.com"
+
+        dest = LinkTrackerService.handle_click(link_click.click_token)
+        assert dest == "https://radar36.com"
+
+        link_click.refresh_from_db()
+        msg.refresh_from_db()
+        thread.refresh_from_db()
+        assert link_click.click_count == 1
+        assert msg.click_count == 1
+        assert thread.click_count == 1
 
     def test_task_outcome_advances_sequence(self, sequence, contact, user):
         enrollment = SequenceEnrollment.objects.create(

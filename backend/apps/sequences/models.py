@@ -300,6 +300,15 @@ class SequenceLinkClick(BaseModel):
     draft = models.ForeignKey(
         SequenceEmailDraft,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="link_clicks"
+    )
+    email_message = models.ForeignKey(
+        "emails.EmailMessage",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name="link_clicks"
     )
     click_token = models.CharField(max_length=64, unique=True, db_index=True)

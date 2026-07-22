@@ -597,15 +597,25 @@ class SendContactEmailView(APIView):
         if not contact.email:
             return Response({"error": f"Contact '{contact.full_name}' has no email address."}, status=status.HTTP_400_BAD_REQUEST)
 
-        import secrets
+        import uuid
         from apps.emails.serializers import EmailMessageSerializer
-        tracking_token = secrets.token_urlsafe(16)
+        tracking_token = str(uuid.uuid4())
 
         # 2. Inject Telemetry Open Pixel & Link Click Tracking
         from apps.sequences.services.sequence_engine import get_public_base_url
-        base_url = get_public_base_url(request)
+        from apps.sequences.services.link_tracker import LinkTrackerService
+        from apps.sequences.models import SequenceLinkClick
 
-        final_html = body_html or f"<p>{body_text.replace(chr(10), '<br>')}</p>"
+        base_url = get_public_base_url(request)
+        raw_html = body_html or f"<p>{body_text.replace(chr(10), '<br>')}</p>"
+        tracking_start_time = timezone.now()
+
+        final_html = LinkTrackerService.wrap_links_in_html(
+            base_url=base_url,
+            html_content=raw_html,
+            user=request.user,
+            track_clicks=True
+        )
         pixel_url = f"{base_url.rstrip('/')}/api/v1/sequences/track/open/{tracking_token}/pixel.png"
         pixel_tag = f'<img src="{pixel_url}" width="1" height="1" style="display:none !important;" alt="" />'
         final_html += f"\n{pixel_tag}"
@@ -671,6 +681,13 @@ class SendContactEmailView(APIView):
             created_by=request.user,
             updated_by=request.user,
         )
+
+        SequenceLinkClick.objects.filter(
+            draft__isnull=True,
+            email_message__isnull=True,
+            created_by=request.user,
+            created_at__gte=tracking_start_time
+        ).update(email_message=msg)
 
         # 5. Log Timeline Activity
         from apps.activities.models import Activity

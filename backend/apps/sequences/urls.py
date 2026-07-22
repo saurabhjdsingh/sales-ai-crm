@@ -17,7 +17,7 @@ router.register(r"", SequenceViewSet, basename="sequences")
 urlpatterns = [
     path("dashboard/", SequenceDashboardView.as_view(), name="sequence-dashboard"),
     path(
-        "track/open/<uuid:tracking_token>/pixel.png",
+        "track/open/<str:tracking_token>/pixel.png",
         EmailOpenPixelView.as_view(),
         name="sequence-open-pixel",
     ),
