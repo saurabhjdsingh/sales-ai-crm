@@ -272,6 +272,32 @@ class EmailOpenPixelView(APIView):
                     enrollment.last_opened_at = now
                     enrollment.save(update_fields=["open_count", "last_opened_at", "updated_at"])
 
+                    sequence = enrollment.sequence
+                    if sequence and sequence.auto_task_on_open_enabled and enrollment.open_count >= sequence.auto_task_open_count:
+                        from apps.tasks.models import Task
+                        from apps.common.enums import TaskPriority, TaskType, TaskStatus
+                        existing_task = Task.objects.filter(
+                            contact=draft.contact,
+                            sequence_execution_id__isnull=True,
+                            description__icontains=str(enrollment.id),
+                        ).exists()
+                        if not existing_task:
+                            assignee = sequence.created_by if sequence.task_assignment_strategy == "sequence_owner" else (enrollment.enrolled_by or sequence.created_by)
+                            task_title = f"{draft.contact.full_name} opened sales sequence email more than {sequence.auto_task_open_count} times."
+                            Task.objects.create(
+                                title=task_title,
+                                description=f"Automated sequence telemetry alert (Enrollment: {enrollment.id}): Contact {draft.contact.full_name} has opened sequence email '{draft.subject}' {enrollment.open_count} times.",
+                                owner=assignee,
+                                priority=TaskPriority.HIGH,
+                                task_type=TaskType.CALL,
+                                status=TaskStatus.PENDING,
+                                contact=draft.contact,
+                                company=enrollment.company or (draft.contact.company if (draft.contact and hasattr(draft.contact, "company")) else None),
+                                deal=enrollment.deal,
+                                created_by=draft.sender or assignee,
+                                updated_by=draft.sender or assignee,
+                            )
+
                 logger.info("Open pixel recorded for draft %s (Contact: %s, Total opens: %d)", draft.id, draft.contact.full_name, draft.open_count)
 
                 # Log Activity

@@ -73,7 +73,61 @@ class DealService:
                 user=user,
                 metadata={"old_stage": old_stage, "new_stage": deal.stage},
             )
+            DealService._sync_contacts_stage_for_deal(deal, deal.stage, user)
         return deal
+
+    @staticmethod
+    def _sync_contacts_stage_for_deal(deal: Deal, new_deal_stage: str, user):
+        from apps.common.enums import ContactStage
+        from apps.contacts.models import Contact
+        from apps.activities.models import Activity
+        from apps.sequences.services.auto_stop import AutoStopService
+
+        stage_map = {
+            "closed_won": ContactStage.WON,
+            "closed_lost": ContactStage.NOT_INTERESTED,
+            "on_hold": ContactStage.ON_HOLD,
+            "contract_sent": ContactStage.INTERESTED,
+            "negotiation": ContactStage.INTERESTED,
+            "poc": ContactStage.INTERESTED,
+            "meeting_booked": ContactStage.FOLLOW_UP,
+            "sales_qualified": ContactStage.INTERESTED,
+            "lead": ContactStage.APPROACHING,
+        }
+
+        target_contact_stage = stage_map.get(new_deal_stage)
+        if not target_contact_stage:
+            return
+
+        contact_ids = set()
+        for dc in deal.deal_contacts.all():
+            contact_ids.add(dc.contact_id)
+
+        if not contact_ids:
+            return
+
+        contacts = Contact.objects.filter(id__in=contact_ids)
+        for contact in contacts:
+            if contact.stage != target_contact_stage:
+                old_c_stage = contact.stage
+                contact.stage = target_contact_stage
+                contact.save(update_fields=["stage", "updated_at"])
+
+                Activity.objects.create(
+                    activity_type=ActivityType.STAGE_CHANGED,
+                    title=f"Contact Stage Synced: {contact.full_name}",
+                    description=f"Contact stage updated from '{old_c_stage}' to '{target_contact_stage}' because linked deal '{deal.name}' moved to '{new_deal_stage}'.",
+                    contact=contact,
+                    company=deal.company,
+                    deal=deal,
+                    performed_by=user,
+                    metadata={"deal_id": str(deal.id), "old_stage": old_c_stage, "new_stage": target_contact_stage},
+                    created_by=user,
+                )
+
+                AutoStopService.check_and_stop_for_contact_stage(contact, target_contact_stage)
+
+        AutoStopService.check_and_stop_for_deal_stage(deal, new_deal_stage)
 
     @staticmethod
     @transaction.atomic

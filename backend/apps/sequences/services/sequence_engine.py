@@ -155,6 +155,10 @@ class SequenceEngineService:
             )
             enrollments.append(enrollment)
 
+            # Evaluate auto-stop criteria immediately at enrollment time
+            from apps.sequences.services.auto_stop import AutoStopService
+            AutoStopService.check_and_stop_single_enrollment(enrollment)
+
         return enrollments
 
     @staticmethod
@@ -186,6 +190,11 @@ class SequenceEngineService:
         """Executes the current step for a single enrollment."""
         if enrollment.status in [EnrollmentStatus.STOPPED, EnrollmentStatus.PAUSED, EnrollmentStatus.COMPLETED]:
             logger.info("Enrollment %s is in status '%s', skipping step execution", enrollment.id, enrollment.status)
+            return
+
+        from apps.sequences.services.auto_stop import AutoStopService
+        if AutoStopService.check_and_stop_single_enrollment(enrollment):
+            logger.info("Enrollment %s was auto-stopped based on stage rules before executing step", enrollment.id)
             return
 
         step = enrollment.sequence.steps.filter(step_number=enrollment.current_step_number).first()

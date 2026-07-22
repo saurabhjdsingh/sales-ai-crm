@@ -9,7 +9,8 @@ from apps.tasks.models import Task
 
 
 class TaskListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSerializer):
-    company_name = serializers.CharField(source="company.name", read_only=True, default=None)
+    company = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
     deal_name = serializers.CharField(source="deal.name", read_only=True, default=None)
     is_overdue = serializers.BooleanField(read_only=True)
@@ -39,12 +40,27 @@ class TaskListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSer
             "created_at",
         ]
 
+    def get_company(self, obj):
+        if obj.company_id:
+            return str(obj.company_id)
+        if obj.contact and obj.contact.company_id:
+            return str(obj.contact.company_id)
+        return None
+
+    def get_company_name(self, obj):
+        if obj.company:
+            return obj.company.name
+        if obj.contact and obj.contact.company:
+            return obj.contact.company.name
+        return None
+
     def get_contact_name(self, obj):
         return obj.contact.full_name if obj.contact else None
 
 
 class TaskDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSerializer):
-    company_name = serializers.CharField(source="company.name", read_only=True, default=None)
+    company = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
     deal_name = serializers.CharField(source="deal.name", read_only=True, default=None)
     is_overdue = serializers.BooleanField(read_only=True)
@@ -80,6 +96,20 @@ class TaskDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelS
             "created_by",
             "updated_by",
         ]
+
+    def get_company(self, obj):
+        if obj.company_id:
+            return str(obj.company_id)
+        if obj.contact and obj.contact.company_id:
+            return str(obj.contact.company_id)
+        return None
+
+    def get_company_name(self, obj):
+        if obj.company:
+            return obj.company.name
+        if obj.contact and obj.contact.company:
+            return obj.contact.company.name
+        return None
 
     def get_contact_name(self, obj):
         return obj.contact.full_name if obj.contact else None

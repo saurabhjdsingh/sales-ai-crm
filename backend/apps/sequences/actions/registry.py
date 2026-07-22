@@ -3,6 +3,7 @@ from apps.sequences.actions.base import BaseActionHandler
 from apps.sequences.actions.ai_email import AIEmailActionHandler
 from apps.sequences.actions.manual_task import ManualTaskActionHandler
 from apps.sequences.actions.wait import WaitActionHandler
+from apps.sequences.actions.update_stage import UpdateStageActionHandler
 from apps.sequences.models import SequenceActionType
 
 
@@ -18,6 +19,7 @@ class ActionHandlerRegistry:
         SequenceActionType.AI_EMAIL: AIEmailActionHandler(),
         SequenceActionType.MANUAL_TASK: ManualTaskActionHandler(),
         SequenceActionType.WAIT: WaitActionHandler(),
+        SequenceActionType.UPDATE_STAGE: UpdateStageActionHandler(),
     }
 
     @classmethod

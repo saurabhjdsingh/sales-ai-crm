@@ -125,6 +125,7 @@ interface DropdownItem {
                 <mat-option value="do_not_contact">Do Not Contact</mat-option>
                 <mat-option value="bad_data">Bad Data</mat-option>
                 <mat-option value="changed_job">Changed Job</mat-option>
+                <mat-option value="on_hold">On-Hold</mat-option>
                 <mat-option value="won">Won</mat-option>
               </mat-select>
             </mat-form-field>

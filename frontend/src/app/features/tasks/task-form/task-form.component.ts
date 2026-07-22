@@ -38,7 +38,7 @@ interface DropdownItem {
           <div class="form-row">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Task Title</mat-label>
-              <input matInput formControlName="title" placeholder="Follow up on security proposal" required>
+              <input matInput formControlName="title" placeholder="Follow up on security proposal" required />
               @if (taskForm.get('title')?.hasError('required') && taskForm.get('title')?.touched) {
                 <mat-error>Title is required</mat-error>
               }
@@ -49,23 +49,18 @@ interface DropdownItem {
             <mat-form-field appearance="outline">
               <mat-label>Task Type</mat-label>
               <mat-select formControlName="task_type">
-                <mat-option value="call">Call</mat-option>
-                <mat-option value="email">Email</mat-option>
-                <mat-option value="linkedin">LinkedIn</mat-option>
-                <mat-option value="follow_up">Follow Up</mat-option>
-                <mat-option value="meeting">Meeting</mat-option>
-                <mat-option value="review_proposal">Review Proposal</mat-option>
-                <mat-option value="other">Other</mat-option>
+                @for (t of taskTypes; track t.value) {
+                  <mat-option [value]="t.value">{{ t.label }}</mat-option>
+                }
               </mat-select>
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Priority</mat-label>
               <mat-select formControlName="priority">
-                <mat-option value="low">Low</mat-option>
-                <mat-option value="medium">Medium</mat-option>
-                <mat-option value="high">High</mat-option>
-                <mat-option value="urgent">Urgent</mat-option>
+                @for (p of priorities; track p.value) {
+                  <mat-option [value]="p.value">{{ p.label }}</mat-option>
+                }
               </mat-select>
             </mat-form-field>
           </div>
@@ -73,12 +68,12 @@ interface DropdownItem {
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Due Date</mat-label>
-              <input matInput type="datetime-local" formControlName="due_date" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)">
+              <input matInput type="datetime-local" formControlName="due_date" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)" />
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Reminder Date</mat-label>
-              <input matInput type="datetime-local" formControlName="reminder_at" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)">
+              <input matInput type="datetime-local" formControlName="reminder_at" lang="en-GB" (click)="showDatePicker($event)" (focus)="showDatePicker($event)" />
             </mat-form-field>
           </div>
 
@@ -96,26 +91,18 @@ interface DropdownItem {
             <mat-form-field appearance="outline">
               <mat-label>Repeat</mat-label>
               <mat-select formControlName="repeat">
-                <mat-option value="none">None</mat-option>
-                <mat-option value="daily">Daily</mat-option>
-                <mat-option value="weekly">Weekly</mat-option>
-                <mat-option value="monthly">Monthly</mat-option>
+                @for (r of repeatOptions; track r.value) {
+                  <mat-option [value]="r.value">{{ r.label }}</mat-option>
+                }
               </mat-select>
             </mat-form-field>
           </div>
 
-          <!-- Associations (Hidden/readonly if passed in context, editable otherwise) -->
+          <!-- Associations -->
           <div class="form-grid">
             <mat-form-field appearance="outline">
               <mat-label>Company</mat-label>
               <mat-select formControlName="company" placeholder="Select Company">
-                <div class="select-search-container">
-                  <input type="text" 
-                         placeholder="Search company..." 
-                         (input)="filterCompanies($event)" 
-                         (keydown)="$event.stopPropagation()"
-                         class="select-search-input" />
-                </div>
                 <mat-option [value]="null">None</mat-option>
                 @for (c of filteredCompanies(); track c.id) {
                   <mat-option [value]="c.id">{{ c.name }}</mat-option>
@@ -126,13 +113,6 @@ interface DropdownItem {
             <mat-form-field appearance="outline">
               <mat-label>Contact</mat-label>
               <mat-select formControlName="contact" placeholder="Select Contact">
-                <div class="select-search-container">
-                  <input type="text" 
-                         placeholder="Search contact..." 
-                         (input)="filterContacts($event)" 
-                         (keydown)="$event.stopPropagation()"
-                         class="select-search-input" />
-                </div>
                 <mat-option [value]="null">None</mat-option>
                 @for (c of filteredContacts(); track c.id) {
                   <mat-option [value]="c.id">{{ c.name }}</mat-option>
@@ -216,38 +196,6 @@ interface DropdownItem {
       padding: 1rem 1.5rem 1.5rem 1.5rem !important;
       border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
-
-    .select-search-container {
-      padding: 8px 12px;
-      position: sticky;
-      top: 0;
-      background: #0f172a;
-      z-index: 100;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .select-search-input {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      background: #1e293b;
-      color: white;
-      box-sizing: border-box;
-      font-size: 0.9rem;
-      outline: none;
-    }
-    .select-search-input:focus {
-      border-color: #3b82f6;
-    }
-    :host-context(body.light-theme) .select-search-container {
-      background: #f1f5f9;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    }
-    :host-context(body.light-theme) .select-search-input {
-      background: #ffffff;
-      color: #0f172a;
-      border: 1px solid rgba(0, 0, 0, 0.15);
-    }
   `]
 })
 export class TaskFormComponent implements OnInit {
@@ -258,6 +206,31 @@ export class TaskFormComponent implements OnInit {
   readonly data = inject<any>(MAT_DIALOG_DATA, { optional: true });
 
   readonly isEdit = !!this.data && !!this.data.id;
+
+  readonly taskTypes = [
+    { value: 'call', label: 'Call' },
+    { value: 'email', label: 'Email' },
+    { value: 'linkedin', label: 'LinkedIn' },
+    { value: 'follow_up', label: 'Follow Up' },
+    { value: 'meeting', label: 'Meeting' },
+    { value: 'review_proposal', label: 'Review Proposal' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  readonly priorities = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'urgent', label: 'Urgent' }
+  ];
+
+  readonly repeatOptions = [
+    { value: 'none', label: 'None' },
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' }
+  ];
+
   readonly users = signal<DropdownItem[]>([]);
   readonly companies = signal<DropdownItem[]>([]);
   readonly filteredCompanies = signal<DropdownItem[]>([]);
@@ -271,6 +244,7 @@ export class TaskFormComponent implements OnInit {
     due_date: [''],
     reminder_at: [''],
     priority: ['medium'],
+    task_type: ['call'],
     owner: [null],
     repeat: ['none'],
     company: [null],
@@ -280,61 +254,150 @@ export class TaskFormComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Load sales reps
+    // 1. Populate form immediately with data passed in dialog
+    if (this.data) {
+      this.populateForm(this.data);
+    }
+
+    // 2. Fetch full detail from backend if editing to ensure complete fields are loaded
+    if (this.isEdit && this.data && this.data.id) {
+      this.apiService.get<any>(`/tasks/${this.data.id}/`).subscribe({
+        next: (taskDetail) => {
+          if (taskDetail) {
+            this.populateForm(taskDetail);
+            this.ensureAssociationsInDropdowns(taskDetail);
+          }
+        }
+      });
+    }
+
+    // 3. Load sales reps
     this.apiService.get<any[]>('/auth/team/').subscribe((res) => {
-      this.users.set(res.map((u) => ({ id: u.id, name: u.full_name })));
+      if (Array.isArray(res)) {
+        this.users.set(res.map((u) => ({ id: u.id, name: u.full_name || u.name || u.email })));
+      }
     });
 
-    // Load associations
+    // 4. Load associations
     this.apiService.get<any>('/companies/', { page_size: 100 }).subscribe((res) => {
-      const items = res.results.map((c: any) => ({ id: c.id, name: c.name }));
-      this.companies.set(items);
-      this.filteredCompanies.set(items);
-      if (this.data && this.data.company) {
-        this.taskForm.patchValue({ company: this.data.company });
-      }
+      const items = (Array.isArray(res) ? res : (res?.results || [])).map((c: any) => ({ id: c.id, name: c.name }));
+      this.mergeDropdownItems('companies', items);
     });
 
     this.apiService.get<any>('/contacts/', { page_size: 100 }).subscribe((res) => {
-      const items = res.results.map((c: any) => ({ id: c.id, name: c.full_name }));
-      this.contacts.set(items);
-      this.filteredContacts.set(items);
-      if (this.data && this.data.contact) {
-        this.taskForm.patchValue({ contact: this.data.contact });
-      }
+      const items = (Array.isArray(res) ? res : (res?.results || [])).map((c: any) => ({ id: c.id, name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() }));
+      this.mergeDropdownItems('contacts', items);
     });
 
+    this.apiService.get<any>('/deals/', { page_size: 100 }).subscribe((res) => {
+      const items = (Array.isArray(res) ? res : (res?.results || [])).map((d: any) => ({ id: d.id, name: d.name }));
+      this.mergeDropdownItems('deals', items);
+    });
+
+    // Auto-link company when contact is selected
     this.taskForm.get('contact')?.valueChanges.subscribe((contactId) => {
       if (contactId && !this.taskForm.get('company')?.value) {
         this.apiService.get<any>(`/contacts/${contactId}/`).subscribe((c) => {
           if (c && c.company) {
-            this.taskForm.patchValue({ company: c.company });
+            const compId = this.extractId(c.company);
+            if (compId) {
+              this.taskForm.patchValue({ company: compId });
+            }
           }
         });
       }
     });
+  }
 
-    this.apiService.get<any>('/deals/', { page_size: 100 }).subscribe((res) => {
-      this.deals.set(res.results.map((d: any) => ({ id: d.id, name: d.name })));
-      if (this.data && this.data.deal) {
-        this.taskForm.patchValue({ deal: this.data.deal });
-      }
+  private extractId(val: any): string | null {
+    if (!val) return null;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val.id) return val.id;
+    return null;
+  }
+
+  private populateForm(taskData: any): void {
+    if (!taskData) return;
+    const companyId = this.extractId(taskData.company);
+    const contactId = this.extractId(taskData.contact);
+    const dealId = this.extractId(taskData.deal);
+    const ownerId = this.extractId(taskData.owner);
+
+    this.taskForm.patchValue({
+      title: taskData.title || '',
+      description: taskData.description || '',
+      due_date: this.toLocalISOString(taskData.due_date),
+      reminder_at: this.toLocalISOString(taskData.reminder_at),
+      priority: taskData.priority || 'medium',
+      task_type: taskData.task_type || 'call',
+      owner: ownerId,
+      repeat: taskData.repeat || 'none',
+      company: companyId,
+      contact: contactId,
+      deal: dealId,
+      status: taskData.status || 'pending'
     });
 
-    if (this.isEdit && this.data) {
-      this.taskForm.patchValue({
-        title: this.data.title,
-        description: this.data.description || '',
-        due_date: this.toLocalISOString(this.data.due_date),
-        reminder_at: this.toLocalISOString(this.data.reminder_at),
-        priority: this.data.priority,
-        owner: this.data.owner || null,
-        repeat: this.data.repeat || 'none',
-        company: this.data.company || null,
-        contact: this.data.contact || null,
-        deal: this.data.deal || null,
-        status: this.data.status
+    // Merge inline names into dropdown signals so mat-select options match immediately
+    if (taskData.company && typeof taskData.company === 'object') {
+      this.mergeDropdownItems('companies', [{ id: taskData.company.id, name: taskData.company.name }]);
+    } else if (taskData.company_name && companyId) {
+      this.mergeDropdownItems('companies', [{ id: companyId, name: taskData.company_name }]);
+    }
+
+    if (taskData.contact && typeof taskData.contact === 'object') {
+      this.mergeDropdownItems('contacts', [{ id: taskData.contact.id, name: taskData.contact.full_name || taskData.contact.name }]);
+    } else if (taskData.contact_name && contactId) {
+      this.mergeDropdownItems('contacts', [{ id: contactId, name: taskData.contact_name }]);
+    }
+
+    if (taskData.deal && typeof taskData.deal === 'object') {
+      this.mergeDropdownItems('deals', [{ id: taskData.deal.id, name: taskData.deal.name }]);
+    } else if (taskData.deal_name && dealId) {
+      this.mergeDropdownItems('deals', [{ id: dealId, name: taskData.deal_name }]);
+    }
+  }
+
+  private ensureAssociationsInDropdowns(detail: any): void {
+    if (detail.company && typeof detail.company === 'object') {
+      this.mergeDropdownItems('companies', [{ id: detail.company.id, name: detail.company.name }]);
+    }
+    if (detail.contact && typeof detail.contact === 'object') {
+      this.mergeDropdownItems('contacts', [{ id: detail.contact.id, name: detail.contact.full_name || detail.contact.name }]);
+    }
+    if (detail.deal && typeof detail.deal === 'object') {
+      this.mergeDropdownItems('deals', [{ id: detail.deal.id, name: detail.deal.name }]);
+    }
+  }
+
+  private mergeDropdownItems(type: 'companies' | 'contacts' | 'deals', newItems: DropdownItem[]): void {
+    if (!newItems || newItems.length === 0) return;
+    if (type === 'companies') {
+      const current = [...this.companies()];
+      newItems.forEach(item => {
+        if (!current.some(c => c.id === item.id)) {
+          current.push(item);
+        }
       });
+      this.companies.set(current);
+      this.filteredCompanies.set(current);
+    } else if (type === 'contacts') {
+      const current = [...this.contacts()];
+      newItems.forEach(item => {
+        if (!current.some(c => c.id === item.id)) {
+          current.push(item);
+        }
+      });
+      this.contacts.set(current);
+      this.filteredContacts.set(current);
+    } else if (type === 'deals') {
+      const current = [...this.deals()];
+      newItems.forEach(item => {
+        if (!current.some(d => d.id === item.id)) {
+          current.push(item);
+        }
+      });
+      this.deals.set(current);
     }
   }
 
@@ -344,22 +407,6 @@ export class TaskFormComponent implements OnInit {
     const tzoffset = date.getTimezoneOffset() * 60000;
     const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
     return localISOTime;
-  }
-
-  filterCompanies(event: Event): void {
-    const query = (event.target as HTMLInputElement).value.toLowerCase();
-    const all = this.companies();
-    this.filteredCompanies.set(
-      all.filter(c => c.name.toLowerCase().includes(query))
-    );
-  }
-
-  filterContacts(event: Event): void {
-    const query = (event.target as HTMLInputElement).value.toLowerCase();
-    const all = this.contacts();
-    this.filteredContacts.set(
-      all.filter(c => c.name.toLowerCase().includes(query))
-    );
   }
 
   showDatePicker(event: Event): void {

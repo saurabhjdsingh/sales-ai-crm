@@ -919,19 +919,50 @@ export class DealDetailComponent implements OnInit {
       }
     });
 
-    // Load all contacts of the company to allow linking them
-    this.store.selectedDeal(); // Triggers reactivity
-    setTimeout(() => {
-      const dealObj = this.store.selectedDeal();
-      if (dealObj && dealObj.company) {
-        this.apiService.get<any>('/contacts/', { company: dealObj.company }).subscribe({
-          next: (res) => {
-            const data = Array.isArray(res) ? res : (res?.results || []);
-            this.companyContacts.set(data);
+    // Load contacts reactively whenever selected deal updates or falls back
+    const dealObj = this.store.selectedDeal();
+    if (dealObj) {
+      this.loadAvailableContacts(dealObj);
+    } else {
+      this.apiService.get<any>('/contacts/').subscribe({
+        next: (res) => {
+          const data = Array.isArray(res) ? res : (res?.results || []);
+          this.companyContacts.set(data);
+        }
+      });
+    }
+  }
+
+  private loadAvailableContacts(dealObj: any): void {
+    if (!dealObj) return;
+    const params: any = {};
+    if (dealObj.company) {
+      params.company = dealObj.company;
+    }
+
+    this.apiService.get<any>('/contacts/', params).subscribe({
+      next: (res) => {
+        let data = Array.isArray(res) ? res : (res?.results || []);
+        if (data.length === 0) {
+          this.apiService.get<any>('/contacts/').subscribe({
+            next: (allRes) => {
+              const allData = Array.isArray(allRes) ? allRes : (allRes?.results || []);
+              this.companyContacts.set(allData);
+            }
+          });
+        } else {
+          this.companyContacts.set(data);
+        }
+      },
+      error: () => {
+        this.apiService.get<any>('/contacts/').subscribe({
+          next: (allRes) => {
+            const allData = Array.isArray(allRes) ? allRes : (allRes?.results || []);
+            this.companyContacts.set(allData);
           }
         });
       }
-    }, 100);
+    });
   }
 
   openEditDialog(deal: Deal): void {

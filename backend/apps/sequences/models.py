@@ -9,6 +9,7 @@ class SequenceActionType(models.TextChoices):
     AI_EMAIL = "ai_email", "AI Email"
     MANUAL_TASK = "manual_task", "Manual Task"
     WAIT = "wait", "Wait"
+    UPDATE_STAGE = "update_stage", "Auto-update Contact Stage"
     # Extensible future action types:
     LINKEDIN_MESSAGE = "linkedin_message", "LinkedIn Message"
     LINKEDIN_CONNECT = "linkedin_connect", "LinkedIn Connection Request"
@@ -17,6 +18,11 @@ class SequenceActionType(models.TextChoices):
     INTERNAL_REMINDER = "internal_reminder", "Internal Reminder"
     AI_DECISION = "ai_decision", "AI Branching Decision"
     WEBHOOK = "webhook", "Webhook Call"
+
+
+class TaskAssignmentStrategy(models.TextChoices):
+    ENROLLED_BY = "enrolled_by", "User who enrolled contact"
+    SEQUENCE_OWNER = "sequence_owner", "Owner/Author of sequence"
 
 
 class DelayUnit(models.TextChoices):
@@ -63,6 +69,22 @@ class Sequence(BaseModel):
     is_active = models.BooleanField(default=True, db_index=True)
     track_opens = models.BooleanField(default=True)
     track_clicks = models.BooleanField(default=True)
+
+    # Telemetry Auto-Task Creation Settings
+    auto_task_on_open_enabled = models.BooleanField(default=False)
+    auto_task_open_count = models.PositiveIntegerField(default=2)
+    auto_task_on_click_enabled = models.BooleanField(default=False)
+    auto_task_click_count = models.PositiveIntegerField(default=2)
+    task_assignment_strategy = models.CharField(
+        max_length=30,
+        choices=TaskAssignmentStrategy.choices,
+        default=TaskAssignmentStrategy.ENROLLED_BY,
+    )
+
+    # Custom Exit & Auto-Stop Rules
+    auto_stop_on_reply = models.BooleanField(default=True)
+    auto_stop_contact_stages = models.JSONField(default=list, blank=True)
+    auto_stop_deal_stages = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "sequences_sequence"

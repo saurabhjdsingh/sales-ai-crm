@@ -63,11 +63,15 @@ import { TaskOutcomeDialogComponent } from '../../sequences/task-outcome-dialog/
                   <div class="task-details">
                     <div class="task-title">{{ t.title }}</div>
                     <div class="task-meta">
-                      <span class="type-badge" [ngClass]="t.task_type">{{ t.task_type | uppercase }}</span>
+                      <span class="type-badge" [ngClass]="t.task_type">{{ (t.task_type || 'other') | uppercase }}</span>
                       <span class="divider">·</span>
                       <span class="prio-tag" [ngClass]="t.priority">Priority: {{ t.priority }}</span>
+                      <span class="divider" *ngIf="t.contact_name">·</span>
+                      <a class="entity-link" *ngIf="t.contact_name" [routerLink]="['/contacts', t.contact]">Contact: {{ t.contact_name }}</a>
                       <span class="divider" *ngIf="t.company_name">·</span>
-                      <span class="entity-link" *ngIf="t.company_name" [routerLink]="['/companies', t.company]">{{ t.company_name }}</span>
+                      <a class="entity-link" *ngIf="t.company_name" [routerLink]="['/companies', t.company]">Account: {{ t.company_name }}</a>
+                      <span class="divider" *ngIf="t.deal_name">·</span>
+                      <a class="entity-link" *ngIf="t.deal_name" [routerLink]="['/deals', t.deal]">Deal: {{ t.deal_name }}</a>
                     </div>
                   </div>
                   <div class="task-time" *ngIf="t.due_date">{{ t.due_date | date:'shortTime' }}</div>
@@ -102,11 +106,15 @@ import { TaskOutcomeDialogComponent } from '../../sequences/task-outcome-dialog/
                   <div class="task-details">
                     <div class="task-title" [innerHTML]="formatTextWithLinks(t.title)"></div>
                     <div class="task-meta">
-                      <span class="type-badge" [ngClass]="t.task_type">{{ t.task_type | uppercase }}</span>
+                      <span class="type-badge" [ngClass]="t.task_type">{{ (t.task_type || 'other') | uppercase }}</span>
                       <span class="divider">·</span>
                       <span class="prio-tag" [ngClass]="t.priority">Priority: {{ t.priority }}</span>
+                      <span class="divider" *ngIf="t.contact_name">·</span>
+                      <a class="entity-link" *ngIf="t.contact_name" [routerLink]="['/contacts', t.contact]">Contact: {{ t.contact_name }}</a>
                       <span class="divider" *ngIf="t.company_name">·</span>
-                      <span class="entity-link" *ngIf="t.company_name" [routerLink]="['/companies', t.company]">{{ t.company_name }}</span>
+                      <a class="entity-link" *ngIf="t.company_name" [routerLink]="['/companies', t.company]">Account: {{ t.company_name }}</a>
+                      <span class="divider" *ngIf="t.deal_name">·</span>
+                      <a class="entity-link" *ngIf="t.deal_name" [routerLink]="['/deals', t.deal]">Deal: {{ t.deal_name }}</a>
                     </div>
                   </div>
                   <div class="task-days-overdue" *ngIf="t.due_date">
@@ -211,8 +219,12 @@ import { TaskOutcomeDialogComponent } from '../../sequences/task-outcome-dialog/
                   <td mat-cell *matCellDef="let element">
                     <div class="name-cell">
                       <span class="task-title-text" [ngClass]="{ 'line-through': element.status === 'completed' }" [innerHTML]="formatTextWithLinks(element.title)"></span>
-                      <span class="association-sub" *ngIf="element.company_name">
-                        Linked Account: {{ element.company_name }}
+                      <span class="association-sub" *ngIf="element.contact_name || element.company_name || element.deal_name">
+                        <a *ngIf="element.contact_name" [routerLink]="['/contacts', element.contact]" class="entity-link">Contact: {{ element.contact_name }}</a>
+                        <span *ngIf="element.contact_name && element.company_name"> · </span>
+                        <a *ngIf="element.company_name" [routerLink]="['/companies', element.company]" class="entity-link">Account: {{ element.company_name }}</a>
+                        <span *ngIf="(element.contact_name || element.company_name) && element.deal_name"> · </span>
+                        <a *ngIf="element.deal_name" [routerLink]="['/deals', element.deal]" class="entity-link">Deal: {{ element.deal_name }}</a>
                       </span>
                     </div>
                   </td>
@@ -435,10 +447,16 @@ import { TaskOutcomeDialogComponent } from '../../sequences/task-outcome-dialog/
       color: #cbd5e1;
     }
 
-    .type-badge.call { background: rgba(16, 185, 129, 0.1); color: #34d399; }
-    .type-badge.email { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
-    .type-badge.linkedin { background: rgba(14, 165, 233, 0.1); color: #38bdf8; }
-    .type-badge.meeting { background: rgba(245, 158, 11, 0.1); color: #fbbf24; }
+    .type-badge.call { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .type-badge.email { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .type-badge.linkedin { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+    .type-badge.follow_up { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .type-badge.meeting { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .type-badge.review_proposal { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+    .type-badge.other { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+
+    .entity-link { color: #60a5fa; text-decoration: none; font-weight: 500; }
+    .entity-link:hover { text-decoration: underline; color: #93c5fd; }
 
     .prio-tag {
       font-weight: 600;

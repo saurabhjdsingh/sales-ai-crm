@@ -111,6 +111,12 @@ class Task(BaseModel):
         return False
 
     def save(self, *args, **kwargs):
+        if not self.company_id and self.contact_id:
+            try:
+                if self.contact and self.contact.company_id:
+                    self.company_id = self.contact.company_id
+            except Exception:
+                pass
         super().save(*args, **kwargs)
 
         # Immediately create notification if task is due or reminder in next 1 hour 15 minutes

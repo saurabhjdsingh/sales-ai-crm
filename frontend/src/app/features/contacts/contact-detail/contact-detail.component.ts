@@ -80,14 +80,18 @@ import { ContactEmailComposerComponent } from '../contact-email-composer/contact
 
             <!-- Additional Quick Info -->
             <div class="quick-info-grid">
-              <div class="info-item" *ngIf="contact.email">
+              <div class="info-item clickable-info" *ngIf="contact.email" (click)="copyToClipboard(contact.email, 'Email address copied to clipboard')" matTooltip="Click to copy email address">
                 <mat-icon>email</mat-icon>
                 <span>{{ contact.email }}</span>
+                <mat-icon class="copy-icon">content_copy</mat-icon>
               </div>
               <div class="info-item phone-item" *ngIf="contact.phone" style="display: flex; align-items: center; gap: 0.5rem;">
-                <mat-icon>phone</mat-icon>
-                <span>{{ contact.phone }}</span>
-                <button mat-icon-button color="primary" class="phone-call-btn" (click)="makeCall(contact)" title="Call contact" style="width: 28px; height: 28px; line-height: 28px; display: flex; align-items: center; justify-content: center;">
+                <div class="clickable-info-inner" (click)="copyToClipboard(contact.phone, 'Phone number copied to clipboard')" matTooltip="Click to copy phone number" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                  <mat-icon>phone</mat-icon>
+                  <span>{{ contact.phone }}</span>
+                  <mat-icon class="copy-icon">content_copy</mat-icon>
+                </div>
+                <button mat-icon-button color="primary" class="phone-call-btn" (click)="makeCall(contact); $event.stopPropagation()" title="Call contact" style="width: 28px; height: 28px; line-height: 28px; display: flex; align-items: center; justify-content: center;">
                   <mat-icon style="font-size: 16px; width: 16px; height: 16px;">call</mat-icon>
                 </button>
               </div>
@@ -1179,6 +1183,21 @@ export class ContactDetailComponent implements OnInit {
     });
   }
 
+  copyToClipboard(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      this.notification.success(label);
+    }).catch(() => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      this.notification.success(label);
+    });
+  }
+
   getStageLabel(stage: string): string {
     const labels: Record<string, string> = {
       cold: 'Cold',
@@ -1192,6 +1211,7 @@ export class ContactDetailComponent implements OnInit {
       do_not_contact: 'DNC',
       bad_data: 'Bad Data',
       changed_job: 'Job Changed',
+      on_hold: 'On-Hold',
       won: 'Won'
     };
     return labels[stage] || stage;

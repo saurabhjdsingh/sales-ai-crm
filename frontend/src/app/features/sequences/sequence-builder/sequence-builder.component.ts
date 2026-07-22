@@ -49,7 +49,7 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
 
           <div class="form-group">
             <label class="form-label">Description</label>
-            <textarea [(ngModel)]="description" rows="3" placeholder="Purpose of this sequence..." class="form-textarea"></textarea>
+            <textarea [(ngModel)]="description" rows="2" placeholder="Purpose of this sequence..." class="form-textarea"></textarea>
           </div>
 
           <div class="toggle-group">
@@ -77,6 +77,74 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
               <mat-slide-toggle [(ngModel)]="trackClicks" color="primary"></mat-slide-toggle>
             </div>
           </div>
+
+          <!-- Telemetry Auto-Tasks Settings -->
+          <div class="card-section-title">Telemetry Auto-Tasks</div>
+          <div class="toggle-group">
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">Task on Open Threshold</div>
+                <div class="toggle-sub">Auto-create task when email opened N times</div>
+              </div>
+              <mat-slide-toggle [(ngModel)]="autoTaskOnOpenEnabled" color="primary"></mat-slide-toggle>
+            </div>
+            <div *ngIf="autoTaskOnOpenEnabled" class="form-group sub-field">
+              <label class="form-label">Opens Threshold (n)</label>
+              <input type="number" min="1" [(ngModel)]="autoTaskOpenCount" class="form-input" />
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">Task on Click Threshold</div>
+                <div class="toggle-sub">Auto-create task when link clicked N times</div>
+              </div>
+              <mat-slide-toggle [(ngModel)]="autoTaskOnClickEnabled" color="primary"></mat-slide-toggle>
+            </div>
+            <div *ngIf="autoTaskOnClickEnabled" class="form-group sub-field">
+              <label class="form-label">Clicks Threshold (n)</label>
+              <input type="number" min="1" [(ngModel)]="autoTaskClickCount" class="form-input" />
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+              <label class="form-label">Assign Sequence Tasks To</label>
+              <select [(ngModel)]="taskAssignmentStrategy" class="form-select">
+                <option value="enrolled_by">User who enrolled contact to sequence</option>
+                <option value="sequence_owner">Owner/Author of the sales sequence</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Exit & Auto-Stop Rules -->
+          <div class="card-section-title" style="margin-top: 20px;">Exit & Auto-Stop Rules</div>
+          <div class="toggle-group">
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-label">Stop on Email Reply</div>
+                <div class="toggle-sub">Auto-stop sequence when contact replies</div>
+              </div>
+              <mat-slide-toggle [(ngModel)]="autoStopOnReply" color="primary"></mat-slide-toggle>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+              <label class="form-label">Auto-stop on Contact Stages</label>
+              <div class="checkbox-grid">
+                <label *ngFor="let stg of contactStageOptions" class="checkbox-item">
+                  <input type="checkbox" [checked]="isContactStageAutoStopped(stg.value)" (change)="toggleContactStageAutoStop(stg.value)" />
+                  <span>{{ stg.label }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+              <label class="form-label">Auto-stop on Deal Stages</label>
+              <div class="checkbox-grid">
+                <label *ngFor="let dstg of dealStageOptions" class="checkbox-item">
+                  <input type="checkbox" [checked]="isDealStageAutoStopped(dstg.value)" (change)="toggleDealStageAutoStop(dstg.value)" />
+                  <span>{{ dstg.label }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Visual Step Timeline Column -->
@@ -93,12 +161,15 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
               <button type="button" (click)="addStep('wait')" class="add-step-btn wait-btn">
                 + Wait
               </button>
+              <button type="button" (click)="addStep('update_stage')" class="add-step-btn stage-btn">
+                + Update Stage
+              </button>
             </div>
           </div>
 
           <div *ngIf="steps.length === 0" class="empty-steps">
             <mat-icon class="large-icon">route</mat-icon>
-            <p>No steps added yet. Add an AI Email, Manual Task, or Wait step above to begin building the flow.</p>
+            <p>No steps added yet. Add an AI Email, Manual Task, Wait, or Update Stage step above to begin building the flow.</p>
           </div>
 
           <div class="steps-timeline">
@@ -109,9 +180,9 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
                 <div class="step-top-bar">
                   <div class="step-type-pill" [ngClass]="step.action_type">
                     <mat-icon class="step-icon">
-                      {{ step.action_type === 'ai_email' ? 'auto_awesome' : step.action_type === 'manual_task' ? 'assignment' : 'schedule' }}
+                      {{ step.action_type === 'ai_email' ? 'auto_awesome' : step.action_type === 'manual_task' ? 'assignment' : step.action_type === 'wait' ? 'schedule' : 'swap_horiz' }}
                     </mat-icon>
-                    {{ step.action_type === 'ai_email' ? 'AI Email' : step.action_type === 'manual_task' ? 'Manual Task' : 'Wait Duration' }}
+                    {{ step.action_type === 'ai_email' ? 'AI Email' : step.action_type === 'manual_task' ? 'Manual Task' : step.action_type === 'wait' ? 'Wait Duration' : 'Auto-update Stage' }}
                   </div>
 
                   <div class="step-controls">
@@ -134,7 +205,7 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
                     <textarea
                       [(ngModel)]="step.configuration['prompt_instruction']"
                       rows="2"
-                      placeholder="e.g. Write a friendly follow-up referencing our past call and their security challenges..."
+                      placeholder="e.g. Write a friendly follow-up referencing our past call..."
                       class="form-textarea"
                     ></textarea>
                   </div>
@@ -148,10 +219,6 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
                         class="form-input"
                       />
                     </div>
-                  </div>
-                  <div class="note-box">
-                    <mat-icon class="note-icon">info</mat-icon>
-                    Emails are generated dynamically when due using full CRM context (notes, call logs, research) and placed in the Approval Queue for mandatory human review.
                   </div>
                 </div>
 
@@ -197,10 +264,6 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
                       </select>
                     </div>
                   </div>
-                  <div class="toggle-row mini">
-                    <span class="toggle-label">Require Structured Outcome Selection to Complete Task</span>
-                    <mat-slide-toggle [(ngModel)]="step.configuration['requires_outcome']" color="primary"></mat-slide-toggle>
-                  </div>
                 </div>
 
                 <!-- Wait Configuration Form -->
@@ -226,6 +289,20 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
                   </div>
                 </div>
 
+                <!-- Auto-Update Contact Stage Configuration Form -->
+                <div *ngIf="step.action_type === 'update_stage'" class="step-config-body">
+                  <div class="form-group">
+                    <label class="form-label">Target Contact Stage *</label>
+                    <select [(ngModel)]="step.configuration['target_stage']" class="form-select">
+                      <option *ngFor="let stg of contactStageOptions" [value]="stg.value">{{ stg.label }}</option>
+                    </select>
+                  </div>
+                  <div class="note-box">
+                    <mat-icon class="note-icon">info</mat-icon>
+                    When this step executes, the contact's CRM stage will automatically update to the selected stage.
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -234,279 +311,66 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
     </div>
   `,
   styles: [`
-    .builder-container {
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
+    .builder-container { padding: 24px; max-width: 1400px; margin: 0 auto; }
+    .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .back-link { display: flex; align-items: center; gap: 4px; color: #94a3b8; text-decoration: none; font-size: 13px; margin-bottom: 4px; }
+    .tiny-icon { font-size: 16px; width: 16px; height: 16px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #f8fafc; margin: 0; }
+    .builder-grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+    .card-title { font-size: 16px; font-weight: 700; color: #f8fafc; margin: 0 0 16px 0; }
+    .card-section-title { font-weight: 700; font-size: 14px; margin-top: 16px; margin-bottom: 8px; color: #f8fafc; border-top: 1px solid #334155; padding-top: 12px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
+    .form-input, .form-textarea, .form-select { width: 100%; padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; box-sizing: border-box; }
+    .toggle-group { display: flex; flex-direction: column; gap: 12px; }
+    .toggle-row { display: flex; justify-content: space-between; align-items: center; }
+    .toggle-label { font-size: 13px; color: #f8fafc; font-weight: 500; }
+    .toggle-sub { font-size: 11px; color: #64748b; }
+    .sub-field { margin-left: 12px; margin-top: 4px; }
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; max-height: 160px; overflow-y: auto; background: #0f172a; padding: 10px; border-radius: 6px; border: 1px solid #334155; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd5e1; cursor: pointer; }
 
-    .header-section {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+    .steps-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .add-step-dropdown { display: flex; gap: 8px; }
+    .add-step-btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+    .email-btn { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .task-btn { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .wait-btn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .stage-btn { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
 
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      color: #94a3b8;
-      font-size: 0.85rem;
-      text-decoration: none;
-      margin-bottom: 0.25rem;
-    }
-
-    .back-link:hover { color: #f8fafc; }
-
-    .page-title {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #f8fafc;
-      margin: 0;
-    }
-
-    .primary-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-      color: #ffffff;
-      padding: 0.65rem 1.4rem;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-
-    .builder-grid {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 1.5rem;
-
-      @media (max-width: 900px) {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .card {
-      background: #0b1329;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      padding: 1.5rem;
-    }
-
-    .card-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #f8fafc;
-      margin: 0 0 1.25rem 0;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      margin-bottom: 1rem;
-    }
-
-    .form-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #94a3b8;
-    }
-
-    .form-input, .form-textarea, .form-select {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 0.6rem 0.8rem;
-      color: #f8fafc;
-      font-size: 0.875rem;
-      outline: none;
-    }
-
-    .form-input:focus, .form-textarea:focus, .form-select:focus {
-      border-color: #3b82f6;
-    }
-
-    .toggle-group {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      margin-top: 1.5rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      padding-top: 1.25rem;
-    }
-
-    .toggle-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .toggle-row.mini { margin-top: 0.5rem; }
-
-    .toggle-label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #e2e8f0;
-    }
-
-    .toggle-sub {
-      font-size: 0.75rem;
-      color: #64748b;
-    }
-
-    .steps-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
-
-    .add-step-dropdown {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    .add-step-btn {
-      border: none;
-      padding: 0.45rem 0.8rem;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-
-    .add-step-btn.email-btn { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .add-step-btn.task-btn { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .add-step-btn.wait-btn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-
-    .empty-steps {
-      text-align: center;
-      padding: 3rem;
-      color: #64748b;
-    }
-
-    .large-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      color: #3b82f6;
-      margin-bottom: 0.5rem;
-    }
-
-    .steps-timeline {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .step-card {
-      display: flex;
-      gap: 1rem;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 10px;
-      padding: 1rem;
-    }
-
-    .step-badge-num {
-      width: 28px;
-      height: 28px;
-      background: rgba(59, 130, 246, 0.2);
-      color: #60a5fa;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 0.85rem;
-      flex-shrink: 0;
-    }
-
-    .step-main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .step-top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .step-type-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-weight: 700;
-      font-size: 0.85rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 6px;
-    }
-
-    .step-type-pill.ai_email { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .step-type-pill.manual_task { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .step-type-pill.wait { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-
-    .step-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-
-    .form-row {
-      display: flex;
-      gap: 1rem;
-    }
-
+    .steps-timeline { display: flex; flex-direction: column; gap: 16px; }
+    .step-card { display: flex; gap: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+    .step-badge-num { width: 24px; height: 24px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .step-main { flex: 1; }
+    .step-top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .step-type-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .step-type-pill.ai_email { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .step-type-pill.manual_task { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .step-type-pill.wait { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .step-type-pill.update_stage { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .step-icon { font-size: 14px; width: 14px; height: 14px; }
+    .step-config-body { background: #1e293b; padding: 12px; border-radius: 6px; border: 1px solid #334155; margin-top: 8px; }
+    .note-box { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; color: #94a3b8; margin-top: 8px; }
+    .note-icon { font-size: 14px; width: 14px; height: 14px; color: #3b82f6; }
+    .form-row { display: flex; gap: 12px; }
     .flex-1 { flex: 1; }
 
-    .note-box {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(59, 130, 246, 0.05);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      border-radius: 6px;
-      padding: 0.6rem 0.8rem;
-      color: #93c5fd;
-      font-size: 0.78rem;
-    }
+    .primary-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    .btn-icon { font-size: 16px; width: 16px; height: 16px; }
 
-    .note-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
-
-    .btn-icon, .tiny-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-
-    /* Light Theme Overrides */
     :host-context(body.light-theme) .page-title { color: #0f172a; }
-    :host-context(body.light-theme) .page-subtitle { color: #334155; }
-    :host-context(body.light-theme) .form-card,
-    :host-context(body.light-theme) .step-card { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
-    :host-context(body.light-theme) .form-label { color: #000000 !important; font-weight: 700; }
+    :host-context(body.light-theme) .card { background: #ffffff; border-color: #cbd5e1; }
+    :host-context(body.light-theme) .card-title { color: #0f172a; }
+    :host-context(body.light-theme) .card-section-title { color: #0f172a; border-top-color: #e2e8f0; }
+    :host-context(body.light-theme) .form-label { color: #475569; }
     :host-context(body.light-theme) .form-input,
     :host-context(body.light-theme) .form-textarea,
     :host-context(body.light-theme) .form-select { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
     :host-context(body.light-theme) .step-config-body { background: #f8fafc; border-color: #e2e8f0; }
-    :host-context(body.light-theme) .step-number { background: #0f172a; color: #ffffff; }
-    :host-context(body.light-theme) .step-title-input { color: #0f172a; }
-    :host-context(body.light-theme) .back-link { color: #475569; }
-    :host-context(body.light-theme) .secondary-btn { background: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
-    :host-context(body.light-theme) .add-step-bar { background: #ffffff; border-color: #cbd5e1; }
-    :host-context(body.light-theme) .add-btn { background: #f1f5f9; border-color: #cbd5e1; color: #0f172a; }
-    :host-context(body.light-theme) .toggle-label { color: #0f172a; font-weight: 600; }
+    :host-context(body.light-theme) .step-card { background: #ffffff; border-color: #e2e8f0; }
+    :host-context(body.light-theme) .checkbox-grid { background: #f8fafc; border-color: #cbd5e1; }
+    :host-context(body.light-theme) .checkbox-item { color: #1e293b; }
   `]
 })
 export class SequenceBuilderComponent implements OnInit {
@@ -523,6 +387,44 @@ export class SequenceBuilderComponent implements OnInit {
   isActive = true;
   trackOpens = true;
   trackClicks = true;
+
+  autoTaskOnOpenEnabled = false;
+  autoTaskOpenCount = 2;
+  autoTaskOnClickEnabled = false;
+  autoTaskClickCount = 2;
+  taskAssignmentStrategy: 'enrolled_by' | 'sequence_owner' = 'enrolled_by';
+
+  autoStopOnReply = true;
+  autoStopContactStages: string[] = ['do_not_contact', 'not_interested', 'won', 'not_icp', 'bad_data'];
+  autoStopDealStages: string[] = ['closed_won', 'closed_lost'];
+
+  readonly contactStageOptions = [
+    { value: 'cold', label: 'Cold' },
+    { value: 'approaching', label: 'Approaching' },
+    { value: 'replied', label: 'Replied' },
+    { value: 'follow_up', label: 'Follow Up' },
+    { value: 'interested', label: 'Interested' },
+    { value: 'not_icp', label: 'Not ICP' },
+    { value: 'not_interested', label: 'Not Interested' },
+    { value: 'unresponsive', label: 'Unresponsive' },
+    { value: 'do_not_contact', label: 'Do Not Contact' },
+    { value: 'bad_data', label: 'Bad Data' },
+    { value: 'changed_job', label: 'Changed Job' },
+    { value: 'on_hold', label: 'On-Hold' },
+    { value: 'won', label: 'Won' }
+  ];
+
+  readonly dealStageOptions = [
+    { value: 'lead', label: 'Lead' },
+    { value: 'sales_qualified', label: 'Sales Qualified' },
+    { value: 'meeting_booked', label: 'Meeting Booked' },
+    { value: 'negotiation', label: 'Negotiation' },
+    { value: 'poc', label: 'POC' },
+    { value: 'contract_sent', label: 'Contract Sent' },
+    { value: 'closed_won', label: 'Closed Won' },
+    { value: 'closed_lost', label: 'Closed Lost' },
+    { value: 'on_hold', label: 'On Hold' }
+  ];
 
   steps: SequenceStep[] = [
     {
@@ -558,6 +460,18 @@ export class SequenceBuilderComponent implements OnInit {
         this.isActive = seq.is_active;
         this.trackOpens = seq.track_opens;
         this.trackClicks = seq.track_clicks;
+        this.autoTaskOnOpenEnabled = seq.auto_task_on_open_enabled || false;
+        this.autoTaskOpenCount = seq.auto_task_open_count ?? 2;
+        this.autoTaskOnClickEnabled = seq.auto_task_on_click_enabled || false;
+        this.autoTaskClickCount = seq.auto_task_click_count ?? 2;
+        this.taskAssignmentStrategy = seq.task_assignment_strategy || 'enrolled_by';
+        this.autoStopOnReply = seq.auto_stop_on_reply ?? true;
+        if (seq.auto_stop_contact_stages) {
+          this.autoStopContactStages = seq.auto_stop_contact_stages;
+        }
+        if (seq.auto_stop_deal_stages) {
+          this.autoStopDealStages = seq.auto_stop_deal_stages;
+        }
         if (seq.steps && seq.steps.length > 0) {
           this.steps = seq.steps;
         }
@@ -573,6 +487,8 @@ export class SequenceBuilderComponent implements OnInit {
       config = { prompt_instruction: 'Personalized follow up email.', tone: 'conversational and consultative' };
     } else if (type === 'manual_task') {
       config = { title: 'Follow Up Task', description: '', task_type: 'call', priority: 'medium', requires_outcome: true };
+    } else if (type === 'update_stage') {
+      config = { target_stage: 'contacted' };
     }
 
     this.steps.push({
@@ -609,6 +525,30 @@ export class SequenceBuilderComponent implements OnInit {
     this.steps.forEach((s, idx) => (s.step_number = idx + 1));
   }
 
+  isContactStageAutoStopped(stageValue: string): boolean {
+    return this.autoStopContactStages.includes(stageValue);
+  }
+
+  toggleContactStageAutoStop(stageValue: string): void {
+    if (this.isContactStageAutoStopped(stageValue)) {
+      this.autoStopContactStages = this.autoStopContactStages.filter(s => s !== stageValue);
+    } else {
+      this.autoStopContactStages.push(stageValue);
+    }
+  }
+
+  isDealStageAutoStopped(stageValue: string): boolean {
+    return this.autoStopDealStages.includes(stageValue);
+  }
+
+  toggleDealStageAutoStop(stageValue: string): void {
+    if (this.isDealStageAutoStopped(stageValue)) {
+      this.autoStopDealStages = this.autoStopDealStages.filter(s => s !== stageValue);
+    } else {
+      this.autoStopDealStages.push(stageValue);
+    }
+  }
+
   saveSequence(): void {
     if (!this.name.trim()) {
       alert('Please enter a sequence name.');
@@ -622,6 +562,14 @@ export class SequenceBuilderComponent implements OnInit {
       is_active: this.isActive,
       track_opens: this.trackOpens,
       track_clicks: this.trackClicks,
+      auto_task_on_open_enabled: this.autoTaskOnOpenEnabled,
+      auto_task_open_count: this.autoTaskOpenCount,
+      auto_task_on_click_enabled: this.autoTaskOnClickEnabled,
+      auto_task_click_count: this.autoTaskClickCount,
+      task_assignment_strategy: this.taskAssignmentStrategy,
+      auto_stop_on_reply: this.autoStopOnReply,
+      auto_stop_contact_stages: this.autoStopContactStages,
+      auto_stop_deal_stages: this.autoStopDealStages,
       steps: this.steps
     };
 

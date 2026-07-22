@@ -1,8 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
-import { MatIconModule } from '@angular/material/icon';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SequenceService } from '../services/sequence.service';
 import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
@@ -13,58 +13,72 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
   imports: [
     CommonModule,
     RouterModule,
-    MatIconModule,
     MatButtonModule,
-    MatTooltipModule,
+    MatIconModule,
+    MatTooltipModule
   ],
   template: `
     <div class="detail-container" *ngIf="sequence">
+      <!-- Top Header / Navigation -->
       <div class="header-section">
         <div>
           <a routerLink="/sequences" class="back-link">
-            <mat-icon class="tiny-icon">arrow_back</mat-icon> Back to Sequences
+            <mat-icon>arrow_back</mat-icon> Back to Sequences
           </a>
           <div class="title-row">
             <h1 class="page-title">{{ sequence.name }}</h1>
-            <span class="status-badge" [class.active]="sequence.is_active" [class.inactive]="!sequence.is_active">
-              {{ sequence.is_active ? 'Active' : 'Inactive' }}
+            <span class="status-badge" [ngClass]="sequence.is_active ? 'active' : 'inactive'">
+              {{ sequence.is_active ? 'ACTIVE' : 'INACTIVE' }}
             </span>
           </div>
           <p class="page-subtitle" *ngIf="sequence.description">{{ sequence.description }}</p>
         </div>
 
-        <div class="action-buttons">
+        <div class="header-actions">
           <a [routerLink]="['/sequences', sequence.id, 'edit']" class="secondary-btn">
-            <mat-icon class="btn-icon">edit</mat-icon>
-            Edit Sequence Flow
+            <mat-icon>edit</mat-icon> Edit Sequence
           </a>
         </div>
       </div>
 
-      <!-- Quick Metrics Strip -->
+      <!-- KPI Summary Cards -->
       <div class="kpi-strip">
         <div class="kpi-card">
-          <div class="kpi-label">Configured Steps</div>
-          <div class="kpi-value">{{ sequence.steps?.length || 0 }}</div>
-        </div>
-        <div class="kpi-card">
           <div class="kpi-label">Active Enrollments</div>
-          <div class="kpi-value accent">{{ sequence.active_enrollments_count || 0 }}</div>
+          <div class="kpi-value">{{ sequence.active_enrollments_count || 0 }}</div>
         </div>
+
         <div class="kpi-card">
           <div class="kpi-label">Total Enrolled</div>
           <div class="kpi-value">{{ sequence.total_enrolled_count || 0 }}</div>
         </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Total Steps</div>
+          <div class="kpi-value">{{ sequence.steps?.length || 0 }}</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Tracking</div>
+          <div class="kpi-value small">
+            <span *ngIf="sequence.track_opens">Opens 👁️</span>
+            <span *ngIf="sequence.track_clicks"> · Clicks 🔗</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Steps Flow Overview -->
+      <!-- Sequence Steps Card -->
       <div class="card">
-        <h3 class="card-title">Configured Steps</h3>
+        <h3 class="card-title">Sequence Steps Flow</h3>
+
         <div class="steps-flow">
           <div *ngFor="let step of sequence.steps" class="step-chip">
             <span class="step-num">Step {{ step.step_number }}</span>
             <span class="step-type" [ngClass]="step.action_type">
-              {{ step.action_type === 'ai_email' ? 'AI Email' : step.action_type === 'manual_task' ? 'Manual Task' : 'Wait ' + step.delay + ' ' + step.delay_unit }}
+              {{ step.action_type === 'ai_email' ? 'AI Email' : (step.action_type === 'manual_task' ? 'Manual Task' : (step.action_type === 'update_stage' ? 'Update Stage' : 'Wait')) }}
+            </span>
+            <span class="step-delay" *ngIf="step.delay > 0">
+              ({{ step.delay }} {{ step.delay_unit }})
             </span>
           </div>
         </div>
@@ -79,94 +93,96 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
           <p>No contacts enrolled in this sequence yet.</p>
         </div>
 
-        <table *ngIf="enrollments.length > 0" class="data-table">
-          <thead>
-            <tr>
-              <th>Contact Name</th>
-              <th>Status</th>
-              <th>Current Step</th>
-              <th>Opens</th>
-              <th>Clicks</th>
-              <th>Engagement</th>
-              <th>Next Exec</th>
-              <th>Stop Reason</th>
-              <th>Enrolled Date</th>
-              <th class="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let e of enrollments">
-              <td>
-                <a [routerLink]="['/contacts', e.contact]" class="contact-link">
-                  {{ e.contact_name }}
-                </a>
-                <div class="email-sub">{{ e.contact_email }}</div>
-              </td>
-              <td>
-                <span class="enrollment-status" [ngClass]="e.status">
-                  {{ e.status | uppercase }}
-                </span>
-              </td>
-              <td>Step {{ e.current_step_number }}</td>
-              <td>
-                <span class="stat-pill open">
-                  <mat-icon class="tiny-icon">visibility</mat-icon> {{ e.open_count || 0 }}
-                </span>
-              </td>
-              <td>
-                <span class="stat-pill click">
-                  <mat-icon class="tiny-icon">ads_click</mat-icon> {{ e.click_count || 0 }}
-                </span>
-              </td>
-              <td>
-                <span class="reply-tag" *ngIf="e.has_replied || (e.stop_reason && (e.stop_reason.toLowerCase().includes('replied') || e.stop_reason.toLowerCase().includes('answered')))">
-                  Replied / Answered
-                </span>
-                <span class="muted" *ngIf="!e.has_replied && (!e.stop_reason || (!e.stop_reason.toLowerCase().includes('replied') && !e.stop_reason.toLowerCase().includes('answered')))">
-                  —
-                </span>
-              </td>
-              <td>
-                <span *ngIf="e.next_execution_at">{{ e.next_execution_at | date:'short' }}</span>
-                <span *ngIf="!e.next_execution_at" class="muted">—</span>
-              </td>
-              <td>
-                <span *ngIf="e.stop_reason" class="reason-tag">{{ e.stop_reason }}</span>
-                <span *ngIf="!e.stop_reason" class="muted">—</span>
-              </td>
-              <td class="date-cell">{{ e.created_at | date:'shortDate' }}</td>
-              <td class="text-right action-cell">
-                <button
-                  *ngIf="e.status === 'running' || e.status === 'waiting'"
-                  mat-icon-button
-                  (click)="pauseEnrollment(e)"
-                  matTooltip="Pause Progress"
-                >
-                  <mat-icon>pause_circle</mat-icon>
-                </button>
+        <div *ngIf="enrollments.length > 0" class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Contact Name</th>
+                <th>Status</th>
+                <th>Current Step</th>
+                <th>Opens</th>
+                <th>Clicks</th>
+                <th>Replies</th>
+                <th>Next Exec</th>
+                <th>Stop Reason</th>
+                <th>Enrolled Date</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let e of enrollments">
+                <td class="contact-cell">
+                  <a [routerLink]="['/contacts', e.contact]" class="contact-link">
+                    {{ e.contact_name }}
+                  </a>
+                  <div class="email-sub">{{ e.contact_email }}</div>
+                </td>
+                <td>
+                  <span class="enrollment-status" [ngClass]="e.status">
+                    {{ e.status | uppercase }}
+                  </span>
+                </td>
+                <td>Step {{ e.current_step_number }}</td>
+                <td>
+                  <span class="stat-pill open">
+                    <mat-icon class="tiny-icon">visibility</mat-icon> {{ e.open_count || 0 }}
+                  </span>
+                </td>
+                <td>
+                  <span class="stat-pill click">
+                    <mat-icon class="tiny-icon">ads_click</mat-icon> {{ e.click_count || 0 }}
+                  </span>
+                </td>
+                <td>
+                  <span class="reply-tag" *ngIf="e.has_replied || (e.stop_reason && (e.stop_reason.toLowerCase().includes('replied') || e.stop_reason.toLowerCase().includes('answered')))">
+                    Replied / Answered
+                  </span>
+                  <span class="muted" *ngIf="!e.has_replied && (!e.stop_reason || (!e.stop_reason.toLowerCase().includes('replied') && !e.stop_reason.toLowerCase().includes('answered')))">
+                    —
+                  </span>
+                </td>
+                <td class="nowrap-cell">
+                  <span *ngIf="e.next_execution_at">{{ e.next_execution_at | date:'short' }}</span>
+                  <span *ngIf="!e.next_execution_at" class="muted">—</span>
+                </td>
+                <td class="reason-cell">
+                  <span *ngIf="e.stop_reason" class="reason-tag" [matTooltip]="e.stop_reason">{{ e.stop_reason }}</span>
+                  <span *ngIf="!e.stop_reason" class="muted">—</span>
+                </td>
+                <td class="nowrap-cell date-cell">{{ e.created_at | date:'shortDate' }}</td>
+                <td class="text-right action-cell">
+                  <button
+                    *ngIf="e.status === 'running' || e.status === 'waiting'"
+                    mat-icon-button
+                    (click)="pauseEnrollment(e)"
+                    matTooltip="Pause Progress"
+                  >
+                    <mat-icon>pause_circle</mat-icon>
+                  </button>
 
-                <button
-                  *ngIf="e.status === 'paused'"
-                  mat-icon-button
-                  (click)="resumeEnrollment(e)"
-                  matTooltip="Resume Progress"
-                >
-                  <mat-icon>play_circle</mat-icon>
-                </button>
+                  <button
+                    *ngIf="e.status === 'paused'"
+                    mat-icon-button
+                    (click)="resumeEnrollment(e)"
+                    matTooltip="Resume Progress"
+                  >
+                    <mat-icon>play_circle</mat-icon>
+                  </button>
 
-                <button
-                  *ngIf="e.status !== 'completed' && e.status !== 'stopped'"
-                  mat-icon-button
-                  color="warn"
-                  (click)="stopEnrollment(e)"
-                  matTooltip="Stop Sequence for Contact"
-                >
-                  <mat-icon>stop_circle</mat-icon>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <button
+                    *ngIf="e.status !== 'completed' && e.status !== 'stopped'"
+                    mat-icon-button
+                    color="warn"
+                    (click)="stopEnrollment(e)"
+                    matTooltip="Stop Sequence for Contact"
+                  >
+                    <mat-icon>stop_circle</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   `,
@@ -263,20 +279,25 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
       margin-top: 0.25rem;
     }
 
-    .kpi-value.accent { color: #fbbf24; }
+    .kpi-value.small {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #38bdf8;
+    }
 
     .card {
       background: #0b1329;
       border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 12px;
       padding: 1.5rem;
+      overflow: hidden;
     }
 
     .card-title {
       font-size: 1.1rem;
       font-weight: 700;
       color: #f8fafc;
-      margin: 0 0 1.25rem 0;
+      margin: 0 0 1rem 0;
     }
 
     .steps-flow {
@@ -286,7 +307,7 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     }
 
     .step-chip {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.5rem;
       background: rgba(255, 255, 255, 0.03);
@@ -301,8 +322,16 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     .step-type.manual_task { color: #34d399; }
     .step-type.wait { color: #fbbf24; }
 
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+
     .data-table {
       width: 100%;
+      min-width: 850px;
       border-collapse: collapse;
       text-align: left;
     }
@@ -313,15 +342,20 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
       font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
-      padding: 0.85rem 1.25rem;
+      padding: 0.75rem 0.85rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      white-space: nowrap;
     }
 
     .data-table td {
-      padding: 0.85rem 1.25rem;
+      padding: 0.75rem 0.85rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.03);
       color: #e2e8f0;
       font-size: 0.85rem;
+    }
+
+    .nowrap-cell {
+      white-space: nowrap;
     }
 
     .contact-link {
@@ -346,7 +380,16 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     .enrollment-status.stopped { background: rgba(239, 68, 68, 0.15); color: #f87171; }
     .enrollment-status.paused { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
 
+    .reason-cell {
+      max-width: 180px;
+    }
+
     .reason-tag {
+      display: inline-block;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       background: rgba(239, 68, 68, 0.1);
       color: #f87171;
       padding: 0.15rem 0.4rem;

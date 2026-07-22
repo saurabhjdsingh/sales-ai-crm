@@ -19,7 +19,11 @@ class ManualTaskActionHandler(BaseActionHandler):
         enrollment = execution.enrollment
         step = execution.step
         contact = enrollment.contact
-        user = enrollment.enrolled_by or contact.owner
+        sequence = enrollment.sequence
+        if sequence and getattr(sequence, "task_assignment_strategy", None) == "sequence_owner":
+            user = sequence.created_by or enrollment.enrolled_by or (contact.owner if contact else None)
+        else:
+            user = enrollment.enrolled_by or (sequence.created_by if sequence else None) or (contact.owner if contact else None)
 
         # Guard against duplicate execution / task creation
         if execution.status == ExecutionStatus.EXECUTING or getattr(execution, "task", None) or Task.objects.filter(sequence_execution_id=execution.id).exists():

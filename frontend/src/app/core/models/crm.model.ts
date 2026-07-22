@@ -63,6 +63,7 @@ export type ContactStage =
   | 'do_not_contact'
   | 'bad_data'
   | 'changed_job'
+  | 'on_hold'
   | 'won';
 
 export interface Contact {
@@ -309,7 +310,7 @@ export interface PaginatedResult<T> {
   results: T[];
 }
 
-export type SequenceActionType = 'ai_email' | 'manual_task' | 'wait' | 'linkedin_message' | 'phone_call' | 'sms' | 'webhook';
+export type SequenceActionType = 'ai_email' | 'manual_task' | 'wait' | 'update_stage' | 'linkedin_message' | 'phone_call' | 'sms' | 'webhook';
 export type DelayUnit = 'minutes' | 'hours' | 'days';
 export type EnrollmentStatus = 'draft' | 'running' | 'waiting' | 'waiting_approval' | 'completed' | 'stopped' | 'paused' | 'failed';
 export type DraftStatus = 'draft_pending' | 'approved' | 'sent' | 'rejected' | 'cancelled';
@@ -330,6 +331,14 @@ export interface Sequence {
   is_active: boolean;
   track_opens: boolean;
   track_clicks: boolean;
+  auto_task_on_open_enabled?: boolean;
+  auto_task_open_count?: number;
+  auto_task_on_click_enabled?: boolean;
+  auto_task_click_count?: number;
+  task_assignment_strategy?: 'enrolled_by' | 'sequence_owner';
+  auto_stop_on_reply?: boolean;
+  auto_stop_contact_stages?: string[];
+  auto_stop_deal_stages?: string[];
   steps_count?: number;
   active_enrollments_count?: number;
   total_enrolled_count?: number;
