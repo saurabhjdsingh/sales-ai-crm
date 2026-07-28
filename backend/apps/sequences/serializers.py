@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from apps.common.serializers import AuditFieldsMixin
 from apps.sequences.models import (
@@ -12,6 +13,8 @@ from apps.contacts.serializers import ContactListSerializer
 
 
 class SequenceStepSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(required=False, allow_null=True)
+
     class Meta:
         model = SequenceStep
         fields = [
@@ -45,6 +48,8 @@ class SequenceListSerializer(AuditFieldsMixin, serializers.ModelSerializer):
             "auto_stop_on_reply",
             "auto_stop_contact_stages",
             "auto_stop_deal_stages",
+            "email_account_role",
+            "reply_to",
             "steps_count",
             "active_enrollments_count",
             "created_at",
@@ -77,6 +82,8 @@ class SequenceDetailSerializer(AuditFieldsMixin, serializers.ModelSerializer):
             "auto_stop_on_reply",
             "auto_stop_contact_stages",
             "auto_stop_deal_stages",
+            "email_account_role",
+            "reply_to",
             "steps",
             "active_enrollments_count",
             "total_enrolled_count",
@@ -112,6 +119,8 @@ class SequenceCreateUpdateSerializer(serializers.ModelSerializer):
             "auto_stop_on_reply",
             "auto_stop_contact_stages",
             "auto_stop_deal_stages",
+            "email_account_role",
+            "reply_to",
             "steps",
         ]
 
@@ -123,6 +132,7 @@ class SequenceCreateUpdateSerializer(serializers.ModelSerializer):
             SequenceStep.objects.create(sequence=sequence, step_number=step_num, **step_data)
         return sequence
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         steps_data = validated_data.pop("steps", None)
         for attr, value in validated_data.items():
@@ -130,10 +140,44 @@ class SequenceCreateUpdateSerializer(serializers.ModelSerializer):
         instance.save()
 
         if steps_data is not None:
-            instance.steps.all().delete()
+            # 1. Temporarily set step_number of existing steps to large positive numbers (100000 + idx)
+            # to satisfy PositiveIntegerField check constraint while preventing UNIQUE (sequence_id, step_number) collisions.
+            existing_steps = list(instance.steps.all())
+            for idx, step in enumerate(existing_steps, start=1):
+                step.step_number = 100000 + idx
+                step.save(update_fields=["step_number"])
+
+            existing_by_id = {str(step.id): step for step in existing_steps}
+            keep_step_ids = set()
+
+            # 2. Update existing steps or create new steps with target step numbers
             for idx, step_data in enumerate(steps_data, start=1):
-                step_num = step_data.pop("step_number", idx)
-                SequenceStep.objects.create(sequence=instance, step_number=step_num, **step_data)
+                step_id = str(step_data.get("id")) if step_data.get("id") else None
+                step_num = step_data.get("step_number", idx)
+
+                if step_id and step_id in existing_by_id:
+                    step = existing_by_id[step_id]
+                    step.step_number = step_num
+                    step.action_type = step_data.get("action_type", step.action_type)
+                    step.delay = step_data.get("delay", step.delay)
+                    step.delay_unit = step_data.get("delay_unit", step.delay_unit)
+                    step.configuration = step_data.get("configuration", step.configuration)
+                    step.save()
+                    keep_step_ids.add(step.id)
+                else:
+                    new_step = SequenceStep.objects.create(
+                        sequence=instance,
+                        step_number=step_num,
+                        action_type=step_data.get("action_type", "ai_email"),
+                        delay=step_data.get("delay", 0),
+                        delay_unit=step_data.get("delay_unit", "days"),
+                        configuration=step_data.get("configuration", {}),
+                    )
+                    keep_step_ids.add(new_step.id)
+
+            # 3. Delete any removed steps that were not claimed (still have step_number >= 100000)
+            instance.steps.filter(step_number__gte=100000).delete()
+
         return instance
 
 

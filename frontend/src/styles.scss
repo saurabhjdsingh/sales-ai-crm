@@ -317,6 +317,7 @@ body.light-theme {
     }
 
     .sidebar-user {
+      background-color: #ffffff !important;
       border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
 
       .user-avatar {
@@ -329,6 +330,10 @@ body.light-theme {
       }
 
       .user-role {
+        color: #64748b !important;
+      }
+
+      .logout-btn {
         color: #64748b !important;
       }
     }

@@ -52,6 +52,21 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
             <textarea [(ngModel)]="description" rows="2" placeholder="Purpose of this sequence..." class="form-textarea"></textarea>
           </div>
 
+          <!-- Email Outbound Settings -->
+          <div class="card-section-title">Email Outbound Settings</div>
+          <div class="form-group">
+            <label class="form-label">Send Emails From</label>
+            <select [(ngModel)]="emailAccountRole" class="form-select">
+              <option value="primary">Primary Email Account</option>
+              <option value="secondary_outbound">Secondary Outbound Email Account</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Default Reply-To Address</label>
+            <input type="email" [(ngModel)]="replyTo" placeholder="reply@company.com (optional)" class="form-input" />
+            <span class="field-hint">Auto-pushed to every AI draft. Editable during approval.</span>
+          </div>
+
           <div class="toggle-group">
             <div class="toggle-row">
               <div>
@@ -323,6 +338,7 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
     .form-group { margin-bottom: 16px; }
     .form-label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
     .form-input, .form-textarea, .form-select { width: 100%; padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; box-sizing: border-box; }
+    .field-hint { display: block; font-size: 11px; color: #64748b; margin-top: 4px; }
     .toggle-group { display: flex; flex-direction: column; gap: 12px; }
     .toggle-row { display: flex; justify-content: space-between; align-items: center; }
     .toggle-label { font-size: 13px; color: #f8fafc; font-weight: 500; }
@@ -398,6 +414,9 @@ export class SequenceBuilderComponent implements OnInit {
   autoStopContactStages: string[] = ['do_not_contact', 'not_interested', 'won', 'not_icp', 'bad_data'];
   autoStopDealStages: string[] = ['closed_won', 'closed_lost'];
 
+  emailAccountRole: string = 'primary';
+  replyTo: string = '';
+
   readonly contactStageOptions = [
     { value: 'cold', label: 'Cold' },
     { value: 'approaching', label: 'Approaching' },
@@ -423,7 +442,8 @@ export class SequenceBuilderComponent implements OnInit {
     { value: 'contract_sent', label: 'Contract Sent' },
     { value: 'closed_won', label: 'Closed Won' },
     { value: 'closed_lost', label: 'Closed Lost' },
-    { value: 'on_hold', label: 'On Hold' }
+    { value: 'on_hold', label: 'On Hold' },
+    { value: 'unresponsive', label: 'Unresponsive' }
   ];
 
   steps: SequenceStep[] = [
@@ -472,6 +492,8 @@ export class SequenceBuilderComponent implements OnInit {
         if (seq.auto_stop_deal_stages) {
           this.autoStopDealStages = seq.auto_stop_deal_stages;
         }
+        this.emailAccountRole = seq.email_account_role || 'primary';
+        this.replyTo = seq.reply_to || '';
         if (seq.steps && seq.steps.length > 0) {
           this.steps = seq.steps;
         }
@@ -570,6 +592,8 @@ export class SequenceBuilderComponent implements OnInit {
       auto_stop_on_reply: this.autoStopOnReply,
       auto_stop_contact_stages: this.autoStopContactStages,
       auto_stop_deal_stages: this.autoStopDealStages,
+      email_account_role: this.emailAccountRole,
+      reply_to: this.replyTo,
       steps: this.steps
     };
 

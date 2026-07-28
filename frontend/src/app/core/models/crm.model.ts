@@ -104,7 +104,8 @@ export type DealStage =
   | 'contract_sent'
   | 'closed_won'
   | 'closed_lost'
-  | 'on_hold';
+  | 'on_hold'
+  | 'unresponsive';
 
 export type DealPriority = 'low' | 'medium' | 'high' | 'critical';
 export type DealRisk = 'low' | 'medium' | 'high';
@@ -339,6 +340,8 @@ export interface Sequence {
   auto_stop_on_reply?: boolean;
   auto_stop_contact_stages?: string[];
   auto_stop_deal_stages?: string[];
+  email_account_role?: string;
+  reply_to?: string;
   steps_count?: number;
   active_enrollments_count?: number;
   total_enrolled_count?: number;

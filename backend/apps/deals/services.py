@@ -87,6 +87,7 @@ class DealService:
             "closed_won": ContactStage.WON,
             "closed_lost": ContactStage.NOT_INTERESTED,
             "on_hold": ContactStage.ON_HOLD,
+            "unresponsive": ContactStage.UNRESPONSIVE,
             "contract_sent": ContactStage.INTERESTED,
             "negotiation": ContactStage.INTERESTED,
             "poc": ContactStage.INTERESTED,
@@ -168,6 +169,7 @@ class DealService:
                     DealStage.NEGOTIATION,
                     DealStage.POC,
                     DealStage.CONTRACT_SENT,
+                    DealStage.UNRESPONSIVE,
                 ]
             )
             .select_related("company", "owner")

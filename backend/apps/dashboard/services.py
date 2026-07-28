@@ -44,14 +44,23 @@ class DashboardService:
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
+        pipeline_stages = [
+            DealStage.LEAD,
+            DealStage.SALES_QUALIFIED,
+            DealStage.MEETING_BOOKED,
+            DealStage.NEGOTIATION,
+            DealStage.POC,
+            DealStage.CONTRACT_SENT,
+        ]
         open_deals = Deal.objects.exclude(stage__in=[DealStage.CLOSED_WON, DealStage.CLOSED_LOST])
+        pipeline_deals = Deal.objects.filter(stage__in=pipeline_stages)
 
         return {
             "total_companies": Company.objects.count(),
             "total_contacts": Contact.objects.count(),
             "total_deals": Deal.objects.count(),
             "open_deals": open_deals.count(),
-            "pipeline_value": float(open_deals.aggregate(total=Sum("expected_revenue"))["total"] or 0),
+            "pipeline_value": float(pipeline_deals.aggregate(total=Sum("expected_revenue"))["total"] or 0),
             "won_this_month": Deal.objects.filter(
                 stage=DealStage.CLOSED_WON,
                 updated_at__gte=month_start,

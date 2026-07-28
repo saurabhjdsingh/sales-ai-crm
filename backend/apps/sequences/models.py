@@ -86,6 +86,19 @@ class Sequence(BaseModel):
     auto_stop_contact_stages = models.JSONField(default=list, blank=True)
     auto_stop_deal_stages = models.JSONField(default=list, blank=True)
 
+    # Outbound Email Configuration
+    email_account_role = models.CharField(
+        max_length=30,
+        choices=[("primary", "Primary Email"), ("secondary_outbound", "Secondary Email")],
+        default="primary",
+        help_text="Which connected email account to use for sending sequence emails",
+    )
+    reply_to = models.EmailField(
+        blank=True,
+        default="",
+        help_text="Default reply-to address auto-pushed to all sequence email drafts",
+    )
+
     class Meta:
         db_table = "sequences_sequence"
         verbose_name = "Sequence"

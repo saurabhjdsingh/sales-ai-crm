@@ -103,7 +103,7 @@ class AIEmailActionHandler(BaseActionHandler):
                 contact=contact,
                 sender=user,
                 subject=subject,
-                reply_to=getattr(user, "email", "") if user else "",
+                reply_to=enrollment.sequence.reply_to or (getattr(user, "email", "") if user else ""),
                 body_html=body_html,
                 body_text=body_text,
                 context_summary=context_rationale,

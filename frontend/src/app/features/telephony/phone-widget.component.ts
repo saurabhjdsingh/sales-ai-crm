@@ -256,6 +256,7 @@ import { marked } from 'marked';
                       <option value="contract_sent">Contract Sent</option>
                       <option value="closed_won">Closed Won</option>
                       <option value="closed_lost">Closed Lost</option>
+                      <option value="unresponsive">Unresponsive</option>
                     </select>
                   </div>
                 </div>

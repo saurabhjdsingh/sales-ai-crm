@@ -427,6 +427,7 @@ import { marked } from 'marked';
     .stage-badge.contract_sent { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
     .stage-badge.closed_won { background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; }
     .stage-badge.closed_lost { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .stage-badge.unresponsive { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
 
     .intel-grid {
       display: grid;
@@ -1015,7 +1016,8 @@ export class DealDetailComponent implements OnInit {
       contract_sent: 'Contract Sent',
       closed_won: 'Closed Won',
       closed_lost: 'Closed Lost',
-      on_hold: 'On Hold'
+      on_hold: 'On Hold',
+      unresponsive: 'Unresponsive'
     };
     return labels[stage] || stage;
   }

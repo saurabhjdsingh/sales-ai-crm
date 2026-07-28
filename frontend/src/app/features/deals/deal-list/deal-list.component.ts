@@ -89,6 +89,7 @@ interface KanbanColumn {
             <mat-option value="contract_sent">Contract Sent</mat-option>
             <mat-option value="closed_won">Closed Won</mat-option>
             <mat-option value="closed_lost">Closed Lost</mat-option>
+            <mat-option value="unresponsive">Unresponsive</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -461,6 +462,7 @@ interface KanbanColumn {
     .col-header.negotiation { border-top-color: #f59e0b; }
     .col-header.poc { border-top-color: #14b8a6; }
     .col-header.contract_sent { border-top-color: #ec4899; }
+    .col-header.unresponsive { border-top-color: #f97316; }
 
     .col-title {
       font-weight: 700;
@@ -685,6 +687,7 @@ interface KanbanColumn {
     .stage-badge.contract_sent { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
     .stage-badge.closed_won { background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; }
     .stage-badge.closed_lost { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .stage-badge.unresponsive { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
 
     .priority-badge {
       display: inline-block;
@@ -827,7 +830,8 @@ export class DealListComponent implements OnInit {
     'poc',
     'contract_sent',
     'closed_won',
-    'closed_lost'
+    'closed_lost',
+    'unresponsive'
   ];
 
   readonly sortedDeals = computed(() => {
@@ -849,7 +853,8 @@ export class DealListComponent implements OnInit {
     { id: 'meeting_booked', label: 'Meeting Booked', colorClass: 'meeting_booked' },
     { id: 'negotiation', label: 'Negotiation', colorClass: 'negotiation' },
     { id: 'poc', label: 'POC', colorClass: 'poc' },
-    { id: 'contract_sent', label: 'Contract Sent', colorClass: 'contract_sent' }
+    { id: 'contract_sent', label: 'Contract Sent', colorClass: 'contract_sent' },
+    { id: 'unresponsive', label: 'Unresponsive', colorClass: 'unresponsive' }
   ];
 
   readonly filterForm: FormGroup = this.fb.group({
@@ -951,7 +956,8 @@ export class DealListComponent implements OnInit {
       contract_sent: 'Contract Sent',
       closed_won: 'Won',
       closed_lost: 'Lost',
-      on_hold: 'On Hold'
+      on_hold: 'On Hold',
+      unresponsive: 'Unresponsive'
     };
     return labels[stage] || stage;
   }

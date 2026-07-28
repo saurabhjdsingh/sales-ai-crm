@@ -46,9 +46,20 @@ export interface ContactEmailComposerData {
               <mat-spinner diameter="12"></mat-spinner> Checking Mailbox...
             </span>
           } @else if (mailboxStatus().connected) {
-            <span class="status-badge connected" title="Sending via connected {{ mailboxStatus().email }}">
-              <mat-icon class="badge-icon">check_circle</mat-icon> {{ mailboxStatus().email }}
-            </span>
+            <div class="account-selector-row">
+              <select
+                class="account-select"
+                [ngModel]="selectedAccountId()"
+                (ngModelChange)="onAccountChange($event)"
+              >
+                @for (acc of accounts(); track acc.id) {
+                  <option [value]="acc.id">{{ acc.email }} ({{ acc.account_role === 'primary' ? 'Primary' : 'Secondary' }})</option>
+                }
+              </select>
+              <span class="status-badge connected">
+                <mat-icon class="badge-icon">check_circle</mat-icon> Connected
+              </span>
+            </div>
           } @else {
             <span class="status-badge disconnected">
               <mat-icon class="badge-icon">warning</mat-icon> Mailbox Disconnected
@@ -372,6 +383,25 @@ export interface ContactEmailComposerData {
     .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .btn-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    .account-selector-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .account-select {
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.78rem;
+      font-family: inherit;
+      color: inherit;
+      cursor: pointer;
+      min-width: 180px;
+    }
+    .account-select:focus { border-color: #3b82f6; outline: none; }
   `]
 })
 export class ContactEmailComposerComponent implements OnInit {
@@ -415,13 +445,13 @@ export class ContactEmailComposerComponent implements OnInit {
         if (res && res.connected) {
           const list = res.accounts || [];
           this.accounts.set(list);
-          const sec = res.secondary_account || list.find((a: any) => a.account_role === 'secondary_outbound');
           const prim = res.primary_account || list.find((a: any) => a.account_role === 'primary');
+          const sec = res.secondary_account || list.find((a: any) => a.account_role === 'secondary_outbound');
 
-          if (sec) {
-            this.selectedAccountId.set(sec.id);
-          } else if (prim) {
+          if (prim) {
             this.selectedAccountId.set(prim.id);
+          } else if (sec) {
+            this.selectedAccountId.set(sec.id);
           } else if (list.length > 0) {
             this.selectedAccountId.set(list[0].id);
           }
@@ -430,7 +460,7 @@ export class ContactEmailComposerComponent implements OnInit {
             this.replyTo = prim.email;
           }
 
-          const activeEmail = sec?.email || prim?.email || res.email;
+          const activeEmail = prim?.email || sec?.email || res.email;
           this.mailboxStatus.set({ loading: false, connected: true, email: activeEmail });
         } else {
           this.mailboxStatus.set({ loading: false, connected: false });
@@ -504,6 +534,14 @@ export class ContactEmailComposerComponent implements OnInit {
         this.notification.error(errMsg);
       }
     });
+  }
+
+  onAccountChange(accountId: string): void {
+    this.selectedAccountId.set(accountId);
+    const acc = this.accounts().find((a: any) => a.id === accountId);
+    if (acc) {
+      this.mailboxStatus.set({ loading: false, connected: true, email: acc.email });
+    }
   }
 
   close(): void {

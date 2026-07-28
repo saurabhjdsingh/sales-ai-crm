@@ -50,9 +50,15 @@ class ReportService:
         """Revenue forecast based on deal probability and expected revenue."""
         from apps.deals.models import Deal
 
-        open_deals = Deal.objects.exclude(
-            stage__in=[DealStage.CLOSED_WON, DealStage.CLOSED_LOST]
-        )
+        pipeline_stages = [
+            DealStage.LEAD,
+            DealStage.SALES_QUALIFIED,
+            DealStage.MEETING_BOOKED,
+            DealStage.NEGOTIATION,
+            DealStage.POC,
+            DealStage.CONTRACT_SENT,
+        ]
+        open_deals = Deal.objects.filter(stage__in=pipeline_stages)
 
         total_pipeline = open_deals.aggregate(total=Sum("expected_revenue"))["total"] or 0
         weighted_pipeline = sum(

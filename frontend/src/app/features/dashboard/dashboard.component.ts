@@ -623,6 +623,7 @@ interface ProductivityMetric {
     .bar-inner.negotiation { background-color: #f59e0b; }
     .bar-inner.poc { background-color: #14b8a6; }
     .bar-inner.contract_sent { background-color: #ec4899; }
+    .bar-inner.unresponsive { background-color: #f97316; }
 
     /* Today's Tasks Feed */
     .tasks-feed {

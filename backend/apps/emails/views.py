@@ -565,11 +565,11 @@ class SendContactEmailView(APIView):
         if account_id:
             account = EmailAccount.objects.filter(user=request.user, id=account_id, status="connected").first()
         else:
-            account = EmailAccount.objects.filter(user=request.user, account_role=AccountRole.SECONDARY_OUTBOUND, status="connected").first()
+            account = EmailAccount.objects.filter(user=request.user, account_role=AccountRole.PRIMARY, status="connected").first()
+            if not account:
+                account = EmailAccount.objects.filter(user=request.user, account_role=AccountRole.SECONDARY_OUTBOUND, status="connected").first()
             if not account:
                 account = EmailAccount.objects.filter(user=request.user, is_default_outbound=True, status="connected").first()
-            if not account:
-                account = EmailAccount.objects.filter(user=request.user, account_role=AccountRole.PRIMARY, status="connected").first()
             if not account:
                 account = EmailAccount.objects.filter(user=request.user, status="connected").first()
 

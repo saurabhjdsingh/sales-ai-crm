@@ -46,6 +46,7 @@ class DealStage(models.TextChoices):
     CLOSED_WON = "closed_won", "Closed Won"
     CLOSED_LOST = "closed_lost", "Closed Lost"
     ON_HOLD = "on_hold", "On Hold"
+    UNRESPONSIVE = "unresponsive", "Unresponsive"
 
 
 class DealPriority(models.TextChoices):

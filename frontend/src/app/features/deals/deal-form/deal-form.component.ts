@@ -91,6 +91,7 @@ interface DropdownItem {
                 <mat-option value="closed_won">Closed Won</mat-option>
                 <mat-option value="closed_lost">Closed Lost</mat-option>
                 <mat-option value="on_hold">On Hold</mat-option>
+                <mat-option value="unresponsive">Unresponsive</mat-option>
               </mat-select>
             </mat-form-field>
 

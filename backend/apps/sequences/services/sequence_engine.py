@@ -405,7 +405,10 @@ class SequenceEngineService:
         thread_id = None
 
         try:
-            account = EmailAccount.objects.filter(user=user, status="connected").first()
+            preferred_role = sequence.email_account_role or "primary"
+            account = EmailAccount.objects.filter(user=user, account_role=preferred_role, status="connected").first()
+            if not account:
+                account = EmailAccount.objects.filter(user=user, status="connected").first()
             if account:
                 # Send via Gmail Provider
                 from apps.emails.providers.factory import ProviderFactory

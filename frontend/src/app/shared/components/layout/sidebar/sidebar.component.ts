@@ -76,6 +76,7 @@ interface NavItem {
       background-color: #0b1329;
       border-right: 1px solid rgba(255, 255, 255, 0.05);
       color: #94a3b8;
+      overflow: hidden;
     }
 
     .sidebar-brand {
@@ -84,6 +85,7 @@ interface NavItem {
       gap: 0.5rem;
       padding: 1.5rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      flex-shrink: 0;
     }
 
     .logo-icon {
@@ -128,10 +130,12 @@ interface NavItem {
 
     .sidebar-nav {
       flex: 1;
-      padding: 1.5rem 0.75rem;
+      padding: 1.25rem 0.75rem;
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
+      overflow-y: auto;
+      min-height: 0;
     }
 
     .nav-item {
@@ -170,6 +174,8 @@ interface NavItem {
       align-items: center;
       justify-content: space-between;
       gap: 0.5rem;
+      flex-shrink: 0;
+      background-color: #0b1329;
     }
 
     .user-info {
@@ -214,6 +220,17 @@ interface NavItem {
     .logout-btn:hover {
       color: #ef4444 !important;
     }
+
+    :host-context(body.light-theme) .sidebar-wrapper { background-color: #ffffff; border-right-color: rgba(0, 0, 0, 0.08); color: #64748b; }
+    :host-context(body.light-theme) .sidebar-brand { border-bottom-color: rgba(0, 0, 0, 0.08); }
+    :host-context(body.light-theme) .logo-text { color: #0f172a; }
+    :host-context(body.light-theme) .nav-item { color: #64748b; }
+    :host-context(body.light-theme) .nav-item:hover { background-color: #f1f5f9; color: #0f172a; }
+    :host-context(body.light-theme) .nav-item.active { background-color: #eff6ff; color: #3b82f6; }
+    :host-context(body.light-theme) .sidebar-user { background-color: #ffffff; border-top-color: rgba(0, 0, 0, 0.08); }
+    :host-context(body.light-theme) .user-name { color: #0f172a; }
+    :host-context(body.light-theme) .user-role { color: #64748b; }
+    :host-context(body.light-theme) .logout-btn { color: #64748b !important; }
   `]
 })
 export class SidebarComponent {
