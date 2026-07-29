@@ -4,7 +4,12 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { SelectionModel } from '@angular/cdk/collections';
 import { SequenceService } from '../services/sequence.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
 
 @Component({
@@ -15,7 +20,9 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     RouterModule,
     MatButtonModule,
     MatIconModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatCheckboxModule,
+    MatDialogModule
   ],
   template: `
     <div class="detail-container" *ngIf="sequence">
@@ -97,6 +104,13 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
           <table class="data-table">
             <thead>
               <tr>
+                <th class="checkbox-col">
+                  <mat-checkbox (change)="$event ? masterToggle() : null"
+                                [checked]="selection.hasValue() && isAllSelected()"
+                                [indeterminate]="selection.hasValue() && !isAllSelected()"
+                                color="primary">
+                  </mat-checkbox>
+                </th>
                 <th>Contact Name</th>
                 <th>Status</th>
                 <th>Current Step</th>
@@ -111,6 +125,13 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
             </thead>
             <tbody>
               <tr *ngFor="let e of enrollments">
+                <td class="checkbox-col">
+                  <mat-checkbox (click)="$event.stopPropagation()"
+                                (change)="$event ? selection.toggle(e.id) : null"
+                                [checked]="selection.isSelected(e.id)"
+                                color="primary">
+                  </mat-checkbox>
+                </td>
                 <td class="contact-cell">
                   <a [routerLink]="['/contacts', e.contact]" class="contact-link">
                     {{ e.contact_name }}
@@ -182,6 +203,32 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Floating Bulk Actions Banner for Enrollments -->
+      <div class="bulk-actions-banner" *ngIf="selection.selected.length > 0">
+        <div class="selection-info">
+          <mat-icon class="info-icon">check_circle</mat-icon>
+          <span class="count">{{ selection.selected.length }}</span>
+          <span>{{ selection.selected.length === 1 ? 'enrollment' : 'enrollments' }} selected</span>
+        </div>
+        <div class="actions">
+          <button mat-flat-button (click)="bulkPause()" class="bulk-btn pause-btn">
+            <mat-icon>pause_circle</mat-icon>
+            <span>Pause Selected</span>
+          </button>
+          <button mat-flat-button (click)="bulkResume()" class="bulk-btn resume-btn">
+            <mat-icon>play_circle</mat-icon>
+            <span>Resume Selected</span>
+          </button>
+          <button mat-flat-button (click)="bulkStop()" class="bulk-btn stop-btn">
+            <mat-icon>stop_circle</mat-icon>
+            <span>Stop Selected</span>
+          </button>
+          <button mat-button (click)="selection.clear()" class="clear-btn">
+            Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -442,6 +489,111 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
       height: 16px;
     }
 
+    .checkbox-col {
+      width: 44px;
+      padding-left: 1rem !important;
+    }
+
+    .bulk-actions-banner {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 12px;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      z-index: 1000;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translate(-50%, 2rem);
+        opacity: 0;
+      }
+      to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+    }
+
+    .selection-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      color: #f8fafc;
+    }
+
+    .selection-info .count {
+      font-weight: 700;
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.15);
+      padding: 0.1rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .info-icon {
+      color: #3b82f6;
+    }
+
+    .bulk-actions-banner .actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .bulk-btn {
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .pause-btn {
+      background-color: #f59e0b !important;
+      color: white !important;
+    }
+
+    .pause-btn:hover {
+      background-color: #d97706 !important;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+
+    .resume-btn {
+      background-color: #10b981 !important;
+      color: white !important;
+    }
+
+    .resume-btn:hover {
+      background-color: #059669 !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .stop-btn {
+      background-color: #ef4444 !important;
+      color: white !important;
+    }
+
+    .stop-btn:hover {
+      background-color: #dc2626 !important;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .clear-btn {
+      color: #94a3b8 !important;
+    }
+
+    .clear-btn:hover {
+      color: #f8fafc !important;
+    }
+
     /* Light Theme Overrides */
     :host-context(body.light-theme) .page-title { color: #0f172a; }
     :host-context(body.light-theme) .page-subtitle { color: #334155; }
@@ -463,9 +615,12 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
 export class SequenceDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(SequenceService);
+  private readonly notification = inject(NotificationService);
+  private readonly dialog = inject(MatDialog);
 
   sequence: Sequence | null = null;
   enrollments: SequenceEnrollment[] = [];
+  selection = new SelectionModel<string>(true, []);
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -485,6 +640,20 @@ export class SequenceDetailComponent implements OnInit {
     });
   }
 
+  isAllSelected(): boolean {
+    const numSelected = this.selection.selected.length;
+    const numRows = this.enrollments.length;
+    return numSelected === numRows && numRows > 0;
+  }
+
+  masterToggle(): void {
+    if (this.isAllSelected()) {
+      this.selection.clear();
+    } else {
+      this.enrollments.forEach(row => this.selection.select(row.id));
+    }
+  }
+
   pauseEnrollment(e: SequenceEnrollment): void {
     this.service.pauseEnrollment(e.id).subscribe(() => this.loadEnrollments(e.sequence));
   }
@@ -497,5 +666,66 @@ export class SequenceDetailComponent implements OnInit {
     if (confirm(`Stop sequence for contact ${e.contact_name}?`)) {
       this.service.stopEnrollment(e.id, 'Manually stopped by rep').subscribe(() => this.loadEnrollments(e.sequence));
     }
+  }
+
+  bulkPause(): void {
+    const selectedIds = this.selection.selected;
+    if (selectedIds.length === 0) return;
+
+    this.service.bulkPauseEnrollments(selectedIds).subscribe({
+      next: () => {
+        this.notification.success(`Paused ${selectedIds.length} sequence enrollments.`);
+        this.selection.clear();
+        if (this.sequence) this.loadEnrollments(this.sequence.id);
+      },
+      error: (err) => {
+        this.notification.error(err.message || 'Failed to bulk pause enrollments.');
+      }
+    });
+  }
+
+  bulkResume(): void {
+    const selectedIds = this.selection.selected;
+    if (selectedIds.length === 0) return;
+
+    this.service.bulkResumeEnrollments(selectedIds).subscribe({
+      next: () => {
+        this.notification.success(`Resumed ${selectedIds.length} sequence enrollments.`);
+        this.selection.clear();
+        if (this.sequence) this.loadEnrollments(this.sequence.id);
+      },
+      error: (err) => {
+        this.notification.error(err.message || 'Failed to bulk resume enrollments.');
+      }
+    });
+  }
+
+  bulkStop(): void {
+    const selectedIds = this.selection.selected;
+    if (selectedIds.length === 0) return;
+
+    const ref = this.dialog.open(ConfirmDialogComponent, {
+      width: '420px',
+      data: {
+        title: 'Stop Sequence Enrollments',
+        message: `Are you sure you want to stop sequence execution for the ${selectedIds.length} selected ${selectedIds.length === 1 ? 'contact' : 'contacts'}? This will cancel all pending automated tasks for them.`,
+        confirmText: 'Stop Enrollments'
+      }
+    });
+
+    ref.afterClosed().subscribe((confirmed) => {
+      if (confirmed) {
+        this.service.bulkStopEnrollments(selectedIds, 'Manually bulk stopped by rep').subscribe({
+          next: () => {
+            this.notification.success(`Stopped sequence for ${selectedIds.length} contacts.`);
+            this.selection.clear();
+            if (this.sequence) this.loadEnrollments(this.sequence.id);
+          },
+          error: (err) => {
+            this.notification.error(err.message || 'Failed to bulk stop enrollments.');
+          }
+        });
+      }
+    });
   }
 }

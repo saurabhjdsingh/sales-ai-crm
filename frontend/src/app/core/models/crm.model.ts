@@ -66,6 +66,8 @@ export type ContactStage =
   | 'on_hold'
   | 'won';
 
+export type ContactSequenceStatus = 'completed' | 'active' | 'action_required' | 'not_enrolled';
+
 export interface Contact {
   id: string;
   company: string;
@@ -90,6 +92,9 @@ export interface Contact {
     email: string;
   };
   stage: ContactStage;
+  sequence_status?: ContactSequenceStatus;
+  sequence_name?: string;
+  sequence_id?: string;
   ai_summary?: string;
   created_at: string;
   updated_at: string;

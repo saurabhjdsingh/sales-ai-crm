@@ -25,8 +25,13 @@ class AIEmailActionHandler(BaseActionHandler):
         user = enrollment.enrolled_by or contact.owner
 
         # Guard against duplicate execution / draft generation
-        if execution.status == ExecutionStatus.WAITING_APPROVAL or getattr(execution, "email_draft", None) or SequenceEmailDraft.objects.filter(execution=execution).exists():
-            logger.info("AI Email draft already created for execution %s, skipping duplicate creation", execution.id)
+        if (
+            execution.status == ExecutionStatus.WAITING_APPROVAL
+            or getattr(execution, "email_draft", None)
+            or SequenceEmailDraft.objects.filter(execution=execution).exists()
+            or SequenceEmailDraft.objects.filter(enrollment=enrollment, execution__step=step).exists()
+        ):
+            logger.info("AI Email draft already created for enrollment %s step %s, skipping duplicate creation", enrollment.id, step.step_number)
             return ActionResult(should_advance=False)
 
         logger.info("Executing AI Email step %d for enrollment %s (contact: %s)", step.step_number, enrollment.id, contact.full_name)

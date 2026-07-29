@@ -374,3 +374,38 @@ class TestSequenceEngine:
         assert enrollment.status == EnrollmentStatus.STOPPED
         assert "Call Answered" in enrollment.stop_reason
 
+    def test_bulk_enrollment_idempotent_no_duplicate_drafts(self, sequence, contact, user, monkeypatch):
+        class DummyProvider:
+            def generate_response(self, system_prompt, prompt, response_format, **kwargs):
+                return {
+                    "subject": "Unique Outreach",
+                    "body_html": "<p>Hello John</p>",
+                    "body_text": "Hello John",
+                    "context_rationale": "Unique rationale",
+                }
+
+        monkeypatch.setattr(
+            "apps.ai_engine.services.providers.factory.LLMProviderFactory.get_provider",
+            lambda *args, **kwargs: DummyProvider(),
+        )
+
+        enrollments = SequenceEngineService.enroll_contacts(
+            sequence_id=sequence.id,
+            contact_ids=[contact.id],
+            user=user,
+        )
+        enrollment = enrollments[0]
+
+        # Call execute_current_step multiple times repeatedly (simulating race conditions/concurrency)
+        SequenceEngineService.execute_current_step(enrollment)
+        SequenceEngineService.execute_current_step(enrollment)
+        SequenceEngineService.process_due_executions()
+
+        # Verify exactly 1 execution and 1 AI draft were created
+        executions_count = SequenceStepExecution.objects.filter(enrollment=enrollment, step__step_number=1).count()
+        drafts_count = SequenceEmailDraft.objects.filter(enrollment=enrollment).count()
+
+        assert executions_count == 1
+        assert drafts_count == 1
+
+

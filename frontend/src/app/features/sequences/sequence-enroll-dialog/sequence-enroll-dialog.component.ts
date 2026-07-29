@@ -11,8 +11,9 @@ import { NotificationService } from '../../../core/services/notification.service
 import { Sequence } from '../../../core/models/crm.model';
 
 export interface SequenceEnrollDialogData {
-  contactId: string;
-  contactName: string;
+  contactId?: string;
+  contactName?: string;
+  contactIds?: string[];
 }
 
 @Component({
@@ -28,12 +29,15 @@ export interface SequenceEnrollDialogData {
   ],
   template: `
     <h2 mat-dialog-title class="dialog-title">
-      <mat-icon class="title-icon">auto_awesome</mat-icon> Enroll Contact in Sequence
+      <mat-icon class="title-icon">auto_awesome</mat-icon> {{ contactCount > 1 ? 'Enroll Contacts in Sequence' : 'Enroll Contact in Sequence' }}
     </h2>
 
     <div mat-dialog-content class="dialog-content">
-      <p class="subtitle">
-        Select an active outreach sequence for <strong>{{ data.contactName }}</strong>:
+      <p class="subtitle" *ngIf="data.contactIds && data.contactIds.length > 1">
+        Select an active outreach sequence for <strong>{{ data.contactIds.length }} selected contacts</strong>:
+      </p>
+      <p class="subtitle" *ngIf="!data.contactIds || data.contactIds.length <= 1">
+        Select an active outreach sequence for <strong>{{ data.contactName || 'selected contact' }}</strong>:
       </p>
 
       <div *ngIf="loading" class="loading-box">
@@ -85,7 +89,7 @@ export interface SequenceEnrollDialogData {
         [disabled]="!selectedSequenceId || enrolling"
         class="submit-btn"
       >
-        {{ enrolling ? 'Enrolling...' : 'Enroll Contact' }}
+        {{ enrolling ? 'Enrolling...' : ('Enroll ' + (contactCount > 1 ? contactCount + ' Contacts' : 'Contact')) }}
       </button>
     </div>
   `,
@@ -278,6 +282,13 @@ export class SequenceEnrollDialogComponent implements OnInit {
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: SequenceEnrollDialogData) {}
 
+  get contactCount(): number {
+    if (this.data.contactIds && this.data.contactIds.length > 0) {
+      return this.data.contactIds.length;
+    }
+    return 1;
+  }
+
   ngOnInit(): void {
     this.sequenceService.getSequences({ is_active: true }).subscribe({
       next: (res) => {
@@ -305,14 +316,21 @@ export class SequenceEnrollDialogComponent implements OnInit {
 
   onEnroll(): void {
     if (!this.selectedSequenceId) return;
-    this.enrolling = true;
 
+    const targetIds = this.data.contactIds?.length
+      ? this.data.contactIds
+      : (this.data.contactId ? [this.data.contactId] : []);
+
+    if (targetIds.length === 0) return;
+
+    this.enrolling = true;
     const targetSeq = this.sequences.find((s) => s.id === this.selectedSequenceId);
 
-    this.sequenceService.enrollContacts(this.selectedSequenceId, { contact_ids: [this.data.contactId] }).subscribe({
+    this.sequenceService.enrollContacts(this.selectedSequenceId, { contact_ids: targetIds }).subscribe({
       next: () => {
         this.enrolling = false;
-        this.notification.success(`Enrolled ${this.data.contactName} in '${targetSeq?.name || 'Sequence'}'.`);
+        const countLabel = targetIds.length === 1 ? (this.data.contactName || '1 contact') : `${targetIds.length} contacts`;
+        this.notification.success(`Enrolled ${countLabel} in '${targetSeq?.name || 'Sequence'}'.`);
         this.dialogRef.close(true);
       },
       error: (err) => {

@@ -17,6 +17,9 @@ import { ContactStore } from '../services/contact.store';
 import { ContactFormComponent } from '../contact-form/contact-form.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-dialog/sequence-enroll-dialog.component';
+
 @Component({
   selector: 'app-contact-list',
   standalone: true,
@@ -31,7 +34,8 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatCheckboxModule
+    MatCheckboxModule,
+    MatTooltipModule
   ],
   template: `
     <div class="list-container">
@@ -183,6 +187,24 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             </td>
           </ng-container>
 
+          <!-- Sequence Status Column -->
+          <ng-container matColumnDef="sequence_status">
+            <th mat-header-cell *matHeaderCellDef>Sequence</th>
+            <td mat-cell *matCellDef="let element">
+              <span
+                class="seq-status-pill"
+                [ngClass]="element.sequence_status || 'not_enrolled'"
+                [matTooltip]="element.sequence_name ? ('Sequence: ' + element.sequence_name) : getSeqStatusTooltip(element.sequence_status)"
+                [routerLink]="element.sequence_id ? ['/sequences', element.sequence_id] : null"
+                [class.clickable]="!!element.sequence_id"
+                (click)="element.sequence_id ? $event.stopPropagation() : null"
+              >
+                <span class="pill-dot"></span>
+                <span class="pill-label">{{ getSeqStatusLabel(element.sequence_status) }}</span>
+              </span>
+            </td>
+          </ng-container>
+
           <!-- Owner Column -->
           <ng-container matColumnDef="owner">
             <th mat-header-cell *matHeaderCellDef>Owner</th>
@@ -230,6 +252,10 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           <span>{{ selection.selected.length === 1 ? 'contact' : 'contacts' }} selected</span>
         </div>
         <div class="actions">
+          <button mat-flat-button color="primary" (click)="bulkEnrollSequence()" class="bulk-enroll-btn">
+            <mat-icon>auto_awesome</mat-icon>
+            <span>Enroll in Sequence</span>
+          </button>
           <button mat-flat-button color="warn" (click)="bulkDelete()" class="bulk-delete-btn">
             <mat-icon>delete</mat-icon>
             <span>Delete Selected</span>
@@ -546,10 +572,17 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       color: #3b82f6;
     }
 
-    .bulk-actions-banner .actions {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
+    .bulk-enroll-btn {
+      background-color: #3b82f6 !important;
+      color: white !important;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .bulk-enroll-btn:hover {
+      background-color: #2563eb !important;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
     }
 
     .bulk-delete-btn {
@@ -563,6 +596,75 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     .bulk-delete-btn:hover {
       background-color: #dc2626 !important;
       box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Sequence Status Pill Styles */
+    .seq-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      letter-spacing: 0.01em;
+    }
+
+    .seq-status-pill .pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* Green: Completed or Stopped from Sequence */
+    .seq-status-pill.completed {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .seq-status-pill.completed .pill-dot {
+      background-color: #34d399;
+    }
+
+    /* Blue: Active in Sequence */
+    .seq-status-pill.active {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .seq-status-pill.active .pill-dot {
+      background-color: #60a5fa;
+    }
+
+    /* Yellow: Waiting for manual task or AI email review */
+    .seq-status-pill.action_required {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .seq-status-pill.action_required .pill-dot {
+      background-color: #fbbf24;
+    }
+
+    /* Grey: Never added to sequence at all */
+    .seq-status-pill.not_enrolled {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .seq-status-pill.not_enrolled .pill-dot {
+      background-color: #94a3b8;
+    }
+
+    .seq-status-pill.clickable {
+      cursor: pointer;
+    }
+
+    .seq-status-pill.clickable:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
     }
 
     .clear-btn {
@@ -579,7 +681,7 @@ export class ContactListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns: string[] = ['select', 'name', 'company', 'company_size', 'email', 'stage', 'owner', 'actions'];
+  readonly displayedColumns: string[] = ['select', 'name', 'company', 'company_size', 'email', 'stage', 'sequence_status', 'owner', 'actions'];
   selection = new SelectionModel<string>(true, []);
 
   readonly filterForm: FormGroup = this.fb.group({
@@ -642,6 +744,34 @@ export class ContactListComponent implements OnInit {
     return labels[stage] || stage;
   }
 
+  getSeqStatusLabel(status?: string): string {
+    switch (status) {
+      case 'completed':
+        return 'Done / Stopped';
+      case 'active':
+        return 'Active';
+      case 'action_required':
+        return 'Action Needed';
+      case 'not_enrolled':
+      default:
+        return 'Not Enrolled';
+    }
+  }
+
+  getSeqStatusTooltip(status?: string): string {
+    switch (status) {
+      case 'completed':
+        return 'Sequence completed or stopped';
+      case 'active':
+        return 'Enrolled and actively running in sequence';
+      case 'action_required':
+        return 'Waiting for manual task or AI email review';
+      case 'not_enrolled':
+      default:
+        return 'Never added to sequence';
+    }
+  }
+
   isAllSelected(): boolean {
     const numSelected = this.selection.selected.length;
     const numRows = this.store.contacts().length;
@@ -654,6 +784,25 @@ export class ContactListComponent implements OnInit {
     } else {
       this.store.contacts().forEach(row => this.selection.select(row.id));
     }
+  }
+
+  bulkEnrollSequence(): void {
+    const selectedIds = this.selection.selected;
+    if (selectedIds.length === 0) return;
+
+    const ref = this.dialog.open(SequenceEnrollDialogComponent, {
+      width: '520px',
+      panelClass: 'dark-dialog-panel',
+      data: {
+        contactIds: selectedIds
+      }
+    });
+
+    ref.afterClosed().subscribe((enrolled) => {
+      if (enrolled) {
+        this.selection.clear();
+      }
+    });
   }
 
   bulkDelete(): void {

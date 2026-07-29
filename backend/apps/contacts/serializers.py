@@ -15,6 +15,48 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
     company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
     company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
     company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
+    sequence_status = serializers.SerializerMethodField(read_only=True)
+    sequence_name = serializers.SerializerMethodField(read_only=True)
+    sequence_id = serializers.SerializerMethodField(read_only=True)
+
+    def _get_latest_enrollment(self, obj):
+        if not hasattr(obj, "_cached_latest_enrollment"):
+            enrollments = sorted(list(obj.sequence_enrollments.all()), key=lambda e: e.created_at, reverse=True)
+            obj._cached_latest_enrollment = enrollments[0] if enrollments else None
+        return obj._cached_latest_enrollment
+
+    def get_sequence_status(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        if not enrollment:
+            return "not_enrolled"
+
+        status = enrollment.status
+
+        # Green: Completed or Stopped
+        if status in ["completed", "stopped"]:
+            return "completed"
+
+        # Blue: Paused by rep (not requiring active attention)
+        if status == "paused":
+            return "active"
+
+        # Yellow: Waiting for rep action or AI email approval
+        if status == "waiting_approval":
+            return "action_required"
+
+        # Blue: Actively running or waiting step delay
+        if status in ["running", "waiting"]:
+            return "active"
+
+        return "not_enrolled"
+
+    def get_sequence_name(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        return enrollment.sequence.name if enrollment and enrollment.sequence else None
+
+    def get_sequence_id(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        return str(enrollment.sequence_id) if enrollment else None
 
     class Meta:
         model = Contact
@@ -31,6 +73,9 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             "company_website",
             "company_size",
             "stage",
+            "sequence_status",
+            "sequence_name",
+            "sequence_id",
             "owner",
             "owner_detail",
             "country",
@@ -45,6 +90,48 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
     company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
     company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
     company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
+    sequence_status = serializers.SerializerMethodField(read_only=True)
+    sequence_name = serializers.SerializerMethodField(read_only=True)
+    sequence_id = serializers.SerializerMethodField(read_only=True)
+
+    def _get_latest_enrollment(self, obj):
+        if not hasattr(obj, "_cached_latest_enrollment"):
+            enrollments = sorted(list(obj.sequence_enrollments.all()), key=lambda e: e.created_at, reverse=True)
+            obj._cached_latest_enrollment = enrollments[0] if enrollments else None
+        return obj._cached_latest_enrollment
+
+    def get_sequence_status(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        if not enrollment:
+            return "not_enrolled"
+
+        status = enrollment.status
+
+        # Green: Completed or Stopped
+        if status in ["completed", "stopped"]:
+            return "completed"
+
+        # Blue: Paused by rep (not requiring active attention)
+        if status == "paused":
+            return "active"
+
+        # Yellow: Waiting for rep action or AI email approval
+        if status == "waiting_approval":
+            return "action_required"
+
+        # Blue: Actively running or waiting step delay
+        if status in ["running", "waiting"]:
+            return "active"
+
+        return "not_enrolled"
+
+    def get_sequence_name(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        return enrollment.sequence.name if enrollment and enrollment.sequence else None
+
+    def get_sequence_id(self, obj):
+        enrollment = self._get_latest_enrollment(obj)
+        return str(enrollment.sequence_id) if enrollment else None
 
     class Meta:
         model = Contact
@@ -66,6 +153,9 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "company_website",
             "company_size",
             "stage",
+            "sequence_status",
+            "sequence_name",
+            "sequence_id",
             "owner",
             "owner_detail",
             "ai_summary",

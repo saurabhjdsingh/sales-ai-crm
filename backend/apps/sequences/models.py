@@ -254,6 +254,7 @@ class SequenceStepExecution(BaseModel):
         verbose_name = "Sequence Step Execution"
         verbose_name_plural = "Sequence Step Executions"
         ordering = ["enrollment", "step__step_number"]
+        unique_together = [("enrollment", "step")]
 
     def __str__(self):
         return f"Execution of Step {self.step.step_number} for Enrollment {self.enrollment.id} ({self.status})"

@@ -26,8 +26,13 @@ class ManualTaskActionHandler(BaseActionHandler):
             user = enrollment.enrolled_by or (sequence.created_by if sequence else None) or (contact.owner if contact else None)
 
         # Guard against duplicate execution / task creation
-        if execution.status == ExecutionStatus.EXECUTING or getattr(execution, "task", None) or Task.objects.filter(sequence_execution_id=execution.id).exists():
-            logger.info("Manual Task already created for execution %s, skipping duplicate creation", execution.id)
+        if (
+            execution.status == ExecutionStatus.EXECUTING
+            or getattr(execution, "task", None)
+            or Task.objects.filter(sequence_execution_id=execution.id).exists()
+            or Task.objects.filter(sequence_executions__enrollment=enrollment, sequence_executions__step=step).exists()
+        ):
+            logger.info("Manual Task already created for enrollment %s step %s, skipping duplicate creation", enrollment.id, step.step_number)
             return ActionResult(should_advance=False)
 
         logger.info("Executing Manual Task step %d for enrollment %s", step.step_number, enrollment.id)

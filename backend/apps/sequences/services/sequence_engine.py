@@ -188,6 +188,12 @@ class SequenceEngineService:
     @transaction.atomic
     def execute_current_step(enrollment: SequenceEnrollment):
         """Executes the current step for a single enrollment."""
+        # Lock enrollment row to prevent concurrent step executions on the same enrollment
+        try:
+            enrollment = SequenceEnrollment.objects.select_for_update().get(id=enrollment.id)
+        except SequenceEnrollment.DoesNotExist:
+            return
+
         if enrollment.status in [EnrollmentStatus.STOPPED, EnrollmentStatus.PAUSED, EnrollmentStatus.COMPLETED]:
             logger.info("Enrollment %s is in status '%s', skipping step execution", enrollment.id, enrollment.status)
             return
@@ -204,17 +210,19 @@ class SequenceEngineService:
             SequenceEngineService.complete_enrollment(enrollment)
             return
 
-        # Get or create step execution
-        execution, created = SequenceStepExecution.objects.get_or_create(
-            enrollment=enrollment,
-            step=step,
-            defaults={
-                "status": ExecutionStatus.PENDING,
-                "scheduled_at": timezone.now(),
-                "created_by": enrollment.enrolled_by,
-                "updated_by": enrollment.enrolled_by,
-            },
-        )
+        # Fetch existing execution or get_or_create
+        execution = SequenceStepExecution.objects.filter(enrollment=enrollment, step=step).first()
+        if not execution:
+            execution, created = SequenceStepExecution.objects.get_or_create(
+                enrollment=enrollment,
+                step=step,
+                defaults={
+                    "status": ExecutionStatus.PENDING,
+                    "scheduled_at": timezone.now(),
+                    "created_by": enrollment.enrolled_by,
+                    "updated_by": enrollment.enrolled_by,
+                },
+            )
 
         if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.SKIPPED]:
             # Already completed, advance

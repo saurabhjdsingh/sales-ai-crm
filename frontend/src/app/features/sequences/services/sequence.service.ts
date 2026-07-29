@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, forkJoin, of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import {
   PaginatedResult,
@@ -57,6 +57,21 @@ export class SequenceService {
 
   stopEnrollment(id: string, reason?: string): Observable<SequenceEnrollment> {
     return this.api.post<SequenceEnrollment>(`/sequences/enrollments/${id}/stop/`, { reason });
+  }
+
+  bulkPauseEnrollments(ids: string[]): Observable<any> {
+    if (!ids || ids.length === 0) return of([]);
+    return forkJoin(ids.map(id => this.pauseEnrollment(id)));
+  }
+
+  bulkResumeEnrollments(ids: string[]): Observable<any> {
+    if (!ids || ids.length === 0) return of([]);
+    return forkJoin(ids.map(id => this.resumeEnrollment(id)));
+  }
+
+  bulkStopEnrollments(ids: string[], reason?: string): Observable<any> {
+    if (!ids || ids.length === 0) return of([]);
+    return forkJoin(ids.map(id => this.stopEnrollment(id, reason)));
   }
 
   getApprovalQueue(): Observable<PaginatedResult<SequenceEmailDraft>> {
