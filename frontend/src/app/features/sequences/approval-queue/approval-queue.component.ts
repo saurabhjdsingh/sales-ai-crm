@@ -10,6 +10,7 @@ import { SequenceService } from '../services/sequence.service';
 import { SequenceStore } from '../store/sequence.store';
 import { SequenceEmailDraft } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { RichTextEditorComponent } from '../../../shared/components/rich-text-editor/rich-text-editor.component';
 
 @Component({
   selector: 'app-approval-queue',
@@ -21,6 +22,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    RichTextEditorComponent,
   ],
   template: `
     <div class="approvals-container">
@@ -131,13 +133,13 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             </div>
 
             <div class="form-group">
-              <label class="form-label">Email Body (Text / HTML)</label>
-              <textarea
-                [ngModel]="selectedDraft.body_text"
-                (ngModelChange)="onBodyChange($event)"
-                rows="10"
-                class="form-textarea body-input"
-              ></textarea>
+              <label class="form-label">Email Message (Rich Text Formatting Enabled)</label>
+              <app-rich-text-editor
+                [htmlValue]="selectedDraft.body_html || selectedDraft.body_text"
+                (htmlValueChange)="onBodyHtmlChange($event)"
+                (textValueChange)="onBodyChange($event)"
+                placeholder="Review or edit sequence email draft (supports bold, bullet lists, italics, links)..."
+              ></app-rich-text-editor>
             </div>
 
             <!-- Optional Feedback Prompt for Regeneration -->
@@ -521,14 +523,22 @@ export class ApprovalQueueComponent implements OnInit {
     this.feedbackPrompt = '';
   }
 
+  onBodyHtmlChange(newHtml: string): void {
+    if (this.selectedDraft) {
+      this.selectedDraft.body_html = newHtml;
+    }
+  }
+
   onBodyChange(newText: string): void {
     if (this.selectedDraft) {
       this.selectedDraft.body_text = newText;
-      const htmlParagraphs = newText
-        .split('\n\n')
-        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-        .join('');
-      this.selectedDraft.body_html = htmlParagraphs;
+      if (!this.selectedDraft.body_html) {
+        const htmlParagraphs = newText
+          .split('\n\n')
+          .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+          .join('');
+        this.selectedDraft.body_html = htmlParagraphs;
+      }
     }
   }
 

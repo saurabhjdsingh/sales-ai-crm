@@ -102,13 +102,13 @@ import { NotificationService } from '../../../core/services/notification.service
                     <span class="item-time">{{ act.created_at | date:'mediumDate' }} · {{ act.created_at | date:'shortTime' }}</span>
                   </div>
                   
-                  @if (act.activity_type === 'email' && act.metadata) {
+                  @if (isEmailType(act.activity_type) && act.metadata) {
                     <div class="email-metadata">
                       <div class="meta-row">
-                        <span class="badge" [ngClass]="act.metadata.direction">
-                          {{ act.metadata.direction === 'outgoing' ? 'Sent' : 'Received' }}
+                        <span class="badge" [ngClass]="act.metadata.direction || 'outgoing'">
+                          {{ (act.metadata.direction === 'outgoing' || !act.metadata.direction) ? 'Sent' : 'Received' }}
                         </span>
-                        <span class="email-sender">
+                        <span class="email-sender" *ngIf="act.metadata.sender">
                           <strong>From:</strong> {{ act.metadata.sender }}
                         </span>
                       </div>
@@ -121,10 +121,10 @@ import { NotificationService } from '../../../core/services/notification.service
                   }
 
                   @if (act.description) {
-                    <p class="item-desc" [class.email-preview]="act.activity_type === 'email'" [innerHTML]="formatTextWithLinks(act.description)"></p>
+                    <p class="item-desc" [class.email-preview]="isEmailType(act.activity_type)" [innerHTML]="formatTextWithLinks(act.description)"></p>
                   }
 
-                  @if (act.activity_type === 'email' && act.metadata?.thread_id) {
+                  @if (isEmailType(act.activity_type) && act.metadata?.thread_id) {
                     <div class="email-actions">
                       <button mat-stroked-button class="view-conv-btn" (click)="viewEmailConversation(act.metadata.thread_id)">
                         <mat-icon>chat</mat-icon>
@@ -133,7 +133,7 @@ import { NotificationService } from '../../../core/services/notification.service
                     </div>
                   }
                   
-                  <div class="item-footer" *ngIf="act.performed_by_name && act.activity_type !== 'email'">
+                  <div class="item-footer" *ngIf="act.performed_by_name && !isEmailType(act.activity_type)">
                     Logged by {{ act.performed_by_name }}
                   </div>
                 </div>
@@ -256,7 +256,7 @@ import { NotificationService } from '../../../core/services/notification.service
 
     /* Colors by type */
     .item-icon-wrapper.call { background-color: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .item-icon-wrapper.email { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .item-icon-wrapper.email, .item-icon-wrapper.sequence_email_sent { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .item-icon-wrapper.meeting { background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .item-icon-wrapper.task_completed { background-color: rgba(236, 72, 153, 0.15); color: #f472b6; }
     .item-icon-wrapper.stage_changed { background-color: rgba(139, 92, 246, 0.15); color: #a78bfa; }
@@ -465,10 +465,18 @@ export class TimelineComponent implements OnChanges {
     });
   }
 
+  isEmailType(type: string): boolean {
+    return type === 'email' || type === 'sequence_email_sent' || type === 'sequence_email_drafted';
+  }
+
   getActivityIcon(type: string): string {
     const icons: Record<string, string> = {
       call: 'call',
       email: 'email',
+      sequence_email_sent: 'email',
+      sequence_email_drafted: 'mark_email_unread',
+      sequence_email_opened: 'drafts',
+      sequence_link_clicked: 'touch_app',
       meeting: 'groups',
       task_completed: 'task_alt',
       stage_changed: 'published_with_changes',

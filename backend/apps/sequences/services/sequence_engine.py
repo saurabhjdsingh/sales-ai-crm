@@ -98,6 +98,13 @@ class SequenceEngineService:
         now = timezone.now()
 
         for c_id in contact_ids:
+            from apps.contacts.models import Contact
+
+            target_contact = Contact.objects.filter(id=c_id).first()
+            if not target_contact or not target_contact.email or not target_contact.email.strip():
+                contact_name = target_contact.full_name if target_contact else str(c_id)
+                raise ValueError(f"Contact '{contact_name}' does not have a valid email address and cannot be enrolled in sequence outreach.")
+
             # Check if contact is already actively enrolled
             existing = SequenceEnrollment.objects.filter(
                 sequence=sequence,
@@ -459,22 +466,82 @@ class SequenceEngineService:
         draft.gmail_thread_id = thread_id
         draft.save()
 
+        # Create/Link EmailThread & EmailMessage so sequence emails appear in Contact Email History tab
+        import uuid
+        from apps.emails.models import EmailThread, EmailMessage
+
+        sender_email = getattr(user, "email", "")
+        if account and getattr(account, "email", None):
+            sender_email = account.email
+
+        g_thread_id = thread_id or message_id or str(uuid.uuid4())
+        g_message_id = message_id or str(uuid.uuid4())
+
+        thread, _ = EmailThread.objects.get_or_create(
+            gmail_thread_id=g_thread_id,
+            defaults={
+                "subject": draft.subject,
+                "participants": [sender_email, recipient_email],
+                "snippet": (draft.body_text or "")[:150],
+                "last_message_time": now,
+                "contact": contact,
+                "company": draft.enrollment.company or contact.company,
+                "created_by": user,
+                "updated_by": user,
+            }
+        )
+        thread.last_message_time = now
+        thread.save(update_fields=["last_message_time", "updated_at"])
+
+        email_msg = EmailMessage.objects.create(
+            gmail_message_id=g_message_id,
+            thread=thread,
+            sender=sender_email,
+            recipients=[recipient_email],
+            direction="outgoing",
+            subject=draft.subject,
+            plain_text_body=draft.body_text or "",
+            html_body=draft.body_html or "",
+            internal_date=now,
+            tracking_token=draft.tracking_token or "",
+            created_by=user,
+            updated_by=user,
+        )
+
+        # Link click records to email_msg if applicable
+        from apps.sequences.models import SequenceLinkClick
+        SequenceLinkClick.objects.filter(
+            draft=draft,
+            email_message__isnull=True
+        ).update(email_message=email_msg)
+
         # Update step execution & enrollment
         if draft.execution:
             draft.execution.status = ExecutionStatus.COMPLETED
             draft.execution.completed_at = now
             draft.execution.save(update_fields=["status", "completed_at", "updated_at"])
 
-        # Log Activity
+        # Log Activity with full rich metadata for Timeline display
         Activity.objects.create(
             activity_type=ActivityType.SEQUENCE_EMAIL_SENT,
             title=f"Sequence Email Sent: '{draft.subject}'",
-            description=f"Approved & sent to {contact.full_name} ({recipient_email}).",
+            description=draft.body_text or f"Approved & sent sequence email to {contact.full_name} ({recipient_email}).",
             contact=contact,
             company=draft.enrollment.company,
             deal=draft.enrollment.deal,
             performed_by=user,
-            metadata={"draft_id": str(draft.id), "sequence_id": str(sequence.id)},
+            metadata={
+                "draft_id": str(draft.id),
+                "sequence_id": str(sequence.id),
+                "thread_id": str(thread.id),
+                "message_id": str(email_msg.id),
+                "direction": "outgoing",
+                "sender": sender_email,
+                "recipients": [recipient_email],
+                "subject": draft.subject,
+                "body_text": draft.body_text,
+                "body_html": draft.body_html,
+            },
             created_by=user,
         )
 

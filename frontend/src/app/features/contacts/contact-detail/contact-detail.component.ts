@@ -1007,7 +1007,8 @@ export class ContactDetailComponent implements OnInit {
       width: '500px',
       data: {
         contactId: contact.id,
-        contactName: contact.full_name
+        contactName: contact.full_name,
+        contactEmail: contact.email
       }
     });
   }

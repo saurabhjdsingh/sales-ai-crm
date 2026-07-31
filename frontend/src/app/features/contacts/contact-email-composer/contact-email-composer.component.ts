@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Contact, EmailThread } from '../../../core/models/crm.model';
+import { RichTextEditorComponent } from '../../../shared/components/rich-text-editor/rich-text-editor.component';
 
 export interface ContactEmailComposerData {
   contact: Contact;
@@ -27,6 +28,7 @@ export interface ContactEmailComposerData {
     MatButtonModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    RichTextEditorComponent,
   ],
   template: `
     <div class="composer-container">
@@ -131,15 +133,19 @@ export interface ContactEmailComposerData {
             </div>
           </div>
 
+          <div *ngIf="!data.contact?.email" class="missing-email-banner">
+            <mat-icon>warning</mat-icon>
+            <span>Cannot send email: {{ data.contact.full_name }} does not have an email address.</span>
+          </div>
+
           <div class="form-group">
-            <label class="form-label">Email Message (Plain Text / HTML)</label>
-            <textarea
-              [ngModel]="bodyText"
-              (ngModelChange)="onBodyTextChange($event)"
-              rows="8"
-              class="form-textarea"
-              placeholder="Write your email message..."
-            ></textarea>
+            <label class="form-label">Email Message (Rich Text Formatting Enabled)</label>
+            <app-rich-text-editor
+              [htmlValue]="bodyHtml || bodyText"
+              (htmlValueChange)="onBodyHtmlChange($event)"
+              (textValueChange)="onBodyTextChange($event)"
+              placeholder="Write your email message (supports bold, bullet lists, italics, links)..."
+            ></app-rich-text-editor>
           </div>
         </div>
       </div>
@@ -150,7 +156,7 @@ export interface ContactEmailComposerData {
         <button
           type="button"
           (click)="sendEmail()"
-          [disabled]="sending() || !subject.trim() || !bodyText.trim() || !mailboxStatus().connected"
+          [disabled]="sending() || !subject.trim() || (!bodyText.trim() && !bodyHtml.trim()) || !mailboxStatus().connected || !data.contact?.email"
           class="send-btn"
         >
           @if (sending()) {
@@ -226,13 +232,13 @@ export interface ContactEmailComposerData {
     .status-badge.disconnected { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
     .badge-icon { font-size: 14px; width: 14px; height: 14px; }
 
-    .warning-banner {
+    .warning-banner, .missing-email-banner {
       background: rgba(239, 68, 68, 0.1);
       border: 1px solid rgba(239, 68, 68, 0.25);
       border-radius: 8px;
       padding: 0.85rem 1rem;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 0.75rem;
       color: #ef4444;
       font-size: 0.82rem;
@@ -500,9 +506,15 @@ export class ContactEmailComposerComponent implements OnInit {
     });
   }
 
+  onBodyHtmlChange(newHtml: string): void {
+    this.bodyHtml = newHtml;
+  }
+
   onBodyTextChange(newText: string): void {
     this.bodyText = newText;
-    this.bodyHtml = newText.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    if (!this.bodyHtml) {
+      this.bodyHtml = newText.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    }
   }
 
   sendEmail(): void {

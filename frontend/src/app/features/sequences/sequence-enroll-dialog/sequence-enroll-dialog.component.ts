@@ -13,6 +13,7 @@ import { Sequence } from '../../../core/models/crm.model';
 export interface SequenceEnrollDialogData {
   contactId?: string;
   contactName?: string;
+  contactEmail?: string;
   contactIds?: string[];
 }
 
@@ -40,6 +41,14 @@ export interface SequenceEnrollDialogData {
         Select an active outreach sequence for <strong>{{ data.contactName || 'selected contact' }}</strong>:
       </p>
 
+      <div *ngIf="hasMissingEmail" class="no-seq-card" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); margin-bottom: 12px;">
+        <mat-icon style="color: #ef4444;">warning</mat-icon>
+        <div class="no-seq-content">
+          <h4 style="color: #ef4444;">Missing Email Address</h4>
+          <p style="color: #f87171;">Contact '{{ data.contactName || 'Selected contact' }}' does not have an email address associated and cannot be enrolled in sequence outreach.</p>
+        </div>
+      </div>
+
       <div *ngIf="loading" class="loading-box">
         <mat-spinner diameter="36"></mat-spinner>
         <span>Loading active sequences...</span>
@@ -56,7 +65,7 @@ export interface SequenceEnrollDialogData {
         </div>
       </div>
 
-      <div *ngIf="!loading && sequences.length > 0" class="seq-list">
+      <div *ngIf="!loading && sequences.length > 0 && !hasMissingEmail" class="seq-list">
         <div
           *ngFor="let seq of sequences"
           class="seq-item-card"
@@ -86,7 +95,7 @@ export interface SequenceEnrollDialogData {
         mat-raised-button
         color="primary"
         (click)="onEnroll()"
-        [disabled]="!selectedSequenceId || enrolling"
+        [disabled]="!selectedSequenceId || enrolling || hasMissingEmail"
         class="submit-btn"
       >
         {{ enrolling ? 'Enrolling...' : ('Enroll ' + (contactCount > 1 ? contactCount + ' Contacts' : 'Contact')) }}
@@ -287,6 +296,13 @@ export class SequenceEnrollDialogComponent implements OnInit {
       return this.data.contactIds.length;
     }
     return 1;
+  }
+
+  get hasMissingEmail(): boolean {
+    if (this.data.contactEmail !== undefined && (!this.data.contactEmail || !this.data.contactEmail.trim())) {
+      return true;
+    }
+    return false;
   }
 
   ngOnInit(): void {
