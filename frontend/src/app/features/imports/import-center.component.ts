@@ -73,6 +73,10 @@ interface UploadResponse {
               <div class="mapping-wizard">
                 <h4>Map CSV Columns to CRM Fields</h4>
                 <p class="preview-info">File: {{ uploadData()?.file_name }} ({{ uploadData()?.total_rows }} rows detected)</p>
+                <div class="mapping-hint-banner" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 1rem; font-size: 0.8rem; color: #93c5fd; display: flex; align-items: center; gap: 0.5rem;">
+                  <mat-icon style="font-size: 18px; width: 18px; height: 18px;">info</mat-icon>
+                  <span>Fields marked with <strong style="color: #ef4444;">* REQUIRED</strong> are mandatory and must be mapped to a CSV column.</span>
+                </div>
 
                 <div class="mapping-table-header">
                   <span>CRM Target Field</span>
@@ -81,13 +85,18 @@ interface UploadResponse {
 
                 <div class="mapping-rows">
                   @for (field of getTargetFields(); track field.key) {
-                    <div class="mapping-row">
-                      <div class="field-label">
-                        {{ field.label }}
+                    <div class="mapping-row" [class.required-field-row]="field.required">
+                      <div class="field-label" style="display: flex; align-items: center; gap: 0.25rem;">
+                        <span>{{ field.label }}</span>
                         <span class="required-star" *ngIf="field.required">*</span>
+                        <span class="required-badge" *ngIf="field.required">REQUIRED</span>
                       </div>
                       <div class="mapping-select">
-                        <select (change)="updateMapping(field.key, $event)" [value]="suggestedMapping()[field.key] || ''">
+                        <select
+                          (change)="updateMapping(field.key, $event)"
+                          [value]="suggestedMapping()[field.key] || ''"
+                          [class.required-unmapped]="field.required && !suggestedMapping()[field.key]"
+                        >
                           <option value="">-- Skip Field --</option>
                           @for (header of uploadData()?.headers; track header) {
                             <option [value]="header">{{ header }}</option>
@@ -364,6 +373,24 @@ interface UploadResponse {
       margin-left: 0.15rem;
     }
 
+    .required-badge {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      font-size: 0.65rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .mapping-row.required-field-row {
+      background: rgba(239, 68, 68, 0.03);
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+      border-radius: 6px;
+    }
+
     .mapping-select select {
       background-color: #0b1329;
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -373,6 +400,12 @@ interface UploadResponse {
       padding: 0.4rem 0.5rem;
       outline: none;
       width: 100%;
+    }
+
+    .mapping-select select.required-unmapped {
+      border-color: #ef4444 !important;
+      background-color: rgba(239, 68, 68, 0.08) !important;
+      color: #fca5a5 !important;
     }
 
     .mapping-actions {
@@ -690,7 +723,10 @@ export class ImportCenterComponent implements OnInit {
         { key: 'website', label: 'Website URL', required: false },
         { key: 'industry', label: 'Industry', required: false },
         { key: 'company_size', label: 'Company Size (Size class)', required: false },
-        { key: 'country', label: 'HQ Country', required: false },
+        { key: 'city', label: 'City', required: false },
+        { key: 'state', label: 'State / Region', required: false },
+        { key: 'country', label: 'Country / Location', required: false },
+        { key: 'list_name', label: 'List Name (Apollo / Prospect List)', required: false },
         { key: 'linkedin_url', label: 'LinkedIn Company URL', required: false },
         { key: 'apollo_id', label: 'Apollo Organization ID', required: false },
         { key: 'description', label: 'Description', required: false }
@@ -699,13 +735,16 @@ export class ImportCenterComponent implements OnInit {
       return [
         { key: 'first_name', label: 'First Name', required: true },
         { key: 'last_name', label: 'Last Name', required: true },
-        { key: 'company_name', label: 'Company Name (Optional Link)', required: false },
+        { key: 'company_name', label: 'Company Name (Optional)', required: false },
         { key: 'email', label: 'Email Address', required: false },
         { key: 'phone', label: 'Phone Number', required: false },
         { key: 'job_title', label: 'Job Title', required: false },
         { key: 'department', label: 'Department', required: false },
+        { key: 'city', label: 'City', required: false },
+        { key: 'state', label: 'State / Region', required: false },
+        { key: 'country', label: 'Country / Location', required: false },
         { key: 'timezone', label: 'Timezone', required: false },
-        { key: 'country', label: 'Country', required: false },
+        { key: 'list_name', label: 'List Name (Apollo / Prospect List)', required: false },
         { key: 'linkedin_url', label: 'LinkedIn Profile URL', required: false },
         { key: 'apollo_id', label: 'Apollo Contact ID', required: false },
         { key: 'stage', label: 'Contact Stage', required: false }
@@ -718,14 +757,20 @@ export class ImportCenterComponent implements OnInit {
         { key: 'company_website', label: 'Company Website URL', required: false },
         { key: 'company_industry', label: 'Company Industry', required: false },
         { key: 'company_size', label: 'Company Size (Size class)', required: false },
+        { key: 'company_city', label: 'Company City', required: false },
+        { key: 'company_state', label: 'Company State / Region', required: false },
+        { key: 'company_country', label: 'Company Country / Location', required: false },
         { key: 'company_linkedin_url', label: 'Company LinkedIn URL', required: false },
         { key: 'company_description', label: 'Company Description', required: false },
         { key: 'email', label: 'Email Address', required: false },
         { key: 'phone', label: 'Phone Number', required: false },
         { key: 'job_title', label: 'Job Title', required: false },
         { key: 'department', label: 'Department', required: false },
+        { key: 'city', label: 'Contact City', required: false },
+        { key: 'state', label: 'Contact State / Region', required: false },
+        { key: 'country', label: 'Contact Country / Location', required: false },
         { key: 'timezone', label: 'Timezone', required: false },
-        { key: 'country', label: 'Country', required: false },
+        { key: 'list_name', label: 'List Name (Apollo / Prospect List)', required: false },
         { key: 'linkedin_url', label: 'LinkedIn Profile URL', required: false },
         { key: 'apollo_id', label: 'Apollo Contact ID', required: false },
         { key: 'stage', label: 'Contact Stage', required: false }
@@ -751,10 +796,21 @@ export class ImportCenterComponent implements OnInit {
     const data = this.uploadData();
     if (!data) return;
 
+    // Validate mandatory fields mapping
+    const targets = this.getTargetFields();
+    const mapping = this.suggestedMapping();
+    const unmappedRequired = targets.filter(t => t.required && (!mapping[t.key] || !mapping[t.key].trim()));
+
+    if (unmappedRequired.length > 0) {
+      const labels = unmappedRequired.map(u => u.label).join(', ');
+      this.notification.error(`Please map mandatory CSV column(s): ${labels}`);
+      return;
+    }
+
     this.processing.set(true);
     this.apiService.post<{ message: string }>('/imports/process/', {
       import_job_id: data.import_job_id,
-      column_mapping: this.suggestedMapping()
+      column_mapping: mapping
     }).subscribe({
       next: () => {
         this.processing.set(false);

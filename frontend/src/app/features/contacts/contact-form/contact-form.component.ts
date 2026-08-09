@@ -8,8 +8,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ContactStore } from '../services/contact.store';
-import { Contact } from '../../../core/models/crm.model';
+import { Contact, ProspectList } from '../../../core/models/crm.model';
 import { ApiService } from '../../../core/services/api.service';
+import { ProspectListService } from '../../prospect-lists/services/prospect-list.service';
 
 interface DropdownItem {
   id: string;
@@ -152,6 +153,17 @@ interface DropdownItem {
               <input matInput formControlName="apollo_id" placeholder="Apollo Contact ID">
             </mat-form-field>
           </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Prospect Lists</mat-label>
+              <mat-select formControlName="list_ids" multiple placeholder="Assign to lists">
+                @for (list of prospectLists(); track list.id) {
+                  <mat-option [value]="list.id">📋 {{ list.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
         </mat-dialog-content>
 
         <mat-dialog-actions align="end" class="dialog-actions">
@@ -247,13 +259,15 @@ export class ContactFormComponent implements OnInit {
   readonly store = inject(ContactStore);
   private readonly fb = inject(FormBuilder);
   private readonly apiService = inject(ApiService);
+  private readonly prospectListService = inject(ProspectListService);
   readonly dialogRef = inject(MatDialogRef<ContactFormComponent>);
   readonly data = inject<any>(MAT_DIALOG_DATA, { optional: true });
 
-  readonly isEdit = !!this.data && !!this.data.id; // It's an edit if data has id
+  readonly isEdit = !!this.data && !!this.data.id;
   readonly users = signal<DropdownItem[]>([]);
   readonly companies = signal<DropdownItem[]>([]);
   readonly filteredCompanies = signal<DropdownItem[]>([]);
+  readonly prospectLists = signal<ProspectList[]>([]);
 
   readonly contactForm: FormGroup = this.fb.group({
     first_name: ['', [Validators.required]],
@@ -267,6 +281,7 @@ export class ContactFormComponent implements OnInit {
     country: [''],
     stage: ['cold'],
     owner: [null],
+    list_ids: [[]],
     linkedin_url: [''],
     apollo_id: ['']
   });
@@ -275,6 +290,11 @@ export class ContactFormComponent implements OnInit {
     // Load sales reps for dropdown selection
     this.apiService.get<any[]>('/auth/team/').subscribe((res) => {
       this.users.set(res.map((u) => ({ id: u.id, name: u.full_name })));
+    });
+
+    // Load active prospect lists
+    this.prospectListService.getProspectLists({ page_size: 100, is_active: true }).subscribe({
+      next: (res: any) => this.prospectLists.set(res.results || [])
     });
 
     // Load companies list
@@ -290,6 +310,7 @@ export class ContactFormComponent implements OnInit {
     });
 
     if (this.isEdit && this.data) {
+      const initialListIds = this.data.lists ? this.data.lists.map((l: any) => l.id) : [];
       this.contactForm.patchValue({
         first_name: this.data.first_name,
         last_name: this.data.last_name,
@@ -302,6 +323,7 @@ export class ContactFormComponent implements OnInit {
         country: this.data.country || '',
         stage: this.data.stage,
         owner: this.data.owner || null,
+        list_ids: initialListIds,
         linkedin_url: this.data.linkedin_url || '',
         apollo_id: this.data.apollo_id || ''
       });

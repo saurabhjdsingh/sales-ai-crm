@@ -57,7 +57,7 @@ class ImportProcessSerializer(serializers.Serializer):
     """Serializer for starting the import process with column mapping."""
 
     import_job_id = serializers.UUIDField()
-    column_mapping = serializers.DictField(child=serializers.CharField())
+    column_mapping = serializers.DictField(child=serializers.CharField(allow_blank=True, allow_null=True, required=False))
 
 
 class ImportRecordSerializer(serializers.ModelSerializer):

@@ -79,34 +79,54 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
                 type="button"
                 (click)="rejectDraft(selectedDraft)"
                 [disabled]="processing"
-                class="reject-btn"
+                class="queue-btn reject-btn"
                 matTooltip="Reject draft & close sequence enrollment for contact"
               >
                 <mat-icon class="btn-icon">block</mat-icon>
-                Reject & Close
+                <span>Reject & Close</span>
               </button>
 
               <button
                 type="button"
                 (click)="regenerate(selectedDraft)"
                 [disabled]="processing"
-                class="regen-btn"
+                class="queue-btn regen-btn"
                 matTooltip="Regenerate draft using feedback prompt"
               >
                 <mat-icon class="btn-icon">auto_fix_high</mat-icon>
-                Regenerate
+                <span>Regenerate</span>
               </button>
 
               <button
                 type="button"
-                (click)="approveAndSend(selectedDraft)"
+                (click)="sendNow(selectedDraft)"
                 [disabled]="processing"
-                class="approve-btn"
+                class="queue-btn send-now-btn"
+                matTooltip="Bypass schedule and send immediately"
               >
-                <mat-icon class="btn-icon">send</mat-icon>
-                {{ processing ? 'Sending...' : 'Approve & Send' }}
+                <mat-icon class="btn-icon">bolt</mat-icon>
+                <span>Send Now</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="approveAndSchedule(selectedDraft)"
+                [disabled]="processing"
+                class="queue-btn approve-btn"
+              >
+                <mat-icon class="btn-icon">schedule_send</mat-icon>
+                <span>{{ processing ? 'Processing...' : 'Approve & Smart Schedule' }}</span>
               </button>
             </div>
+          </div>
+
+          <!-- Scheduled Status Banner if already scheduled -->
+          <div class="scheduled-banner" *ngIf="selectedDraft.status === 'scheduled' || selectedDraft.scheduled_local_time" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: #60a5fa;">
+              <mat-icon>schedule</mat-icon>
+              <span><strong>Scheduled Delivery:</strong> {{ selectedDraft.scheduled_local_time || selectedDraft.scheduled_at_utc }}</span>
+            </div>
+            <span class="badge" style="background: #1e3a8a; color: #93c5fd; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase;">{{ selectedDraft.sending_mode || 'Smart Send' }}</span>
           </div>
 
           <!-- AI Context Rationale Box -->
@@ -301,53 +321,140 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
 
     .action-buttons {
       display: flex;
-      gap: 0.75rem;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: nowrap;
     }
 
-    .approve-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: #ffffff;
-      padding: 0.6rem 1.2rem;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
+    .queue-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 0.45rem !important;
+      height: 40px !important;
+      padding: 0 1rem !important;
+      border-radius: 8px !important;
+      font-size: 8px !important;
+      font-weight: 600 !important;
+      white-space: nowrap !important;
       cursor: pointer;
-      font-size: 0.9rem;
+      border: 1px solid transparent;
+      transition: all 0.2s ease-in-out;
+      outline: none;
+      line-height: 1;
     }
 
-    .regen-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: #fbbf24;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.9rem;
+    .queue-btn span {
+      white-space: nowrap;
+      display: inline-block;
+      line-height: 1;
+    }
+
+    .queue-btn .btn-icon {
+      font-size: 18px !important;
+      width: 18px !important;
+      height: 18px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      line-height: 1 !important;
     }
 
     .reject-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
       background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.35);
       color: #f87171;
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: all 0.2s;
     }
-    .reject-btn:hover { background: rgba(239, 68, 68, 0.25); }
-    .reject-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .reject-btn:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: #ef4444;
+      color: #ffffff;
+    }
+
+    .regen-btn {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+    }
+    .regen-btn:hover:not(:disabled) {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      color: #ffffff;
+    }
+
+    .send-now-btn {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.35);
+      color: #60a5fa;
+    }
+    .send-now-btn:hover:not(:disabled) {
+      background: rgba(59, 130, 246, 0.25);
+      border-color: #3b82f6;
+      color: #ffffff;
+    }
+
+    .approve-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      border-color: #10b981;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+    }
+    .approve-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    }
+
+    .queue-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Light Theme Overrides for Action Buttons */
+    :host-context(body.light-theme) .reject-btn {
+      background: #fef2f2 !important;
+      border-color: #fca5a5 !important;
+      color: #dc2626 !important;
+    }
+    :host-context(body.light-theme) .reject-btn:hover:not(:disabled) {
+      background: #fee2e2 !important;
+      border-color: #ef4444 !important;
+      color: #b91c1c !important;
+    }
+
+    :host-context(body.light-theme) .regen-btn {
+      background: #fffbe6 !important;
+      border-color: #fde68a !important;
+      color: #b45309 !important;
+    }
+    :host-context(body.light-theme) .regen-btn:hover:not(:disabled) {
+      background: #fef3c7 !important;
+      border-color: #f59e0b !important;
+      color: #92400e !important;
+    }
+
+    :host-context(body.light-theme) .send-now-btn {
+      background: #eff6ff !important;
+      border-color: #bfdbfe !important;
+      color: #2563eb !important;
+    }
+    :host-context(body.light-theme) .send-now-btn:hover:not(:disabled) {
+      background: #dbeafe !important;
+      border-color: #3b82f6 !important;
+      color: #1d4ed8 !important;
+    }
+
+    :host-context(body.light-theme) .approve-btn {
+      background: linear-gradient(135deg, #10b981 0%, #047857 100%) !important;
+      border-color: #059669 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2) !important;
+    }
+    :host-context(body.light-theme) .approve-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #059669 0%, #065f46 100%) !important;
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3) !important;
+    }
 
     .rationale-card {
       background: rgba(139, 92, 246, 0.08);
@@ -542,7 +649,7 @@ export class ApprovalQueueComponent implements OnInit {
     }
   }
 
-  approveAndSend(draft: SequenceEmailDraft): void {
+  approveAndSchedule(draft: SequenceEmailDraft): void {
     if (!draft) return;
     this.processing = true;
 
@@ -550,10 +657,25 @@ export class ApprovalQueueComponent implements OnInit {
       subject: draft.subject,
       reply_to: draft.reply_to,
       body_text: draft.body_text,
-      body_html: draft.body_html || draft.body_text
+      body_html: draft.body_html || draft.body_text,
+      send_mode: 'smart_send',
     };
 
     this.service.approveDraft(draft.id, payload).subscribe({
+      next: () => {
+        this.processing = false;
+        this.loadQueue();
+        this.store.loadApprovalQueue();
+      },
+      error: () => (this.processing = false)
+    });
+  }
+
+  sendNow(draft: SequenceEmailDraft): void {
+    if (!draft) return;
+    this.processing = true;
+
+    this.service.sendNowDraft(draft.id).subscribe({
       next: () => {
         this.processing = false;
         this.loadQueue();

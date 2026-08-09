@@ -18,6 +18,28 @@ export interface User {
   last_login?: string;
 }
 
+export interface ProspectListSimple {
+  id: string;
+  name: string;
+  source: string;
+}
+
+export interface ProspectList {
+  id: string;
+  name: string;
+  name_normalized: string;
+  description?: string;
+  source: 'APOLLO' | 'MANUAL' | 'CSV_IMPORT' | 'OTHER';
+  is_active: boolean;
+  import_job?: string;
+  company_count: number;
+  contact_count: number;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  created_by_detail?: { id: string; name: string };
+}
+
 export type CompanyStage = 'cold' | 'current_client' | 'active_opportunity' | 'dead_opportunity' | 'do_not_prospect';
 
 export interface Company {
@@ -27,6 +49,9 @@ export interface Company {
   industry?: string;
   company_size?: string;
   country?: string;
+  country_display?: string;
+  lists?: ProspectListSimple[];
+  list_ids?: string[];
   linkedin_url?: string;
   apollo_id?: string;
   description?: string;
@@ -84,7 +109,14 @@ export interface Contact {
   linkedin_url?: string;
   apollo_id?: string;
   timezone?: string;
+  timezone_source?: 'MANUAL' | 'AUTOMATIC' | 'DEFAULT';
+  timezone_confidence?: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
   country?: string;
+  country_display?: string;
+  city?: string;
+  state?: string;
+  lists?: ProspectListSimple[];
+  list_ids?: string[];
   owner?: string;
   owner_detail?: {
     id: string;
@@ -221,10 +253,10 @@ export interface Note {
   company?: string;
   contact?: string;
   deal?: string;
-  created_at: string;
-  updated_at: string;
   created_by?: { id: string; name: string };
   updated_by?: { id: string; name: string };
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CompanyResearch {
@@ -318,8 +350,9 @@ export interface PaginatedResult<T> {
 
 export type SequenceActionType = 'ai_email' | 'manual_task' | 'wait' | 'update_stage' | 'linkedin_message' | 'phone_call' | 'sms' | 'webhook';
 export type DelayUnit = 'minutes' | 'hours' | 'days';
+export type SendMode = 'smart_send' | 'immediate' | 'manual';
 export type EnrollmentStatus = 'draft' | 'running' | 'waiting' | 'waiting_approval' | 'completed' | 'stopped' | 'paused' | 'failed';
-export type DraftStatus = 'draft_pending' | 'approved' | 'sent' | 'rejected' | 'cancelled';
+export type DraftStatus = 'draft_pending' | 'approved' | 'scheduled' | 'sent' | 'rejected' | 'cancelled';
 
 export interface SequenceStep {
   id?: string;
@@ -328,6 +361,7 @@ export interface SequenceStep {
   delay: number;
   delay_unit: DelayUnit;
   configuration: Record<string, any>;
+  send_mode?: SendMode;
 }
 
 export interface Sequence {
@@ -347,6 +381,7 @@ export interface Sequence {
   auto_stop_deal_stages?: string[];
   email_account_role?: string;
   reply_to?: string;
+  default_send_mode?: SendMode;
   steps_count?: number;
   active_enrollments_count?: number;
   total_enrolled_count?: number;
@@ -367,6 +402,7 @@ export interface SequenceEnrollment {
   deal?: string;
   status: EnrollmentStatus;
   current_step_number: number;
+  current_step_action_type?: string;
   next_execution_at?: string;
   stop_reason?: string;
   stopped_at?: string;
@@ -374,7 +410,9 @@ export interface SequenceEnrollment {
   click_count?: number;
   has_replied?: boolean;
   last_opened_at?: string;
-  last_clicked_at?: string;
+  pending_draft_id?: string;
+  scheduled_delivery_time?: string;
+  scheduled_sending_mode?: string;
   created_at: string;
   updated_at: string;
 }
@@ -402,7 +440,29 @@ export interface SequenceEmailDraft {
   last_clicked_at?: string;
   approved_at?: string;
   sent_at?: string;
+  scheduled_at_utc?: string;
+  scheduled_timezone?: string;
+  scheduled_local_time?: string;
+  sending_mode?: string;
+  sending_window?: string;
+  schedule_source?: string;
   created_at: string;
+}
+
+export interface SequenceScheduleSetting {
+  id?: string;
+  morning_start_time: string;
+  morning_end_time: string;
+  afternoon_start_time: string;
+  afternoon_end_time: string;
+  monday: boolean;
+  tuesday: boolean;
+  wednesday: boolean;
+  thursday: boolean;
+  friday: boolean;
+  saturday: boolean;
+  sunday: boolean;
+  org_timezone: string;
 }
 
 export interface SequenceDashboardMetrics {

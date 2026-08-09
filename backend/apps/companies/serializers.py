@@ -4,8 +4,11 @@ Serializers for the Companies module.
 
 from rest_framework import serializers
 
+from apps.common.countries import get_country_display_name, normalize_country_code
 from apps.common.serializers import AuditFieldsMixin, OwnerFieldMixin
 from apps.companies.models import Company
+from apps.prospect_lists.models import ProspectList
+from apps.prospect_lists.serializers import ProspectListSimpleSerializer
 
 
 class CompanyListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSerializer):
@@ -13,6 +16,8 @@ class CompanyListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
 
     contact_count = serializers.IntegerField(read_only=True)
     deal_count = serializers.IntegerField(read_only=True)
+    country_display = serializers.SerializerMethodField()
+    lists = ProspectListSimpleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Company
@@ -23,6 +28,7 @@ class CompanyListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             "industry",
             "company_size",
             "country",
+            "country_display",
             "stage",
             "owner",
             "owner_detail",
@@ -32,9 +38,13 @@ class CompanyListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             "ai_summary",
             "contact_count",
             "deal_count",
+            "lists",
             "created_at",
             "updated_at",
         ]
+
+    def get_country_display(self, obj) -> str:
+        return get_country_display_name(obj.country)
 
 
 class CompanyDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSerializer):
@@ -43,6 +53,8 @@ class CompanyDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
     contact_count = serializers.IntegerField(read_only=True)
     deal_count = serializers.IntegerField(read_only=True)
     open_deal_count = serializers.IntegerField(read_only=True)
+    country_display = serializers.SerializerMethodField()
+    lists = ProspectListSimpleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Company
@@ -53,6 +65,7 @@ class CompanyDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "industry",
             "company_size",
             "country",
+            "country_display",
             "linkedin_url",
             "apollo_id",
             "description",
@@ -67,17 +80,24 @@ class CompanyDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "contact_count",
             "deal_count",
             "open_deal_count",
+            "lists",
             "created_at",
             "updated_at",
             "created_by",
             "updated_by",
         ]
 
+    def get_country_display(self, obj) -> str:
+        return get_country_display_name(obj.country)
+
 
 class CompanyCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a company."""
 
     id = serializers.UUIDField(read_only=True)
+    list_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ProspectList.objects.all(), source="lists", required=False
+    )
 
     class Meta:
         model = Company
@@ -95,12 +115,18 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
             "owner",
             "tags",
             "source",
+            "list_ids",
         ]
 
     def validate_name(self, value):
         if not value or not value.strip():
             raise serializers.ValidationError("Company name is required.")
         return value.strip()
+
+    def validate_country(self, value):
+        if value:
+            return normalize_country_code(value)
+        return ""
 
     def validate_apollo_id(self, value):
         if value:
@@ -119,6 +145,9 @@ class CompanyUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating a company."""
 
     id = serializers.UUIDField(read_only=True)
+    list_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ProspectList.objects.all(), source="lists", required=False
+    )
 
     class Meta:
         model = Company
@@ -136,7 +165,13 @@ class CompanyUpdateSerializer(serializers.ModelSerializer):
             "owner",
             "tags",
             "source",
+            "list_ids",
         ]
+
+    def validate_country(self, value):
+        if value:
+            return normalize_country_code(value)
+        return ""
 
     def validate_apollo_id(self, value):
         if value:

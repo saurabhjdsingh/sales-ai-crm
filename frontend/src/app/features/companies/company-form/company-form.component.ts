@@ -8,8 +8,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { CompanyStore } from '../services/company.store';
-import { Company } from '../../../core/models/crm.model';
+import { Company, ProspectList } from '../../../core/models/crm.model';
 import { ApiService } from '../../../core/services/api.service';
+import { ProspectListService } from '../../prospect-lists/services/prospect-list.service';
 
 interface DropdownItem {
   id: string;
@@ -113,6 +114,17 @@ interface DropdownItem {
 
           <div class="form-row">
             <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Prospect Lists</mat-label>
+              <mat-select formControlName="list_ids" multiple placeholder="Assign to lists">
+                @for (list of prospectLists(); track list.id) {
+                  <mat-option [value]="list.id">📋 {{ list.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="full-width">
               <mat-label>Description</mat-label>
               <textarea matInput formControlName="description" rows="3" placeholder="Brief description of the company..."></textarea>
             </mat-form-field>
@@ -197,11 +209,13 @@ export class CompanyFormComponent implements OnInit {
   readonly store = inject(CompanyStore);
   private readonly fb = inject(FormBuilder);
   private readonly apiService = inject(ApiService);
+  private readonly prospectListService = inject(ProspectListService);
   readonly dialogRef = inject(MatDialogRef<CompanyFormComponent>);
   readonly data = inject<Company>(MAT_DIALOG_DATA, { optional: true });
 
   readonly isEdit = !!this.data;
   readonly users = signal<DropdownItem[]>([]);
+  readonly prospectLists = signal<ProspectList[]>([]);
 
   readonly companyForm: FormGroup = this.fb.group({
     name: ['', [Validators.required]],
@@ -211,6 +225,7 @@ export class CompanyFormComponent implements OnInit {
     country: [''],
     stage: ['cold'],
     owner: [null],
+    list_ids: [[]],
     linkedin_url: [''],
     apollo_id: [''],
     description: [''],
@@ -223,7 +238,13 @@ export class CompanyFormComponent implements OnInit {
       this.users.set(res.map((u) => ({ id: u.id, name: u.full_name })));
     });
 
+    // Load active prospect lists
+    this.prospectListService.getProspectLists({ page_size: 100, is_active: true }).subscribe({
+      next: (res: any) => this.prospectLists.set(res.results || [])
+    });
+
     if (this.isEdit && this.data) {
+      const initialListIds = this.data.lists ? this.data.lists.map((l: any) => l.id) : [];
       this.companyForm.patchValue({
         name: this.data.name,
         website: this.data.website || '',
@@ -232,6 +253,7 @@ export class CompanyFormComponent implements OnInit {
         country: this.data.country || '',
         stage: this.data.stage,
         owner: this.data.owner || null,
+        list_ids: initialListIds,
         linkedin_url: this.data.linkedin_url || '',
         apollo_id: this.data.apollo_id || '',
         description: this.data.description || '',
@@ -248,7 +270,7 @@ export class CompanyFormComponent implements OnInit {
       ? val.tags_input.split(',').map((t: string) => t.trim()).filter((t: string) => !!t)
       : [];
 
-    const companyData: Partial<Company> = {
+    const companyData: any = {
       name: val.name,
       website: val.website,
       industry: val.industry,
@@ -256,6 +278,7 @@ export class CompanyFormComponent implements OnInit {
       country: val.country,
       stage: val.stage,
       owner: val.owner,
+      list_ids: val.list_ids || [],
       linkedin_url: val.linkedin_url,
       apollo_id: val.apollo_id || undefined,
       description: val.description,

@@ -6,6 +6,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.common.countries import normalize_country_code
 from apps.common.mixins import CRMViewMixin
 from apps.companies.filters import CompanyFilter
 from apps.companies.models import Company
@@ -16,6 +17,7 @@ from apps.companies.serializers import (
     CompanyUpdateSerializer,
 )
 from apps.companies.services import CompanyService
+from apps.prospect_lists.models import ProspectList
 
 
 class CompanyViewSet(CRMViewMixin, viewsets.ModelViewSet):
@@ -36,7 +38,7 @@ class CompanyViewSet(CRMViewMixin, viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return CompanyService.get_companies_queryset()
+        return CompanyService.get_companies_queryset().prefetch_related("lists")
 
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
@@ -107,3 +109,52 @@ class CompanyViewSet(CRMViewMixin, viewsets.ModelViewSet):
                 {"message": "No research data available for this company."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+    @action(detail=False, methods=["post"], url_path="bulk-add-to-list")
+    def bulk_add_to_list(self, request):
+        company_ids = request.data.get("company_ids", [])
+        list_id = request.data.get("list_id")
+        if not company_ids or not list_id:
+            return Response({"error": "company_ids and list_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        prospect_list = ProspectList.objects.filter(id=list_id, is_deleted=False).first()
+        if not prospect_list:
+            return Response({"error": "Prospect list not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        companies = Company.objects.filter(id__in=company_ids, is_deleted=False)
+        count = 0
+        for comp in companies:
+            comp.lists.add(prospect_list)
+            count += 1
+
+        return Response({"message": f"Added {count} companies to '{prospect_list.name}'."})
+
+    @action(detail=False, methods=["post"], url_path="bulk-remove-from-list")
+    def bulk_remove_from_list(self, request):
+        company_ids = request.data.get("company_ids", [])
+        list_id = request.data.get("list_id")
+        if not company_ids or not list_id:
+            return Response({"error": "company_ids and list_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        prospect_list = ProspectList.objects.filter(id=list_id, is_deleted=False).first()
+        if not prospect_list:
+            return Response({"error": "Prospect list not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        companies = Company.objects.filter(id__in=company_ids, is_deleted=False)
+        count = 0
+        for comp in companies:
+            comp.lists.remove(prospect_list)
+            count += 1
+
+        return Response({"message": f"Removed {count} companies from '{prospect_list.name}'."})
+
+    @action(detail=False, methods=["post"], url_path="bulk-set-country")
+    def bulk_set_country(self, request):
+        company_ids = request.data.get("company_ids", [])
+        country_input = request.data.get("country", "")
+        if not company_ids:
+            return Response({"error": "company_ids is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        iso = normalize_country_code(country_input) if country_input else ""
+        count = Company.objects.filter(id__in=company_ids, is_deleted=False).update(country=iso)
+        return Response({"message": f"Updated country for {count} companies."})

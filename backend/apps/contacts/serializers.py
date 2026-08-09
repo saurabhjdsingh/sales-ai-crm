@@ -4,8 +4,11 @@ Serializers for the Contacts module.
 
 from rest_framework import serializers
 
+from apps.common.countries import get_country_display_name, normalize_country_code
 from apps.common.serializers import AuditFieldsMixin, OwnerFieldMixin
 from apps.contacts.models import Contact
+from apps.prospect_lists.models import ProspectList
+from apps.prospect_lists.serializers import ProspectListSimpleSerializer
 
 
 class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.ModelSerializer):
@@ -15,6 +18,8 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
     company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
     company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
     company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
+    country_display = serializers.SerializerMethodField()
+    lists = ProspectListSimpleSerializer(many=True, read_only=True)
     sequence_status = serializers.SerializerMethodField(read_only=True)
     sequence_name = serializers.SerializerMethodField(read_only=True)
     sequence_id = serializers.SerializerMethodField(read_only=True)
@@ -24,6 +29,9 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             enrollments = sorted(list(obj.sequence_enrollments.all()), key=lambda e: e.created_at, reverse=True)
             obj._cached_latest_enrollment = enrollments[0] if enrollments else None
         return obj._cached_latest_enrollment
+
+    def get_country_display(self, obj) -> str:
+        return get_country_display_name(obj.country)
 
     def get_sequence_status(self, obj):
         enrollment = self._get_latest_enrollment(obj)
@@ -79,6 +87,13 @@ class ContactListSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Model
             "owner",
             "owner_detail",
             "country",
+            "country_display",
+            "city",
+            "state",
+            "timezone",
+            "timezone_source",
+            "timezone_confidence",
+            "lists",
             "created_at",
         ]
 
@@ -90,6 +105,8 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
     company_name = serializers.CharField(source="company.name", read_only=True, default="", allow_null=True)
     company_website = serializers.CharField(source="company.website", read_only=True, default="", allow_null=True)
     company_size = serializers.CharField(source="company.company_size", read_only=True, default="", allow_null=True)
+    country_display = serializers.SerializerMethodField()
+    lists = ProspectListSimpleSerializer(many=True, read_only=True)
     sequence_status = serializers.SerializerMethodField(read_only=True)
     sequence_name = serializers.SerializerMethodField(read_only=True)
     sequence_id = serializers.SerializerMethodField(read_only=True)
@@ -99,6 +116,9 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             enrollments = sorted(list(obj.sequence_enrollments.all()), key=lambda e: e.created_at, reverse=True)
             obj._cached_latest_enrollment = enrollments[0] if enrollments else None
         return obj._cached_latest_enrollment
+
+    def get_country_display(self, obj) -> str:
+        return get_country_display_name(obj.country)
 
     def get_sequence_status(self, obj):
         enrollment = self._get_latest_enrollment(obj)
@@ -147,7 +167,12 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "linkedin_url",
             "apollo_id",
             "timezone",
+            "timezone_source",
+            "timezone_confidence",
             "country",
+            "country_display",
+            "city",
+            "state",
             "company",
             "company_name",
             "company_website",
@@ -158,6 +183,7 @@ class ContactDetailSerializer(AuditFieldsMixin, OwnerFieldMixin, serializers.Mod
             "sequence_id",
             "owner",
             "owner_detail",
+            "lists",
             "ai_summary",
             "created_at",
             "updated_at",
@@ -171,6 +197,9 @@ class ContactCreateUpdateSerializer(serializers.ModelSerializer):
 
     id = serializers.UUIDField(read_only=True)
     company_name = serializers.CharField(source="company.name", read_only=True)
+    list_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=ProspectList.objects.all(), source="lists", required=False
+    )
 
     class Meta:
         model = Contact
@@ -187,10 +216,20 @@ class ContactCreateUpdateSerializer(serializers.ModelSerializer):
             "linkedin_url",
             "apollo_id",
             "timezone",
+            "timezone_source",
+            "timezone_confidence",
             "country",
+            "city",
+            "state",
             "owner",
             "stage",
+            "list_ids",
         ]
+
+    def validate_country(self, value):
+        if value:
+            return normalize_country_code(value)
+        return ""
 
     def validate_apollo_id(self, value):
         if value:

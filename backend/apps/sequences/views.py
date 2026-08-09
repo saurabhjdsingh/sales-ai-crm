@@ -22,6 +22,7 @@ from apps.sequences.serializers import (
     SequenceEmailDraftSerializer,
     SequenceEnrollmentSerializer,
     SequenceListSerializer,
+    SequenceScheduleSettingSerializer,
 )
 from apps.sequences.services.analytics import SequenceAnalyticsService
 from apps.sequences.services.link_tracker import LinkTrackerService
@@ -180,6 +181,68 @@ class SequenceEnrollmentViewSet(CRMViewMixin, viewsets.ModelViewSet):
         )
         return Response(SequenceEnrollmentSerializer(enrollment).data)
 
+    @action(detail=True, methods=["post"], url_path="send-now")
+    def send_now(self, request, pk=None):
+        """Send email right away for this enrollment."""
+        enrollment = self.get_object()
+        from apps.sequences.models import DraftStatus, SequenceEmailDraft
+        draft = SequenceEmailDraft.objects.filter(
+            enrollment=enrollment,
+            status__in=[DraftStatus.DRAFT_PENDING, DraftStatus.SCHEDULED]
+        ).first()
+
+        from apps.sequences.services.sequence_engine import SequenceEngineService, get_public_base_url
+        base_url = get_public_base_url(request)
+
+        if draft:
+            SequenceEngineService.approve_and_send_draft(
+                draft=draft,
+                user=request.user,
+                base_url=base_url,
+                send_now=True,
+            )
+        else:
+            SequenceEngineService.execute_current_step(enrollment)
+
+        enrollment.refresh_from_db()
+        return Response(SequenceEnrollmentSerializer(enrollment).data)
+
+    @action(detail=True, methods=["post"], url_path="schedule")
+    def schedule(self, request, pk=None):
+        """Schedule email for this enrollment."""
+        enrollment = self.get_object()
+        send_mode = request.data.get("send_mode", "smart_send")
+        manual_time_utc = request.data.get("manual_time_utc")
+
+        from apps.sequences.models import DraftStatus, SequenceEmailDraft
+        draft = SequenceEmailDraft.objects.filter(
+            enrollment=enrollment,
+            status__in=[DraftStatus.DRAFT_PENDING, DraftStatus.SCHEDULED]
+        ).first()
+
+        from apps.sequences.services.sequence_engine import SequenceEngineService, get_public_base_url
+        base_url = get_public_base_url(request)
+
+        if not draft:
+            SequenceEngineService.execute_current_step(enrollment)
+            draft = SequenceEmailDraft.objects.filter(
+                enrollment=enrollment,
+                status__in=[DraftStatus.DRAFT_PENDING, DraftStatus.SCHEDULED]
+            ).first()
+
+        if draft:
+            SequenceEngineService.approve_and_send_draft(
+                draft=draft,
+                user=request.user,
+                base_url=base_url,
+                send_now=False,
+                send_mode=send_mode,
+                manual_time_utc=manual_time_utc,
+            )
+
+        enrollment.refresh_from_db()
+        return Response(SequenceEnrollmentSerializer(enrollment).data)
+
 
 class ApprovalQueueViewSet(CRMViewMixin, viewsets.ReadOnlyModelViewSet):
     """ViewSet for sales rep approval queue of AI-generated sequence email drafts."""
@@ -192,12 +255,15 @@ class ApprovalQueueViewSet(CRMViewMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
-        """Approves and sends the AI email draft."""
+        """Approves an AI email draft. Supports send_now, smart_send, and manual modes."""
         draft = self.get_object()
         updated_subject = request.data.get("subject")
         updated_reply_to = request.data.get("reply_to")
         updated_body_html = request.data.get("body_html")
         updated_body_text = request.data.get("body_text")
+        send_now = request.data.get("send_now", False)
+        send_mode = request.data.get("send_mode")
+        manual_time_utc = request.data.get("manual_time_utc")
         
         from apps.sequences.services.sequence_engine import get_public_base_url
         base_url = get_public_base_url(request)
@@ -209,6 +275,23 @@ class ApprovalQueueViewSet(CRMViewMixin, viewsets.ReadOnlyModelViewSet):
             updated_body_html=updated_body_html,
             updated_body_text=updated_body_text,
             base_url=base_url,
+            send_now=send_now,
+            send_mode=send_mode,
+            manual_time_utc=manual_time_utc,
+        )
+        return Response(SequenceEmailDraftSerializer(sent_draft).data)
+
+    @action(detail=True, methods=["post"], url_path="send-now")
+    def send_now(self, request, pk=None):
+        """Send immediately override — bypasses all scheduling rules."""
+        draft = self.get_object()
+        from apps.sequences.services.sequence_engine import get_public_base_url
+        base_url = get_public_base_url(request)
+        sent_draft = SequenceEngineService.approve_and_send_draft(
+            draft=draft,
+            user=request.user,
+            base_url=base_url,
+            send_now=True,
         )
         return Response(SequenceEmailDraftSerializer(sent_draft).data)
 
@@ -353,3 +436,35 @@ class StealthClickRedirectView(APIView):
     def get(self, request, click_token):
         target_url = LinkTrackerService.handle_click(click_token)
         return HttpResponseRedirect(target_url)
+
+
+class ScheduleSettingsView(APIView):
+    """
+    API view for retrieving and updating the singleton email sending schedule settings.
+    GET: Returns current schedule settings (creates default if none exists).
+    PUT/PATCH: Updates schedule settings.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.sequences.models import SequenceScheduleSetting
+        settings_obj = SequenceScheduleSetting.get_settings()
+        serializer = SequenceScheduleSettingSerializer(settings_obj)
+        return Response(serializer.data)
+
+    def put(self, request):
+        from apps.sequences.models import SequenceScheduleSetting
+        settings_obj = SequenceScheduleSetting.get_settings()
+        serializer = SequenceScheduleSettingSerializer(settings_obj, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def patch(self, request):
+        from apps.sequences.models import SequenceScheduleSetting
+        settings_obj = SequenceScheduleSetting.get_settings()
+        serializer = SequenceScheduleSettingSerializer(settings_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+

@@ -241,6 +241,7 @@ export class SidebarComponent {
     { label: 'Dashboard', route: '/dashboard', icon: 'dashboard' },
     { label: 'Companies', route: '/companies', icon: 'business' },
     { label: 'Contacts', route: '/contacts', icon: 'people' },
+    { label: 'Prospect Lists', route: '/lists', icon: 'format_list_bulleted' },
     { label: 'Deals', route: '/deals', icon: 'monetization_on' },
     { label: 'Tasks', route: '/tasks', icon: 'assignment' },
     { label: 'Sequences', route: '/sequences', icon: 'auto_awesome' },

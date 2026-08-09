@@ -8,6 +8,7 @@ from apps.sequences.models import (
     SequenceStepExecution,
     SequenceEmailDraft,
     SequenceLinkClick,
+    SequenceScheduleSetting,
 )
 from apps.contacts.serializers import ContactListSerializer
 
@@ -24,6 +25,7 @@ class SequenceStepSerializer(serializers.ModelSerializer):
             "delay",
             "delay_unit",
             "configuration",
+            "send_mode",
         ]
 
 
@@ -50,6 +52,7 @@ class SequenceListSerializer(AuditFieldsMixin, serializers.ModelSerializer):
             "auto_stop_deal_stages",
             "email_account_role",
             "reply_to",
+            "default_send_mode",
             "steps_count",
             "active_enrollments_count",
             "created_at",
@@ -84,6 +87,7 @@ class SequenceDetailSerializer(AuditFieldsMixin, serializers.ModelSerializer):
             "auto_stop_deal_stages",
             "email_account_role",
             "reply_to",
+            "default_send_mode",
             "steps",
             "active_enrollments_count",
             "total_enrolled_count",
@@ -121,6 +125,7 @@ class SequenceCreateUpdateSerializer(serializers.ModelSerializer):
             "auto_stop_deal_stages",
             "email_account_role",
             "reply_to",
+            "default_send_mode",
             "steps",
         ]
 
@@ -186,6 +191,10 @@ class SequenceEnrollmentSerializer(AuditFieldsMixin, serializers.ModelSerializer
     contact_name = serializers.CharField(source="contact.full_name", read_only=True)
     contact_email = serializers.CharField(source="contact.email", read_only=True)
     company_name = serializers.CharField(source="company.name", read_only=True, default=None)
+    pending_draft_id = serializers.SerializerMethodField()
+    scheduled_delivery_time = serializers.SerializerMethodField()
+    scheduled_sending_mode = serializers.SerializerMethodField()
+    current_step_action_type = serializers.SerializerMethodField()
 
     class Meta:
         model = SequenceEnrollment
@@ -201,6 +210,7 @@ class SequenceEnrollmentSerializer(AuditFieldsMixin, serializers.ModelSerializer
             "deal",
             "status",
             "current_step_number",
+            "current_step_action_type",
             "next_execution_at",
             "stop_reason",
             "stopped_at",
@@ -209,9 +219,34 @@ class SequenceEnrollmentSerializer(AuditFieldsMixin, serializers.ModelSerializer
             "has_replied",
             "last_opened_at",
             "last_clicked_at",
+            "pending_draft_id",
+            "scheduled_delivery_time",
+            "scheduled_sending_mode",
             "created_at",
             "updated_at",
         ]
+
+    def get_current_step_action_type(self, obj):
+        if not obj.sequence:
+            return None
+        step = obj.sequence.steps.filter(step_number=obj.current_step_number).first()
+        return step.action_type if step else None
+
+    def get_pending_draft_id(self, obj):
+        draft = obj.email_drafts.filter(status__in=["draft_pending", "scheduled"]).first()
+        return str(draft.id) if draft else None
+
+    def get_scheduled_delivery_time(self, obj):
+        draft = obj.email_drafts.filter(status="scheduled").first()
+        if draft and draft.scheduled_local_time:
+            return draft.scheduled_local_time
+        if draft and draft.scheduled_at_utc:
+            return draft.scheduled_at_utc.strftime("%a, %b %d at %I:%M %p UTC")
+        return None
+
+    def get_scheduled_sending_mode(self, obj):
+        draft = obj.email_drafts.filter(status="scheduled").first()
+        return draft.sending_mode if draft else None
 
 
 class SequenceEmailDraftSerializer(AuditFieldsMixin, serializers.ModelSerializer):
@@ -244,7 +279,33 @@ class SequenceEmailDraftSerializer(AuditFieldsMixin, serializers.ModelSerializer
             "last_clicked_at",
             "approved_at",
             "sent_at",
+            "scheduled_at_utc",
+            "scheduled_timezone",
+            "scheduled_local_time",
+            "sending_mode",
+            "sending_window",
+            "schedule_source",
             "created_at",
+        ]
+
+
+class SequenceScheduleSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SequenceScheduleSetting
+        fields = [
+            "id",
+            "morning_start_time",
+            "morning_end_time",
+            "afternoon_start_time",
+            "afternoon_end_time",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            "org_timezone",
         ]
 
 

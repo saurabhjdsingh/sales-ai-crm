@@ -19,6 +19,7 @@ from apps.sequences.models import (
     DraftStatus,
     EnrollmentStatus,
     ExecutionStatus,
+    SendMode,
     Sequence,
     SequenceEmailDraft,
     SequenceEnrollment,
@@ -26,6 +27,7 @@ from apps.sequences.models import (
     SequenceStepExecution,
 )
 from apps.sequences.services.link_tracker import LinkTrackerService
+from apps.sequences.services.smart_scheduler import SmartScheduleEngine
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,7 @@ class SequenceEngineService:
         user,
         company_id: Optional[UUID] = None,
         deal_id: Optional[UUID] = None,
+        skip_invalid_emails: bool = True,
     ) -> List[SequenceEnrollment]:
         """Bulk or single enrollment of contacts into a Sequence."""
         try:
@@ -102,6 +105,9 @@ class SequenceEngineService:
 
             target_contact = Contact.objects.filter(id=c_id).first()
             if not target_contact or not target_contact.email or not target_contact.email.strip():
+                if skip_invalid_emails:
+                    logger.info("Skipping contact %s (no valid email) for sequence %s", c_id, sequence.name)
+                    continue
                 contact_name = target_contact.full_name if target_contact else str(c_id)
                 raise ValueError(f"Contact '{contact_name}' does not have a valid email address and cannot be enrolled in sequence outreach.")
 
@@ -369,9 +375,18 @@ class SequenceEngineService:
         updated_body_html: Optional[str] = None,
         updated_body_text: Optional[str] = None,
         base_url: str = "http://localhost:8000",
+        send_now: bool = False,
+        send_mode: Optional[str] = None,
+        manual_time_utc: Optional[str] = None,
     ) -> SequenceEmailDraft:
-        """Approves and sends an AI-generated draft."""
-        if draft.status not in [DraftStatus.DRAFT_PENDING, DraftStatus.APPROVED]:
+        """
+        Approves an AI-generated draft. Supports three modes:
+        - send_now=True: Send immediately regardless of send_mode.
+        - send_mode='smart_send': Schedule for next available window in contact's timezone.
+        - send_mode='manual': Schedule for a specific manual_time_utc.
+        - send_mode='immediate' (or legacy default): Send immediately.
+        """
+        if draft.status not in [DraftStatus.DRAFT_PENDING, DraftStatus.APPROVED, DraftStatus.SCHEDULED]:
             raise ValueError(f"Draft {draft.id} cannot be approved from status '{draft.status}'.")
 
         if updated_subject is not None:
@@ -392,6 +407,86 @@ class SequenceEngineService:
             draft.body_html = updated_body_html
             draft.body_text = re_strip_html(updated_body_html)
 
+        # Determine effective send mode
+        effective_mode = "immediate"  # Legacy default: send immediately
+        if send_now:
+            effective_mode = "immediate"
+        elif send_mode:
+            effective_mode = send_mode
+        elif draft.enrollment and draft.enrollment.sequence:
+            # Inherit from step or sequence default
+            step = None
+            if draft.execution and draft.execution.step:
+                step = draft.execution.step
+            if step and step.send_mode:
+                effective_mode = step.send_mode
+            elif draft.enrollment.sequence.default_send_mode:
+                effective_mode = draft.enrollment.sequence.default_send_mode
+
+        # If mode is SMART_SEND or MANUAL, schedule instead of sending immediately
+        if effective_mode in (SendMode.SMART_SEND, "smart_send") and not send_now:
+            from dateutil.parser import parse as dateutil_parse
+            manual_dt = None
+            if manual_time_utc:
+                manual_dt = dateutil_parse(manual_time_utc)
+
+            schedule_result = SmartScheduleEngine.calculate_send_time(
+                contact=draft.contact,
+                send_mode="smart_send",
+                approval_time=timezone.now(),
+            )
+            draft.status = DraftStatus.SCHEDULED
+            draft.approved_at = timezone.now()
+            draft.scheduled_at_utc = schedule_result.scheduled_at_utc
+            draft.scheduled_timezone = schedule_result.scheduled_timezone
+            draft.scheduled_local_time = schedule_result.scheduled_local_time
+            draft.sending_mode = "smart_send"
+            draft.sending_window = schedule_result.sending_window
+            draft.schedule_source = schedule_result.schedule_source
+            draft.save()
+
+            if draft.enrollment:
+                draft.enrollment.status = EnrollmentStatus.WAITING
+                draft.enrollment.next_execution_at = schedule_result.scheduled_at_utc
+                draft.enrollment.save(update_fields=["status", "next_execution_at", "updated_at"])
+
+            logger.info(
+                "Draft %s scheduled for %s (local: %s, tz: %s, window: %s)",
+                draft.id, schedule_result.scheduled_at_utc,
+                schedule_result.scheduled_local_time,
+                schedule_result.scheduled_timezone,
+                schedule_result.sending_window,
+            )
+            return draft
+
+        if effective_mode in (SendMode.MANUAL, "manual") and manual_time_utc and not send_now:
+            from dateutil.parser import parse as dateutil_parse
+            manual_dt = dateutil_parse(manual_time_utc)
+
+            schedule_result = SmartScheduleEngine.calculate_send_time(
+                contact=draft.contact,
+                send_mode="manual",
+                manual_time_utc=manual_dt,
+            )
+            draft.status = DraftStatus.SCHEDULED
+            draft.approved_at = timezone.now()
+            draft.scheduled_at_utc = schedule_result.scheduled_at_utc
+            draft.scheduled_timezone = schedule_result.scheduled_timezone
+            draft.scheduled_local_time = schedule_result.scheduled_local_time
+            draft.sending_mode = "manual"
+            draft.sending_window = schedule_result.sending_window
+            draft.schedule_source = schedule_result.schedule_source
+            draft.save()
+
+            if draft.enrollment:
+                draft.enrollment.status = EnrollmentStatus.WAITING
+                draft.enrollment.next_execution_at = schedule_result.scheduled_at_utc
+                draft.enrollment.save(update_fields=["status", "next_execution_at", "updated_at"])
+
+            logger.info("Draft %s manually scheduled for %s", draft.id, schedule_result.scheduled_at_utc)
+            return draft
+
+        # Mode: IMMEDIATE — proceed with sending
         sequence = draft.enrollment.sequence
         effective_base_url = get_public_base_url(fallback_base_url=base_url)
 
@@ -460,10 +555,14 @@ class SequenceEngineService:
 
         now = timezone.now()
         draft.status = DraftStatus.SENT
-        draft.approved_at = now
+        if not draft.approved_at:
+            draft.approved_at = now
         draft.sent_at = now
         draft.gmail_message_id = message_id
         draft.gmail_thread_id = thread_id
+        draft.sending_mode = effective_mode
+        draft.sending_window = "immediate"
+        draft.schedule_source = "send_now"
         draft.save()
 
         # Create/Link EmailThread & EmailMessage so sequence emails appear in Contact Email History tab
@@ -548,6 +647,79 @@ class SequenceEngineService:
         # Advance sequence enrollment
         SequenceEngineService.advance_enrollment_to_next_step(draft.enrollment)
         return draft
+
+    @staticmethod
+    def process_scheduled_email_drafts() -> int:
+        """
+        Background runner: Finds scheduled drafts whose scheduled_at_utc <= now()
+        and sends them via the existing email delivery pipeline.
+        Called periodically by Celery (every minute alongside process_due_executions).
+        """
+        now = timezone.now()
+        due_drafts = SequenceEmailDraft.objects.filter(
+            status=DraftStatus.SCHEDULED,
+            scheduled_at_utc__lte=now,
+        ).select_related(
+            "contact", "enrollment__sequence", "enrollment__company",
+            "enrollment__deal", "execution__step", "sender",
+        )
+
+        sent_count = 0
+        for draft in due_drafts:
+            try:
+                # Pre-send validation: check enrollment is still active
+                enrollment = draft.enrollment
+                if enrollment.status in [
+                    EnrollmentStatus.STOPPED,
+                    EnrollmentStatus.COMPLETED,
+                    EnrollmentStatus.FAILED,
+                ]:
+                    draft.status = DraftStatus.CANCELLED
+                    draft.save(update_fields=["status", "updated_at"])
+                    logger.info(
+                        "Cancelled scheduled draft %s — enrollment %s is %s",
+                        draft.id, enrollment.id, enrollment.status,
+                    )
+                    continue
+
+                # Check if contact has replied (auto-stop check)
+                if enrollment.has_replied and enrollment.sequence.auto_stop_on_reply:
+                    draft.status = DraftStatus.CANCELLED
+                    draft.save(update_fields=["status", "updated_at"])
+                    logger.info("Cancelled scheduled draft %s — contact has replied", draft.id)
+                    continue
+
+                # Send the email immediately (force send_now=True)
+                user = draft.sender
+                if not user:
+                    user = enrollment.enrolled_by
+
+                if not user:
+                    logger.error("No sender for scheduled draft %s, skipping", draft.id)
+                    continue
+
+                base_url = ""
+                from django.conf import settings as django_settings
+                base_url = getattr(django_settings, "SITE_URL", "") or "http://localhost:8000"
+
+                SequenceEngineService.approve_and_send_draft(
+                    draft=draft,
+                    user=user,
+                    base_url=base_url,
+                    send_now=True,
+                )
+                sent_count += 1
+                logger.info(
+                    "Sent scheduled draft %s for contact %s (was scheduled for %s)",
+                    draft.id, draft.contact.full_name, draft.scheduled_at_utc,
+                )
+
+            except Exception as e:
+                logger.error(
+                    "Error sending scheduled draft %s: %s", draft.id, e, exc_info=True
+                )
+
+        return sent_count
 
     @staticmethod
     def regenerate_draft(draft: SequenceEmailDraft, user, feedback_prompt: str = "") -> SequenceEmailDraft:

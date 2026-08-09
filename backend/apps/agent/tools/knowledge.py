@@ -52,6 +52,7 @@ class GetCompanyTool(BaseTool):
     permission_level = PermissionLevel.READ_ONLY
 
     def execute(self, context, company_id: Optional[str] = None, **kwargs) -> ToolResult:
+        from apps.common.countries import get_country_display_name
         from apps.companies.models import Company
         cid = resolve_uuid(company_id) or getattr(context, "company_id", None)
         if not cid and hasattr(context, "company") and context.company:
@@ -60,10 +61,11 @@ class GetCompanyTool(BaseTool):
         if not cid:
             return ToolResult(success=False, error="No company_id provided or available in context.")
 
-        company = Company.objects.filter(id=cid).select_related("owner").first()
+        company = Company.objects.filter(id=cid).select_related("owner").prefetch_related("lists").first()
         if not company:
             return ToolResult(success=False, error=f"Company '{cid}' not found.")
 
+        lists = [l.name for l in company.lists.filter(is_deleted=False)]
         data = {
             "id": str(company.id),
             "name": company.name,
@@ -71,6 +73,8 @@ class GetCompanyTool(BaseTool):
             "industry": company.industry,
             "company_size": company.company_size,
             "country": company.country,
+            "country_display": get_country_display_name(company.country),
+            "prospect_lists": lists,
             "stage": company.get_stage_display(),
             "owner": company.owner.get_full_name() if company.owner else "Unassigned",
             "icp_score": company.icp_score,
@@ -95,6 +99,7 @@ class GetContactTool(BaseTool):
     permission_level = PermissionLevel.READ_ONLY
 
     def execute(self, context, contact_id: Optional[str] = None, **kwargs) -> ToolResult:
+        from apps.common.countries import get_country_display_name
         from apps.contacts.models import Contact
         cid = resolve_uuid(contact_id) or getattr(context, "contact_id", None)
         if not cid and hasattr(context, "contact") and context.contact:
@@ -103,10 +108,11 @@ class GetContactTool(BaseTool):
         if not cid:
             return ToolResult(success=False, error="No contact_id provided or available in context.")
 
-        contact = Contact.objects.filter(id=cid).select_related("company", "owner").first()
+        contact = Contact.objects.filter(id=cid).select_related("company", "owner").prefetch_related("lists").first()
         if not contact:
             return ToolResult(success=False, error=f"Contact '{cid}' not found.")
 
+        lists = [l.name for l in contact.lists.filter(is_deleted=False)]
         data = {
             "id": str(contact.id),
             "full_name": contact.full_name,
@@ -118,6 +124,8 @@ class GetContactTool(BaseTool):
             "company_name": contact.company.name if contact.company else None,
             "stage": contact.get_stage_display(),
             "country": contact.country,
+            "country_display": get_country_display_name(contact.country),
+            "prospect_lists": lists,
             "linkedin_url": contact.linkedin_url,
             "ai_summary": contact.ai_summary,
             "owner": contact.owner.get_full_name() if contact.owner else "Unassigned",
@@ -941,3 +949,40 @@ class SearchDealsTool(BaseTool):
             for d in deals
         ]
         return ToolResult(success=True, data={"deals": results, "count": len(results)}, summary=f"Found {len(results)} deals matching '{query}'")
+
+
+@register_tool
+class GetProspectListsTool(BaseTool):
+    name = "get_prospect_lists"
+    description = "Retrieve all active prospect lists and member counts, or search lists by name."
+    parameters = [
+        ToolParameter(name="query", type="string", description="Optional list name search query", required=False),
+        ToolParameter(name="limit", type="integer", description="Max lists to return (default 20)", required=False),
+    ]
+    permission_level = PermissionLevel.READ_ONLY
+
+    def execute(self, context, query: Optional[str] = None, limit: int = 20, **kwargs) -> ToolResult:
+        from apps.prospect_lists.models import ProspectList
+        qs = ProspectList.objects.filter(is_deleted=False, is_active=True)
+        if query and query.strip():
+            qs = qs.filter(name__icontains=query.strip())
+
+        lists = qs.order_by("-created_at")[: min(limit, 50)]
+        results = [
+            {
+                "id": str(pl.id),
+                "name": pl.name,
+                "source": pl.get_source_display(),
+                "description": pl.description,
+                "company_count": pl.company_count,
+                "contact_count": pl.contact_count,
+                "created_at": pl.created_at.strftime("%Y-%m-%d"),
+            }
+            for pl in lists
+        ]
+        return ToolResult(
+            success=True,
+            data={"prospect_lists": results, "count": len(results)},
+            summary=f"Retrieved {len(results)} prospect lists",
+        )
+

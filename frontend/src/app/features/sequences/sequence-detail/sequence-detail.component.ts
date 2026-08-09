@@ -10,6 +10,7 @@ import { SelectionModel } from '@angular/cdk/collections';
 import { SequenceService } from '../services/sequence.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ScheduleDialogComponent, ScheduleDialogResult } from '../schedule-dialog/schedule-dialog.component';
 import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
 
 @Component({
@@ -22,7 +23,8 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     MatIconModule,
     MatTooltipModule,
     MatCheckboxModule,
-    MatDialogModule
+    MatDialogModule,
+    ScheduleDialogComponent
   ],
   template: `
     <div class="detail-container" *ngIf="sequence">
@@ -139,9 +141,17 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
                   <div class="email-sub">{{ e.contact_email }}</div>
                 </td>
                 <td>
-                  <span class="enrollment-status" [ngClass]="e.status">
+                  <span
+                    class="enrollment-status"
+                    [ngClass]="e.status"
+                    [matTooltip]="e.scheduled_delivery_time ? ('Scheduled to send: ' + e.scheduled_delivery_time) : ('Status: ' + (e.status | uppercase))"
+                  >
                     {{ e.status | uppercase }}
                   </span>
+                  <div *ngIf="e.scheduled_delivery_time" class="scheduled-time-sub" style="font-size: 0.72rem; color: #60a5fa; margin-top: 3px; display: flex; align-items: center; gap: 3px; font-weight: 500;">
+                    <mat-icon style="font-size: 12px; width: 12px; height: 12px; line-height: 12px;">schedule</mat-icon>
+                    <span>{{ e.scheduled_delivery_time }}</span>
+                  </div>
                 </td>
                 <td>Step {{ e.current_step_number }}</td>
                 <td>
@@ -172,6 +182,26 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
                 </td>
                 <td class="nowrap-cell date-cell">{{ e.created_at | date:'shortDate' }}</td>
                 <td class="text-right action-cell">
+                  <button
+                    *ngIf="isAiEmailStep(e)"
+                    mat-icon-button
+                    style="color: #3b82f6;"
+                    (click)="sendRightAway(e)"
+                    matTooltip="Send Email Right Away"
+                  >
+                    <mat-icon>bolt</mat-icon>
+                  </button>
+
+                  <button
+                    *ngIf="isAiEmailStep(e)"
+                    mat-icon-button
+                    style="color: #a78bfa;"
+                    (click)="scheduleSpecificTime(e)"
+                    matTooltip="Smart Schedule / Change Time"
+                  >
+                    <mat-icon>edit_calendar</mat-icon>
+                  </button>
+
                   <button
                     *ngIf="e.status === 'running' || e.status === 'waiting'"
                     mat-icon-button
@@ -654,8 +684,60 @@ export class SequenceDetailComponent implements OnInit {
     }
   }
 
+  isAiEmailStep(e: SequenceEnrollment): boolean {
+    if (e.status === 'completed' || e.status === 'stopped' || e.status === 'paused') return false;
+    if (e.current_step_action_type) {
+      return e.current_step_action_type === 'ai_email';
+    }
+    if (this.sequence && this.sequence.steps) {
+      const step = this.sequence.steps.find(s => s.step_number === e.current_step_number);
+      if (step) return step.action_type === 'ai_email';
+    }
+    return !!(e.pending_draft_id || e.scheduled_delivery_time);
+  }
+
   pauseEnrollment(e: SequenceEnrollment): void {
     this.service.pauseEnrollment(e.id).subscribe(() => this.loadEnrollments(e.sequence));
+  }
+
+  sendRightAway(e: SequenceEnrollment): void {
+    this.service.sendNowEnrollment(e.id).subscribe({
+      next: () => {
+        this.notification.success(`Sent email right away to ${e.contact_name || 'contact'}`);
+        if (this.sequence) this.loadEnrollments(this.sequence.id);
+      },
+      error: (err) => {
+        this.notification.error(err.error?.error?.message || 'Failed to send email right away');
+      }
+    });
+  }
+
+  scheduleSpecificTime(e: SequenceEnrollment): void {
+    const dialogRef = this.dialog.open(ScheduleDialogComponent, {
+      width: '520px',
+      data: {
+        contactName: e.contact_name || 'Contact',
+        currentScheduledTime: e.scheduled_delivery_time
+      }
+    });
+
+    dialogRef.afterClosed().subscribe((result: ScheduleDialogResult | undefined) => {
+      if (!result) return;
+
+      this.service.scheduleEnrollment(e.id, {
+        send_mode: result.send_mode,
+        manual_time_utc: result.manual_time_utc
+      }).subscribe({
+        next: (res) => {
+          const timeStr = res.scheduled_delivery_time || 'scheduled time';
+          this.notification.success(`Email scheduled for ${e.contact_name || 'contact'} at ${timeStr}`);
+          if (this.sequence) this.loadEnrollments(this.sequence.id);
+        },
+        error: (err) => {
+          this.notification.error(err.error?.error?.message || 'Failed to schedule email');
+        }
+      });
+    });
   }
 
   resumeEnrollment(e: SequenceEnrollment): void {

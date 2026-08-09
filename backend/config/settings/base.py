@@ -64,6 +64,7 @@ LOCAL_APPS = [
     "apps.conversation_intelligence",
     "apps.emails",
     "apps.sequences",
+    "apps.prospect_lists",
 ]
 
 INSTALLED_APPS = ["daphne"] + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

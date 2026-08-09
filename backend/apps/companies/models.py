@@ -60,6 +60,11 @@ class Company(BaseModel):
         blank=True,
         default="",
     )
+    lists = models.ManyToManyField(
+        "prospect_lists.ProspectList",
+        related_name="companies",
+        blank=True,
+    )
 
     # AI-generated fields
     icp_score = models.IntegerField(
@@ -80,6 +85,7 @@ class Company(BaseModel):
             models.Index(fields=["name"]),
             models.Index(fields=["stage", "owner"]),
             models.Index(fields=["industry"]),
+            models.Index(fields=["country"]),
             models.Index(fields=["-icp_score"]),
             models.Index(fields=["-created_at"]),
         ]

@@ -31,6 +31,12 @@ class DelayUnit(models.TextChoices):
     DAYS = "days", "Days"
 
 
+class SendMode(models.TextChoices):
+    SMART_SEND = "smart_send", "Smart Send (Timezone-Aware)"
+    IMMEDIATE = "immediate", "Send Immediately"
+    MANUAL = "manual", "Manual Schedule"
+
+
 class EnrollmentStatus(models.TextChoices):
     DRAFT = "draft", "Draft"
     RUNNING = "running", "Running"
@@ -55,9 +61,73 @@ class ExecutionStatus(models.TextChoices):
 class DraftStatus(models.TextChoices):
     DRAFT_PENDING = "draft_pending", "Draft Pending Approval"
     APPROVED = "approved", "Approved"
+    SCHEDULED = "scheduled", "Scheduled for Delivery"
     SENT = "sent", "Sent"
     REJECTED = "rejected", "Rejected"
     CANCELLED = "cancelled", "Cancelled"
+
+
+class SequenceScheduleSetting(BaseModel):
+    """
+    Singleton/per-org sending schedule configuration.
+    Defines permitted sending windows and days for timezone-aware email scheduling.
+    """
+    morning_start_time = models.TimeField(
+        default="08:30",
+        help_text="Start of morning sending window (local time)"
+    )
+    morning_end_time = models.TimeField(
+        default="11:30",
+        help_text="End of morning sending window (local time)"
+    )
+    afternoon_start_time = models.TimeField(
+        default="13:30",
+        help_text="Start of afternoon sending window (local time)"
+    )
+    afternoon_end_time = models.TimeField(
+        default="15:30",
+        help_text="End of afternoon sending window (local time)"
+    )
+    monday = models.BooleanField(default=True)
+    tuesday = models.BooleanField(default=True)
+    wednesday = models.BooleanField(default=True)
+    thursday = models.BooleanField(default=True)
+    friday = models.BooleanField(default=True)
+    saturday = models.BooleanField(default=True)
+    sunday = models.BooleanField(default=False)
+    org_timezone = models.CharField(
+        max_length=50,
+        default="Asia/Kolkata",
+        help_text="Organization default timezone (IANA identifier)"
+    )
+
+    class Meta:
+        db_table = "sequences_schedulesetting"
+        verbose_name = "Sequence Schedule Setting"
+        verbose_name_plural = "Sequence Schedule Settings"
+
+    def __str__(self):
+        return f"Schedule Settings (Morning: {self.morning_start_time}-{self.morning_end_time}, Afternoon: {self.afternoon_start_time}-{self.afternoon_end_time})"
+
+    def get_enabled_days(self) -> list[int]:
+        """Returns list of enabled weekday numbers (0=Monday, 6=Sunday)."""
+        days = []
+        day_fields = [
+            self.monday, self.tuesday, self.wednesday, self.thursday,
+            self.friday, self.saturday, self.sunday,
+        ]
+        for i, enabled in enumerate(day_fields):
+            if enabled:
+                days.append(i)
+        return days
+
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton schedule settings."""
+        settings_obj = cls.objects.first()
+        if not settings_obj:
+            settings_obj = cls.objects.create()
+        return settings_obj
 
 
 class Sequence(BaseModel):
@@ -99,6 +169,14 @@ class Sequence(BaseModel):
         help_text="Default reply-to address auto-pushed to all sequence email drafts",
     )
 
+    # Timezone-Aware Scheduling
+    default_send_mode = models.CharField(
+        max_length=30,
+        choices=SendMode.choices,
+        default=SendMode.SMART_SEND,
+        help_text="Default send mode for AI email steps in this sequence",
+    )
+
     class Meta:
         db_table = "sequences_sequence"
         verbose_name = "Sequence"
@@ -134,6 +212,13 @@ class SequenceStep(BaseModel):
         default=dict,
         blank=True,
         help_text="Configuration dictionary for AI prompts, task options, wait options, etc."
+    )
+    # Per-step send mode override (inherits from Sequence.default_send_mode if not set)
+    send_mode = models.CharField(
+        max_length=30,
+        choices=SendMode.choices,
+        default=SendMode.SMART_SEND,
+        help_text="Send mode for this step (overrides sequence default for AI email steps)",
     )
 
     class Meta:
@@ -319,11 +404,52 @@ class SequenceEmailDraft(BaseModel):
     approved_at = models.DateTimeField(null=True, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
 
+    # Timezone-Aware Scheduling Fields
+    scheduled_at_utc = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="UTC timestamp when this email is scheduled to be sent"
+    )
+    scheduled_timezone = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="IANA timezone used for scheduling (e.g. 'America/New_York')"
+    )
+    scheduled_local_time = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Human-readable local time string (e.g. 'Monday, Aug 11 at 09:15 AM EST')"
+    )
+    sending_mode = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        help_text="Mode used: smart_send, immediate, manual"
+    )
+    sending_window = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Window name: morning, afternoon, or immediate"
+    )
+    schedule_source = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        help_text="Source of schedule: automatic, manual, send_now"
+    )
+
     class Meta:
         db_table = "sequences_sequenceemaildraft"
         verbose_name = "Sequence Email Draft"
         verbose_name_plural = "Sequence Email Drafts"
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "scheduled_at_utc"]),
+        ]
 
     def __str__(self):
         return f"Draft: '{self.subject}' for {self.contact.full_name} ({self.status})"
@@ -361,3 +487,4 @@ class SequenceLinkClick(BaseModel):
 
     def __str__(self):
         return f"Click token {self.click_token} -> {self.original_url[:50]}"
+

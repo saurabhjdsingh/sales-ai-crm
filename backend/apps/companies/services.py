@@ -28,6 +28,7 @@ class CompanyService:
         try:
             return (
                 Company.objects.select_related("owner", "created_by")
+                .prefetch_related("lists")
                 .annotate(
                     contact_count=Count("contacts", distinct=True),
                     deal_count=Count("deals", distinct=True),
@@ -43,7 +44,7 @@ class CompanyService:
         Return an annotated queryset for the company list view.
         Annotations are computed at the database level for performance.
         """
-        return Company.objects.select_related("owner").annotate(
+        return Company.objects.select_related("owner").prefetch_related("lists").annotate(
             contact_count=Count("contacts", distinct=True),
             deal_count=Count("deals", distinct=True),
         )
@@ -52,11 +53,15 @@ class CompanyService:
     @transaction.atomic
     def create_company(data: dict, user) -> Company:
         """Create a new company and log the activity."""
+        lists = data.pop("lists", None)
         company = Company.objects.create(
             **data,
             created_by=user,
             updated_by=user,
         )
+        if lists is not None:
+            company.lists.set(lists)
+
         # Log activity
         CompanyService._log_activity(
             company=company,
@@ -71,6 +76,10 @@ class CompanyService:
     @transaction.atomic
     def update_company(company: Company, data: dict, user) -> Company:
         """Update a company and log stage changes."""
+        lists = data.pop("lists", None)
+        if lists is not None:
+            company.lists.set(lists)
+
         old_stage = company.stage
         for key, value in data.items():
             setattr(company, key, value)

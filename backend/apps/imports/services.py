@@ -7,6 +7,7 @@ import re
 
 from django.db import transaction
 
+from apps.common.countries import normalize_country_code
 from apps.common.enums import (
     CompanySource,
     CompanyStage,
@@ -18,6 +19,7 @@ from apps.common.enums import (
 from apps.common.utils import parse_csv_content
 from apps.imports.mappers import suggest_mapping
 from apps.imports.models import ImportJob, ImportRecord
+from apps.prospect_lists.models import ProspectList, ProspectListSource
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,24 @@ def normalize_domain(url: str) -> str:
     url = re.sub(r'^www\.', '', url)
     url = url.split('/')[0]
     return url
+
+
+def _get_or_create_prospect_list(raw_list_name: str, import_job: ImportJob, user) -> ProspectList:
+    """Helper to find or create a ProspectList by name."""
+    list_name = raw_list_name.strip()
+    norm_name = list_name.lower()
+
+    prospect_list = ProspectList.objects.filter(name_normalized=norm_name, is_deleted=False).first()
+    if not prospect_list:
+        prospect_list = ProspectList.objects.create(
+            name=list_name,
+            name_normalized=norm_name,
+            source=ProspectListSource.APOLLO,
+            import_job=import_job,
+            created_by=user,
+            updated_by=user,
+        )
+    return prospect_list
 
 
 class ImportService:
@@ -110,6 +130,14 @@ class ImportService:
                     import_job.save(update_fields=["error_count", "processed_rows"])
                     continue
 
+                # Process ProspectList if present
+                prospect_list = None
+                list_col = mapping.get("list_name")
+                if list_col and row.get(list_col):
+                    raw_list_name = str(row[list_col]).strip()
+                    if raw_list_name:
+                        prospect_list = _get_or_create_prospect_list(raw_list_name, import_job, user)
+
                 # Check for duplicates by name
                 existing = Company.objects.filter(name__iexact=name).first()
 
@@ -128,18 +156,39 @@ class ImportService:
                                 break
 
                 if existing:
-                    reason = f"Company with domain '{search_domain}' already exists." if (website_val and existing.website) else f"Company '{name}' already exists."
+                    # Associate list with existing company if list is present
+                    if prospect_list:
+                        existing.lists.add(prospect_list)
+
+                    updated_company_fields = []
+                    for f_name in ["website", "industry", "company_size", "city", "state", "linkedin_url", "description"]:
+                        col_name = mapping.get(f_name)
+                        if col_name and row.get(col_name):
+                            val = str(row[col_name]).strip()
+                            if val and not getattr(existing, f_name):
+                                setattr(existing, f_name, val)
+                                updated_company_fields.append(f_name)
+
+                    country_col = mapping.get("country")
+                    if country_col and row.get(country_col) and not existing.country:
+                        norm_country = normalize_country_code(str(row[country_col]))
+                        if norm_country:
+                            existing.country = norm_country
+                            updated_company_fields.append("country")
+
+                    if updated_company_fields:
+                        existing.save()
+
                     ImportRecord.objects.create(
                         import_job=import_job,
                         row_number=idx,
-                        status=ImportRecordStatus.DUPLICATE,
+                        status=ImportRecordStatus.SUCCESS,
                         raw_data=row,
                         entity_id=existing.id,
-                        error_message=reason,
                     )
-                    import_job.duplicate_count += 1
+                    import_job.success_count += 1
                     import_job.processed_rows += 1
-                    import_job.save(update_fields=["duplicate_count", "processed_rows"])
+                    import_job.save(update_fields=["success_count", "processed_rows"])
                     continue
 
                 company_data = {
@@ -149,12 +198,16 @@ class ImportService:
                 }
 
                 # Map optional fields
-                for field in ["website", "industry", "company_size", "country", "linkedin_url", "apollo_id", "description"]:
+                for field in ["website", "industry", "company_size", "country", "city", "state", "linkedin_url", "apollo_id", "description"]:
                     csv_col = mapping.get(field)
                     if csv_col and row.get(csv_col):
-                        company_data[field] = row[csv_col].strip()
+                        company_data[field] = str(row[csv_col]).strip()
 
-                # Ensure unique apollo_id is saved as NULL instead of empty string to avoid unique constraint violations
+                # Normalize country if provided
+                if company_data.get("country"):
+                    company_data["country"] = normalize_country_code(company_data["country"])
+
+                # Ensure unique apollo_id is saved as NULL instead of empty string
                 if not company_data.get("apollo_id"):
                     company_data["apollo_id"] = None
 
@@ -164,6 +217,9 @@ class ImportService:
                     updated_by=user,
                     owner=user,
                 )
+
+                if prospect_list:
+                    company.lists.add(prospect_list)
 
                 ImportRecord.objects.create(
                     import_job=import_job,
@@ -219,6 +275,14 @@ class ImportService:
                     import_job.save(update_fields=["error_count", "processed_rows"])
                     continue
 
+                # Process ProspectList if present
+                prospect_list = None
+                list_col = mapping.get("list_name")
+                if list_col and row.get(list_col):
+                    raw_list_name = str(row[list_col]).strip()
+                    if raw_list_name:
+                        prospect_list = _get_or_create_prospect_list(raw_list_name, import_job, user)
+
                 # Match company by name and map additional fields
                 company = None
                 company_col = mapping.get("company_name")
@@ -236,15 +300,21 @@ class ImportService:
                         "company_website": "website",
                         "company_industry": "industry",
                         "company_size": "company_size",
+                        "company_city": "city",
+                        "company_state": "state",
                         "company_linkedin_url": "linkedin_url",
-                        "company_description": "description"
+                        "company_description": "description",
+                        "country": "country",
+                        "company_country": "country",
                     }
                     for csv_field, model_field in company_fields_map.items():
                         col_name = mapping.get(csv_field)
                         if col_name and row.get(col_name):
-                            company_data[model_field] = row[col_name].strip()
+                            company_data[model_field] = str(row[col_name]).strip()
 
-                    # Ensure unique apollo_id is saved as NULL instead of empty string to avoid unique constraint violations
+                    if company_data.get("country"):
+                        company_data["country"] = normalize_country_code(company_data["country"])
+
                     company_data["apollo_id"] = None
 
                     company = Company.objects.filter(name__iexact=company_name).first()
@@ -264,9 +334,12 @@ class ImportService:
                                 updated = True
                         if updated:
                             company.save(update_fields=[
-                                "website", "industry", "company_size", 
-                                "linkedin_url", "description"
+                                "website", "industry", "company_size", "city", "state",
+                                "linkedin_url", "description", "country"
                             ])
+
+                    if prospect_list:
+                        company.lists.add(prospect_list)
 
                 if not company:
                     ImportRecord.objects.create(
@@ -281,23 +354,79 @@ class ImportService:
                     import_job.save(update_fields=["error_count", "processed_rows"])
                     continue
 
-                # Check for duplicate by email
+                # Check for duplicate by email & implement smart upsert
                 email = row.get(mapping.get("email", ""), "").strip()
+                existing = None
                 if email:
                     existing = Contact.objects.filter(email__iexact=email).first()
-                    if existing:
-                        ImportRecord.objects.create(
-                            import_job=import_job,
-                            row_number=idx,
-                            status=ImportRecordStatus.DUPLICATE,
-                            raw_data=row,
-                            entity_id=existing.id,
-                            error_message=f"Contact with email '{email}' already exists.",
-                        )
-                        import_job.duplicate_count += 1
-                        import_job.processed_rows += 1
-                        import_job.save(update_fields=["duplicate_count", "processed_rows"])
-                        continue
+
+                if existing:
+                    if prospect_list:
+                        existing.lists.add(prospect_list)
+
+                    update_fields = []
+                    # Updatable fields: first_name, last_name, phone, job_title, department, apollo_id, country, city, state, timezone
+                    if first_name and existing.first_name != first_name:
+                        existing.first_name = first_name
+                        update_fields.append("first_name")
+                    if last_name and existing.last_name != last_name:
+                        existing.last_name = last_name
+                        update_fields.append("last_name")
+
+                    for f_name in ["phone", "job_title", "department", "city", "state", "timezone"]:
+                        col_name = mapping.get(f_name)
+                        if col_name and row.get(col_name):
+                            val = str(row[col_name]).strip()
+                            if val and getattr(existing, f_name) != val:
+                                setattr(existing, f_name, val)
+                                update_fields.append(f_name)
+
+                    # linkedin_url: update only if existing is empty
+                    col_lk = mapping.get("linkedin_url")
+                    if col_lk and row.get(col_lk):
+                        val_lk = str(row[col_lk]).strip()
+                        if val_lk and not existing.linkedin_url:
+                            existing.linkedin_url = val_lk
+                            update_fields.append("linkedin_url")
+
+                    # country: normalize and update if changed
+                    col_country = mapping.get("country")
+                    if col_country and row.get(col_country):
+                        norm_country = normalize_country_code(str(row[col_country]))
+                        if norm_country and existing.country != norm_country:
+                            existing.country = norm_country
+                            update_fields.append("country")
+
+                    # apollo_id
+                    col_apollo = mapping.get("apollo_id")
+                    if col_apollo and row.get(col_apollo):
+                        val_ap = str(row[col_apollo]).strip()
+                        if val_ap and existing.apollo_id != val_ap:
+                            existing.apollo_id = val_ap
+                            update_fields.append("apollo_id")
+
+                    if company and existing.company_id != company.id:
+                        existing.company = company
+                        update_fields.append("company")
+
+                    # Always ensure timezone resolution runs & save contact if timezone is missing or fields updated
+                    from apps.common.services.timezone_resolver import TimezoneResolverService
+                    tz_changed = TimezoneResolverService.resolve_and_update_contact(existing)
+
+                    if update_fields or tz_changed or not existing.timezone:
+                        existing.save()
+
+                    ImportRecord.objects.create(
+                        import_job=import_job,
+                        row_number=idx,
+                        status=ImportRecordStatus.SUCCESS,
+                        raw_data=row,
+                        entity_id=existing.id,
+                    )
+                    import_job.success_count += 1
+                    import_job.processed_rows += 1
+                    import_job.save(update_fields=["success_count", "processed_rows"])
+                    continue
 
                 stage_val = ContactStage.COLD
                 csv_stage_col = mapping.get("stage")
@@ -316,12 +445,15 @@ class ImportService:
                     "stage": stage_val,
                 }
 
-                for field in ["phone", "job_title", "department", "linkedin_url", "apollo_id", "timezone", "country"]:
+                for field in ["phone", "job_title", "department", "linkedin_url", "apollo_id", "timezone", "country", "city", "state"]:
                     csv_col = mapping.get(field)
                     if csv_col and row.get(csv_col):
                         contact_data[field] = str(row[csv_col]).strip()
 
-                # Ensure unique apollo_id is saved as NULL instead of empty string to avoid unique constraint violations
+                if contact_data.get("country"):
+                    contact_data["country"] = normalize_country_code(contact_data["country"])
+
+                # Ensure unique apollo_id is saved as NULL instead of empty string
                 if not contact_data.get("apollo_id"):
                     contact_data["apollo_id"] = None
 
@@ -331,6 +463,9 @@ class ImportService:
                     updated_by=user,
                     owner=user,
                 )
+
+                if prospect_list:
+                    contact.lists.add(prospect_list)
 
                 # Trigger automatic company stage update based on contact stage
                 if contact.stage and contact.company:

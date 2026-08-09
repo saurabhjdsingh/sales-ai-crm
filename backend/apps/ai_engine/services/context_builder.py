@@ -196,13 +196,17 @@ class ContextBuilder:
         return "\n\n".join(filter(None, sections))
 
     def _company_info(self, company) -> str:
+        from apps.common.countries import get_country_display_name
+        lists = [l.name for l in company.lists.filter(is_deleted=False)]
+        country_str = get_country_display_name(company.country) if company.country else 'N/A'
         lines = [
             "## Company Information",
             f"- Name: {company.name}",
             f"- Website: {company.website or 'N/A'}",
             f"- Industry: {company.industry or 'N/A'}",
             f"- Size: {company.company_size or 'N/A'}",
-            f"- Country: {company.country or 'N/A'}",
+            f"- Country: {country_str}",
+            f"- Prospect Lists: {', '.join(lists) if lists else 'None'}",
             f"- Stage: {company.get_stage_display()}",
             f"- Owner: {company.owner.get_full_name() if company.owner else 'Unassigned'}",
             f"- ICP Score: {company.icp_score or 'Not scored'}",
@@ -310,6 +314,9 @@ class ContextBuilder:
         return "\n".join(lines)
 
     def _contact_info(self, contact) -> str:
+        from apps.common.countries import get_country_display_name
+        lists = [l.name for l in contact.lists.filter(is_deleted=False)]
+        country_str = get_country_display_name(contact.country) if contact.country else 'N/A'
         lines = [
             "## Contact Information",
             f"- Name: {contact.full_name}",
@@ -319,7 +326,8 @@ class ContextBuilder:
             f"- Department: {contact.department or 'N/A'}",
             f"- Company: {contact.company.name}",
             f"- Stage: {contact.get_stage_display()}",
-            f"- Country: {contact.country or 'N/A'}",
+            f"- Country: {country_str}",
+            f"- Prospect Lists: {', '.join(lists) if lists else 'None'}",
         ]
         if contact.ai_summary:
             lines.append(f"- AI Summary: {contact.ai_summary}")

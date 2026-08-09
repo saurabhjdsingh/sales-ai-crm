@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from apps.sequences.views import (
     ApprovalQueueViewSet,
     EmailOpenPixelView,
+    ScheduleSettingsView,
     SequenceDashboardView,
     SequenceEnrollmentViewSet,
     SequenceViewSet,
@@ -16,6 +17,7 @@ router.register(r"", SequenceViewSet, basename="sequences")
 
 urlpatterns = [
     path("dashboard/", SequenceDashboardView.as_view(), name="sequence-dashboard"),
+    path("schedule-settings/", ScheduleSettingsView.as_view(), name="sequence-schedule-settings"),
     path(
         "track/open/<str:tracking_token>/pixel.png",
         EmailOpenPixelView.as_view(),
@@ -23,3 +25,4 @@ urlpatterns = [
     ),
     path("", include(router.urls)),
 ]
+

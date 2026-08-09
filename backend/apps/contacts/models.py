@@ -10,6 +10,19 @@ from apps.common.enums import ContactStage
 from apps.common.models import BaseModel
 
 
+class TimezoneSource(models.TextChoices):
+    MANUAL = "MANUAL", "Manual"
+    AUTOMATIC = "AUTOMATIC", "Automatic"
+    DEFAULT = "DEFAULT", "Default"
+
+
+class TimezoneConfidence(models.TextChoices):
+    HIGH = "HIGH", "High"
+    MEDIUM = "MEDIUM", "Medium"
+    LOW = "LOW", "Low"
+    UNKNOWN = "UNKNOWN", "Unknown"
+
+
 class Contact(BaseModel):
     """
     Represents an individual contact/person at a company.
@@ -32,7 +45,26 @@ class Contact(BaseModel):
         max_length=100, blank=True, default="", unique=True, null=True
     )
     timezone = models.CharField(max_length=50, blank=True, default="")
+    timezone_source = models.CharField(
+        max_length=20,
+        choices=TimezoneSource.choices,
+        default=TimezoneSource.AUTOMATIC,
+        help_text="How timezone was determined: MANUAL, AUTOMATIC, or DEFAULT",
+    )
+    timezone_confidence = models.CharField(
+        max_length=20,
+        choices=TimezoneConfidence.choices,
+        default=TimezoneConfidence.UNKNOWN,
+        help_text="Confidence level of resolved timezone",
+    )
     country = models.CharField(max_length=100, blank=True, default="")
+    city = models.CharField(max_length=100, blank=True, default="")
+    state = models.CharField(max_length=100, blank=True, default="")
+    lists = models.ManyToManyField(
+        "prospect_lists.ProspectList",
+        related_name="contacts",
+        blank=True,
+    )
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -60,6 +92,7 @@ class Contact(BaseModel):
             models.Index(fields=["company", "last_name"]),
             models.Index(fields=["email"]),
             models.Index(fields=["stage", "owner"]),
+            models.Index(fields=["country"]),
             models.Index(fields=["-created_at"]),
         ]
 
@@ -69,3 +102,11 @@ class Contact(BaseModel):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+    def save(self, *args, **kwargs):
+        """Auto-resolve timezone from location data unless manually set."""
+        # Only auto-resolve if not manually set
+        if self.timezone_source != TimezoneSource.MANUAL:
+            from apps.common.services.timezone_resolver import TimezoneResolverService
+            TimezoneResolverService.resolve_and_update_contact(self)
+        super().save(*args, **kwargs)

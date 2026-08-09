@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
+import { MatOptionModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,6 +20,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-dialog/sequence-enroll-dialog.component';
+import { AdvanceFilterDrawerComponent, AdvanceFilterState } from '../../../shared/components/advance-filter-drawer/advance-filter-drawer.component';
 
 @Component({
   selector: 'app-contact-list',
@@ -30,12 +32,14 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
     MatTableModule,
     MatPaginatorModule,
     MatSelectModule,
+    MatOptionModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatCheckboxModule,
-    MatTooltipModule
+    MatTooltipModule,
+    AdvanceFilterDrawerComponent
   ],
   template: `
     <div class="list-container">
@@ -44,10 +48,20 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
           <h1>Contacts</h1>
           <p class="subtitle">Manage company representatives and leads</p>
         </div>
-        <button mat-flat-button color="primary" (click)="openCreateDialog()" class="create-btn">
-          <mat-icon>add</mat-icon>
-          <span>Add Contact</span>
-        </button>
+        <div class="header-actions">
+          <button mat-stroked-button (click)="isDrawerOpen = true" class="adv-filter-btn">
+            <mat-icon class="btn-icon">tune</mat-icon>
+            <span>Advance Filters</span>
+            <span *ngIf="activeAdvanceFilterCount > 0" class="filter-count-badge">
+              {{ activeAdvanceFilterCount }}
+            </span>
+          </button>
+
+          <button mat-flat-button color="primary" (click)="openCreateDialog()" class="create-btn">
+            <mat-icon>add</mat-icon>
+            <span>Add Contact</span>
+          </button>
+        </div>
       </div>
 
       <!-- Filters Bar -->
@@ -55,11 +69,6 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
         <div class="search-field">
           <mat-icon>search</mat-icon>
           <input type="text" formControlName="search" placeholder="Search contacts by name, email..." class="filter-input" />
-        </div>
-
-        <div class="search-field">
-          <mat-icon>map</mat-icon>
-          <input type="text" formControlName="country" placeholder="Search country..." class="filter-input" style="width: 160px;" />
         </div>
 
         <mat-form-field appearance="outline" class="filter-select">
@@ -98,19 +107,26 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
         <mat-form-field appearance="outline" class="filter-select">
           <mat-label>Sort Contacts</mat-label>
           <mat-select formControlName="ordering">
-            <mat-option value="">Default Sort</mat-option>
-            <mat-option value="company__company_size">Company Size (Ascending)</mat-option>
-            <mat-option value="-company__company_size">Company Size (Descending)</mat-option>
-            <mat-option value="-has_email">Has Email First</mat-option>
-            <mat-option value="has_email">No Email First</mat-option>
-            <mat-option value="-has_phone">Has Phone First</mat-option>
-            <mat-option value="has_phone">No Phone First</mat-option>
+            <mat-option value="">Newest First</mat-option>
+            <mat-option value="last_name">Last Name (A-Z)</mat-option>
+            <mat-option value="-last_name">Last Name (Z-A)</mat-option>
+            <mat-option value="-created_at">Creation Date</mat-option>
           </mat-select>
         </mat-form-field>
 
         <button mat-icon-button (click)="resetFilters()" matTooltip="Reset Filters" class="reset-btn">
           <mat-icon>filter_list_off</mat-icon>
         </button>
+      </div>
+
+      <!-- Active Filter Badges -->
+      <div *ngIf="activeAdvanceFilterCount > 0" class="flex flex-wrap gap-2 px-2 pb-2">
+        <span *ngIf="advanceFilters.list" class="inline-flex items-center text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+          📋 List: {{ advanceFilters.list === 'no_list' ? 'Unassigned' : advanceFilters.list }}
+        </span>
+        <span *ngIf="advanceFilters.country" class="inline-flex items-center text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+          🌐 Country: {{ advanceFilters.country === 'no_country' ? 'Unassigned' : advanceFilters.country }}
+        </span>
       </div>
 
       <!-- Data Table -->
@@ -149,6 +165,30 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
                 @if (element.job_title) {
                   <span class="job-title">{{ element.job_title }}</span>
                 }
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Country Column -->
+          <ng-container matColumnDef="country">
+            <th mat-header-cell *matHeaderCellDef>Country</th>
+            <td mat-cell *matCellDef="let element">
+              <span *ngIf="element.country" class="inline-flex items-center text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                🌐 {{ element.country_display || element.country }}
+              </span>
+              <span *ngIf="!element.country" class="text-slate-500">—</span>
+            </td>
+          </ng-container>
+
+          <!-- Lists Column -->
+          <ng-container matColumnDef="lists">
+            <th mat-header-cell *matHeaderCellDef>Prospect Lists</th>
+            <td mat-cell *matCellDef="let element">
+              <div class="flex flex-wrap gap-1">
+                <span *ngFor="let list of (element.lists || [])" class="inline-flex items-center text-xs px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  📋 {{ list.name }}
+                </span>
+                <span *ngIf="!element.lists || element.lists.length === 0" class="text-slate-500">—</span>
               </div>
             </td>
           </ng-container>
@@ -231,7 +271,7 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
           <div class="empty-state">
             <mat-icon class="empty-icon">people</mat-icon>
             <h3>No contacts found</h3>
-            <p>Get started by creating a contact record.</p>
+            <p>Add a contact or change filters.</p>
           </div>
         }
       </div>
@@ -252,8 +292,8 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
           <span>{{ selection.selected.length === 1 ? 'contact' : 'contacts' }} selected</span>
         </div>
         <div class="actions">
-          <button mat-flat-button color="primary" (click)="bulkEnrollSequence()" class="bulk-enroll-btn">
-            <mat-icon>auto_awesome</mat-icon>
+          <button mat-flat-button color="primary" (click)="openBulkEnrollDialog()" class="bulk-enroll-btn">
+            <mat-icon>play_circle</mat-icon>
             <span>Enroll in Sequence</span>
           </button>
           <button mat-flat-button color="warn" (click)="bulkDelete()" class="bulk-delete-btn">
@@ -265,6 +305,14 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
           </button>
         </div>
       </div>
+
+      <!-- Advance Filter Drawer -->
+      <app-advance-filter-drawer
+        [(isOpen)]="isDrawerOpen"
+        entityType="contact"
+        [initialFilters]="advanceFilters"
+        (filtersApplied)="onAdvanceFiltersApplied($event)"
+      ></app-advance-filter-drawer>
     </div>
   `,
   styles: [`
@@ -280,108 +328,102 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
+      padding: 0 0.5rem;
     }
 
-    h1 {
+    .list-header h1 {
       font-size: 1.75rem;
       font-weight: 700;
-      margin: 0 0 0.25rem 0;
       color: #f8fafc;
+      margin: 0;
       letter-spacing: -0.025em;
     }
 
     .subtitle {
-      color: #64748b;
-      margin: 0;
-      font-size: 0.9rem;
+      color: #94a3b8;
+      font-size: 0.875rem;
+      margin: 0.25rem 0 0 0;
     }
 
     .create-btn {
-      background-color: #3b82f6 !important;
-      color: white !important;
-      border-radius: 6px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-radius: 8px;
       font-weight: 600;
+      height: 40px;
     }
 
     .filters-bar {
       display: flex;
-      align-items: center;
       gap: 1rem;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      background-color: #0b1329;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
     }
 
     .search-field {
       display: flex;
       align-items: center;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 6px;
-      padding: 0.25rem 0.75rem;
+      background-color: #141f38;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 0 0.75rem;
       flex: 1;
-      min-width: 200px;
-      height: 42px;
+      height: 40px;
     }
 
     .search-field mat-icon {
       color: #64748b;
       margin-right: 0.5rem;
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
     }
 
     .filter-input {
       background: transparent;
       border: none;
       color: #f8fafc;
+      font-size: 0.875rem;
       outline: none;
       width: 100%;
-      font-size: 0.9rem;
     }
 
     .filter-input::placeholder {
-      color: #475569;
+      color: #64748b;
     }
 
     .filter-select {
-      width: 180px;
-      height: 48px;
+      width: 170px;
+      margin-bottom: -1.25em;
     }
 
     ::ng-deep .filter-select .mat-mdc-text-field-wrapper {
-      background-color: rgba(255, 255, 255, 0.03) !important;
-      height: 42px !important;
-      padding-top: 0 !important;
-      padding-bottom: 0 !important;
+      background-color: #141f38 !important;
+      height: 40px !important;
+      border-radius: 8px !important;
     }
 
     ::ng-deep .filter-select .mat-mdc-form-field-flex {
-      height: 42px !important;
+      height: 40px !important;
       align-items: center !important;
     }
 
-    ::ng-deep .filter-select .mat-mdc-form-field-infix {
-      padding-top: 8px !important;
-      padding-bottom: 8px !important;
-    }
-
     .reset-btn {
-      color: #64748b !important;
+      color: #64748b;
     }
 
     .reset-btn:hover {
-      color: #f8fafc !important;
+      color: #f8fafc;
     }
 
     .table-wrapper {
       position: relative;
-      background: #0f172a;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      overflow: hidden;
       flex: 1;
+      overflow: auto;
+      background-color: #0b1329;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px 12px 0 0;
     }
 
     .loading-overlay {
@@ -390,44 +432,39 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(15, 23, 42, 0.8);
-      z-index: 10;
+      background-color: rgba(11, 19, 41, 0.7);
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
+      z-index: 10;
+      backdrop-filter: blur(2px);
     }
 
     .dark-table {
       width: 100%;
-      background: transparent !important;
+      background: transparent;
     }
 
     ::ng-deep .dark-table th.mat-mdc-header-cell {
-      background-color: #0b1329 !important;
-      color: #64748b !important;
+      background-color: #0b1329;
+      color: #64748b;
+      font-size: 0.75rem;
       font-weight: 600;
-      font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 1rem;
     }
 
     ::ng-deep .dark-table td.mat-mdc-cell {
-      color: #cbd5e1 !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
-      padding-top: 0.75rem;
-      padding-bottom: 0.75rem;
-      font-size: 0.9rem;
+      color: #cbd5e1;
+      font-size: 0.875rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 1rem;
     }
 
-    .checkbox-header-cell {
-      width: 48px;
-      padding-left: 1.5rem !important;
-    }
-
-    .checkbox-cell {
-      width: 48px;
-      padding-left: 1.5rem !important;
+    .clickable {
+      cursor: pointer;
     }
 
     .name-cell {
@@ -440,53 +477,40 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       font-weight: 600;
     }
 
-    .job-title {
-      font-size: 0.75rem;
-      color: #64748b;
-      margin-top: 0.1rem;
-    }
-
-    .clickable {
-      cursor: pointer;
-    }
-
-    .clickable:hover .contact-name {
+    .contact-name:hover {
       color: #3b82f6;
-      text-decoration: underline;
+    }
+
+    .job-title {
+      color: #64748b;
+      font-size: 0.75rem;
     }
 
     .company-link {
-      color: #3b82f6;
+      color: #cbd5e1;
       text-decoration: none;
-      font-weight: 500;
     }
 
     .company-link:hover {
+      color: #3b82f6;
       text-decoration: underline;
     }
 
     .stage-badge {
       display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 500;
       text-transform: capitalize;
     }
 
-    /* Contact stages styling */
-    .stage-badge.cold { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
-    .stage-badge.approaching { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-    .stage-badge.replied { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-    .stage-badge.follow_up { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
-    .stage-badge.interested { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-    .stage-badge.not_icp { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
-    .stage-badge.not_interested { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-    .stage-badge.unresponsive { background: rgba(244, 63, 94, 0.15); color: #fb7185; }
-    .stage-badge.do_not_contact { background: rgba(220, 38, 38, 0.2); color: #ef4444; }
-    .stage-badge.bad_data { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-    .stage-badge.changed_job { background: rgba(156, 163, 175, 0.15); color: #d1d5db; }
-    .stage-badge.won { background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; }
+    .stage-badge.cold { background-color: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+    .stage-badge.approaching { background-color: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+    .stage-badge.replied { background-color: rgba(168, 85, 247, 0.1); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.2); }
+    .stage-badge.interested { background-color: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
+    .stage-badge.won { background-color: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); font-weight: 700; }
+    .stage-badge.not_interested, .stage-badge.unresponsive { background-color: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
 
     .empty-state {
       display: flex;
@@ -530,26 +554,14 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      border: 1px solid rgba(59, 130, 246, 0.3);
       border-radius: 12px;
       padding: 0.75rem 1.5rem;
       display: flex;
       align-items: center;
-      gap: 2rem;
+      gap: 1.5rem;
       z-index: 1000;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes slideUp {
-      from {
-        transform: translate(-50%, 2rem);
-        opacity: 0;
-      }
-      to {
-        transform: translate(-50%, 0);
-        opacity: 1;
-      }
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
     }
 
     .selection-info {
@@ -577,12 +589,6 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       color: white !important;
       border-radius: 6px;
       font-weight: 600;
-      transition: all 0.2s ease;
-    }
-
-    .bulk-enroll-btn:hover {
-      background-color: #2563eb !important;
-      box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
     }
 
     .bulk-delete-btn {
@@ -590,15 +596,8 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       color: white !important;
       border-radius: 6px;
       font-weight: 600;
-      transition: all 0.2s ease;
     }
 
-    .bulk-delete-btn:hover {
-      background-color: #dc2626 !important;
-      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
-    }
-
-    /* Sequence Status Pill Styles */
     .seq-status-pill {
       display: inline-flex;
       align-items: center;
@@ -607,9 +606,6 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       border-radius: 9999px;
       font-size: 0.75rem;
       font-weight: 600;
-      white-space: nowrap;
-      transition: all 0.2s ease;
-      letter-spacing: 0.01em;
     }
 
     .seq-status-pill .pill-dot {
@@ -618,62 +614,88 @@ import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-d
       border-radius: 50%;
     }
 
-    /* Green: Completed or Stopped from Sequence */
-    .seq-status-pill.completed {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .seq-status-pill.completed .pill-dot {
-      background-color: #34d399;
+    .seq-status-pill.completed { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .seq-status-pill.completed .pill-dot { background-color: #34d399; }
+    .seq-status-pill.active { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .seq-status-pill.active .pill-dot { background-color: #60a5fa; }
+    .seq-status-pill.action_required { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .seq-status-pill.action_required .pill-dot { background-color: #fbbf24; }
+    .seq-status-pill.not_enrolled { background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2); }
+    .seq-status-pill.not_enrolled .pill-dot { background-color: #64748b; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
     }
 
-    /* Blue: Active in Sequence */
-    .seq-status-pill.active {
-      background: rgba(59, 130, 246, 0.15);
-      color: #60a5fa;
-      border: 1px solid rgba(59, 130, 246, 0.3);
-    }
-    .seq-status-pill.active .pill-dot {
-      background-color: #60a5fa;
-    }
-
-    /* Yellow: Waiting for manual task or AI email review */
-    .seq-status-pill.action_required {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-    .seq-status-pill.action_required .pill-dot {
-      background-color: #fbbf24;
-    }
-
-    /* Grey: Never added to sequence at all */
-    .seq-status-pill.not_enrolled {
-      background: rgba(148, 163, 184, 0.12);
-      color: #94a3b8;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-    }
-    .seq-status-pill.not_enrolled .pill-dot {
-      background-color: #94a3b8;
-    }
-
-    .seq-status-pill.clickable {
-      cursor: pointer;
-    }
-
-    .seq-status-pill.clickable:hover {
-      opacity: 0.85;
-      transform: translateY(-1px);
-    }
-
-    .clear-btn {
-      color: #94a3b8 !important;
-    }
-
-    .clear-btn:hover {
+    .adv-filter-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 0.5rem !important;
+      height: 40px !important;
+      padding: 0 1rem !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      font-size: 0.875rem !important;
+      background-color: #1e293b !important;
       color: #f8fafc !important;
+      border: 1px solid #334155 !important;
+      transition: all 0.2s ease-in-out !important;
     }
+
+    .adv-filter-btn:hover {
+      background-color: #334155 !important;
+      border-color: #475569 !important;
+    }
+
+    .adv-filter-btn .btn-icon {
+      font-size: 18px !important;
+      width: 18px !important;
+      height: 18px !important;
+      margin: 0 !important;
+      color: #3b82f6 !important;
+    }
+
+    .filter-count-badge {
+      background-color: #3b82f6;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 9999px;
+      margin-left: 0.25rem;
+    }
+
+    /* Light Theme Overrides */
+    :host-context(body.light-theme) .list-container { color: #1e293b; }
+    :host-context(body.light-theme) .list-header h1 { color: #0f172a; }
+    :host-context(body.light-theme) .subtitle { color: #64748b; }
+    :host-context(body.light-theme) .adv-filter-btn {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    }
+    :host-context(body.light-theme) .adv-filter-btn:hover {
+      background-color: #f8fafc !important;
+      border-color: #94a3b8 !important;
+    }
+    :host-context(body.light-theme) .adv-filter-btn .btn-icon {
+      color: #2563eb !important;
+    }
+    :host-context(body.light-theme) .filters-bar { background-color: #ffffff; border-color: #e2e8f0; }
+    :host-context(body.light-theme) .search-field { background-color: #f8fafc; border-color: #cbd5e1; }
+    :host-context(body.light-theme) .filter-input { color: #0f172a; }
+    :host-context(body.light-theme) ::ng-deep .filter-select .mat-mdc-text-field-wrapper { background-color: #f8fafc !important; }
+    :host-context(body.light-theme) .table-wrapper { background-color: #ffffff; border-color: #e2e8f0; }
+    :host-context(body.light-theme) ::ng-deep .dark-table th.mat-mdc-header-cell { background-color: #f8fafc; color: #64748b; border-bottom-color: #e2e8f0; }
+    :host-context(body.light-theme) ::ng-deep .dark-table td.mat-mdc-cell { color: #1e293b; border-bottom-color: #f1f5f9; }
+    :host-context(body.light-theme) .contact-name { color: #0f172a; }
+    :host-context(body.light-theme) .dark-paginator { background-color: #ffffff !important; color: #64748b !important; border-top-color: #e2e8f0; }
+    :host-context(body.light-theme) .bulk-actions-banner { background-color: #ffffff; border-color: #cbd5e1; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+    :host-context(body.light-theme) .selection-info { color: #0f172a; }
   `]
 })
 export class ContactListComponent implements OnInit {
@@ -681,16 +703,27 @@ export class ContactListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly dialog = inject(MatDialog);
 
-  readonly displayedColumns: string[] = ['select', 'name', 'company', 'company_size', 'email', 'stage', 'sequence_status', 'owner', 'actions'];
+  readonly displayedColumns: string[] = ['select', 'name', 'country', 'lists', 'company', 'company_size', 'email', 'stage', 'sequence_status', 'owner', 'actions'];
   selection = new SelectionModel<string>(true, []);
+
+  isDrawerOpen = false;
+  advanceFilters: AdvanceFilterState = {};
 
   readonly filterForm: FormGroup = this.fb.group({
     search: [''],
     stage: [''],
     company_size: [''],
-    country: [''],
     ordering: ['']
   });
+
+  get activeAdvanceFilterCount(): number {
+    let count = 0;
+    if (this.advanceFilters.list) count++;
+    if (this.advanceFilters.country) count++;
+    if (this.advanceFilters.stage) count++;
+    if (this.advanceFilters.company_size) count++;
+    return count;
+  }
 
   ngOnInit(): void {
     this.store.loadContacts();
@@ -698,10 +731,41 @@ export class ContactListComponent implements OnInit {
     this.filterForm.valueChanges.pipe(
       debounceTime(350),
       distinctUntilChanged()
-    ).subscribe((filters) => {
-      this.selection.clear();
-      this.store.loadContacts(1, filters);
+    ).subscribe((formValues) => {
+      this.applyAllFilters(formValues);
     });
+  }
+
+  isAllSelected(): boolean {
+    const numSelected = this.selection.selected.length;
+    const numRows = this.store.contacts().length;
+    return numSelected === numRows && numRows > 0;
+  }
+
+  masterToggle(): void {
+    if (this.isAllSelected()) {
+      this.selection.clear();
+    } else {
+      this.store.contacts().forEach((row) => this.selection.select(row.id));
+    }
+  }
+
+  onAdvanceFiltersApplied(filters: AdvanceFilterState): void {
+    this.advanceFilters = filters;
+    this.applyAllFilters(this.filterForm.value);
+  }
+
+  private applyAllFilters(formValues: any): void {
+    this.selection.clear();
+    const combinedParams: any = {
+      search: formValues.search || undefined,
+      stage: this.advanceFilters.stage || formValues.stage || undefined,
+      company_size: this.advanceFilters.company_size || formValues.company_size || undefined,
+      ordering: formValues.ordering || undefined,
+      list: this.advanceFilters.list || undefined,
+      country: this.advanceFilters.country || undefined,
+    };
+    this.store.loadContacts(1, combinedParams);
   }
 
   onPageChange(event: PageEvent): void {
@@ -713,9 +777,11 @@ export class ContactListComponent implements OnInit {
     this.filterForm.reset({
       search: '',
       stage: '',
-      country: '',
+      company_size: '',
       ordering: ''
     });
+    this.advanceFilters = {};
+    this.store.loadContacts(1);
   }
 
   openCreateDialog(): void {
@@ -735,9 +801,9 @@ export class ContactListComponent implements OnInit {
       not_icp: 'Not ICP',
       not_interested: 'Not Interested',
       unresponsive: 'Unresponsive',
-      do_not_contact: 'DNC',
+      do_not_contact: 'Do Not Contact',
       bad_data: 'Bad Data',
-      changed_job: 'Job Changed',
+      changed_job: 'Changed Job',
       on_hold: 'On-Hold',
       won: 'Won'
     };
@@ -746,84 +812,57 @@ export class ContactListComponent implements OnInit {
 
   getSeqStatusLabel(status?: string): string {
     switch (status) {
-      case 'completed':
-        return 'Done / Stopped';
-      case 'active':
-        return 'Active';
-      case 'action_required':
-        return 'Action Needed';
-      case 'not_enrolled':
-      default:
-        return 'Not Enrolled';
+      case 'completed': return 'Completed';
+      case 'active': return 'Enrolled';
+      case 'action_required': return 'Action Req.';
+      default: return 'Not Enrolled';
     }
   }
 
   getSeqStatusTooltip(status?: string): string {
     switch (status) {
-      case 'completed':
-        return 'Sequence completed or stopped';
-      case 'active':
-        return 'Enrolled and actively running in sequence';
-      case 'action_required':
-        return 'Waiting for manual task or AI email review';
-      case 'not_enrolled':
-      default:
-        return 'Never added to sequence';
+      case 'completed': return 'Completed or finished all steps';
+      case 'active': return 'Actively running sequence';
+      case 'action_required': return 'Waiting for rep task or AI approval';
+      default: return 'Not enrolled in any sequence';
     }
   }
 
-  isAllSelected(): boolean {
-    const numSelected = this.selection.selected.length;
-    const numRows = this.store.contacts().length;
-    return numSelected === numRows && numRows > 0;
-  }
+  openBulkEnrollDialog(): void {
+    const contactIds = [...this.selection.selected];
+    if (!contactIds.length) return;
 
-  masterToggle(): void {
-    if (this.isAllSelected()) {
-      this.selection.clear();
-    } else {
-      this.store.contacts().forEach(row => this.selection.select(row.id));
-    }
-  }
-
-  bulkEnrollSequence(): void {
-    const selectedIds = this.selection.selected;
-    if (selectedIds.length === 0) return;
-
-    const ref = this.dialog.open(SequenceEnrollDialogComponent, {
-      width: '520px',
+    const dialogRef = this.dialog.open(SequenceEnrollDialogComponent, {
+      width: '640px',
       panelClass: 'dark-dialog-panel',
-      data: {
-        contactIds: selectedIds
-      }
+      data: { contactIds }
     });
 
-    ref.afterClosed().subscribe((enrolled) => {
+    dialogRef.afterClosed().subscribe((enrolled) => {
       if (enrolled) {
         this.selection.clear();
+        this.store.loadContacts();
       }
     });
   }
 
   bulkDelete(): void {
-    const selectedIds = this.selection.selected;
-    if (selectedIds.length === 0) return;
-
-    const ref = this.dialog.open(ConfirmDialogComponent, {
+    const count = this.selection.selected.length;
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '400px',
       data: {
-        title: 'Delete Contacts',
-        message: `Are you sure you want to delete the ${selectedIds.length} selected ${selectedIds.length === 1 ? 'contact' : 'contacts'}? This action cannot be undone.`,
-        confirmText: 'Delete'
+        title: 'Bulk Delete Contacts',
+        message: `Are you sure you want to delete ${count} selected contacts?`,
+        confirmText: 'Delete All',
+        confirmColor: 'warn'
       }
     });
 
-    ref.afterClosed().subscribe((confirmed) => {
+    dialogRef.afterClosed().subscribe((confirmed) => {
       if (confirmed) {
-        this.store.bulkDeleteContacts(selectedIds, () => {
-          this.selection.clear();
-          this.store.loadContacts(this.store.page(), this.filterForm.value);
-        });
+        const ids = [...this.selection.selected];
+        this.store.bulkDeleteContacts(ids);
+        this.selection.clear();
       }
     });
   }

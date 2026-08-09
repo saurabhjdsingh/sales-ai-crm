@@ -61,6 +61,14 @@ export const routes: Routes = [
         loadComponent: () => import('./features/imports/import-center.component').then(m => m.ImportCenterComponent)
       },
       {
+        path: 'lists',
+        loadComponent: () => import('./features/prospect-lists/prospect-list-list/prospect-list-list.component').then(m => m.ProspectListListComponent)
+      },
+      {
+        path: 'lists/:id',
+        loadComponent: () => import('./features/prospect-lists/prospect-list-detail/prospect-list-detail.component').then(m => m.ProspectListDetailComponent)
+      },
+      {
         path: 'reports',
         loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent)
       },

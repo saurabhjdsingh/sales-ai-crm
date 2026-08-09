@@ -42,4 +42,8 @@ app.conf.beat_schedule = {
         "task": "apps.sequences.tasks.process_sequence_engine",
         "schedule": crontab(minute="*"),
     },
+    "process-scheduled-emails": {
+        "task": "apps.sequences.tasks.process_scheduled_emails",
+        "schedule": crontab(minute="*"),
+    },
 }

@@ -14,6 +14,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { ApiService } from '../../core/services/api.service';
 import { TelephonyService, TelephonySettings } from '../telephony/telephony.service';
+import { SequenceService } from '../sequences/services/sequence.service';
 
 interface TeamMember {
   id: string;
@@ -220,6 +221,100 @@ interface AIProviderOption {
                   }
                 </button>
               </form>
+            </div>
+          </div>
+
+          <!-- Sequence Smart Schedule Settings Card -->
+          <div class="card settings-card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <mat-icon style="color: #3b82f6;">schedule</mat-icon>
+                <h3 style="margin: 0; font-size: 1rem; font-weight: 600;">Sequence Smart Sending Schedule</h3>
+              </div>
+              <button mat-icon-button type="button" (click)="loadScheduleSettings()" [disabled]="loadingScheduleSettings()" style="width: 32px; height: 32px; line-height: 32px;">
+                <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: #94a3b8;">refresh</mat-icon>
+              </button>
+            </div>
+            <div class="card-body">
+              <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 1.25rem; line-height: 1.4;">
+                Configure default local sending windows and active delivery days for contact local timezone-aware email sequences.
+              </p>
+
+              @if (loadingScheduleSettings()) {
+                <div style="display: flex; justify-content: center; padding: 2rem 0;">
+                  <mat-spinner diameter="24"></mat-spinner>
+                </div>
+              } @else {
+                <form [formGroup]="scheduleSettingsForm" (ngSubmit)="onScheduleSettingsSubmit()">
+                  <div style="margin-bottom: 1.25rem;">
+                    <h4 style="font-size: 0.85rem; font-weight: 700; color: #60a5fa; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">wb_sunny</mat-icon>
+                      Morning Sending Window (Default: 08:30 – 11:30)
+                    </h4>
+                    <div class="form-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Morning Start Time</mat-label>
+                        <input matInput type="time" formControlName="morning_start_time" required>
+                      </mat-form-field>
+                      <mat-form-field appearance="outline">
+                        <mat-label>Morning End Time</mat-label>
+                        <input matInput type="time" formControlName="morning_end_time" required>
+                      </mat-form-field>
+                    </div>
+                  </div>
+
+                  <div style="margin-bottom: 1.25rem;">
+                    <h4 style="font-size: 0.85rem; font-weight: 700; color: #f59e0b; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">wb_twilight</mat-icon>
+                      Afternoon Sending Window (Default: 13:30 – 15:30)
+                    </h4>
+                    <div class="form-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Afternoon Start Time</mat-label>
+                        <input matInput type="time" formControlName="afternoon_start_time" required>
+                      </mat-form-field>
+                      <mat-form-field appearance="outline">
+                        <mat-label>Afternoon End Time</mat-label>
+                        <input matInput type="time" formControlName="afternoon_end_time" required>
+                      </mat-form-field>
+                    </div>
+                  </div>
+
+                  <div style="margin-bottom: 1.25rem;">
+                    <h4 style="font-size: 0.85rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">calendar_today</mat-icon>
+                      Active Delivery Days (Mon–Sat default, Sunday excluded)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; background: rgba(255, 255, 255, 0.02); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                      <mat-checkbox formControlName="monday" color="primary">Monday</mat-checkbox>
+                      <mat-checkbox formControlName="tuesday" color="primary">Tuesday</mat-checkbox>
+                      <mat-checkbox formControlName="wednesday" color="primary">Wednesday</mat-checkbox>
+                      <mat-checkbox formControlName="thursday" color="primary">Thursday</mat-checkbox>
+                      <mat-checkbox formControlName="friday" color="primary">Friday</mat-checkbox>
+                      <mat-checkbox formControlName="saturday" color="primary">Saturday</mat-checkbox>
+                      <mat-checkbox formControlName="sunday" color="primary">Sunday</mat-checkbox>
+                    </div>
+                  </div>
+
+                  <div style="margin-bottom: 1.25rem;">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Organization Default Timezone (Fallback)</mat-label>
+                      <input matInput formControlName="org_timezone" placeholder="e.g. Asia/Kolkata or America/New_York" required>
+                    </mat-form-field>
+                  </div>
+
+                  <button mat-flat-button color="primary" class="save-btn" type="submit" [disabled]="scheduleSettingsForm.invalid || savingScheduleSettings()">
+                    @if (savingScheduleSettings()) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      <ng-container>
+                        <mat-icon>save</mat-icon>
+                        Save Schedule Settings
+                      </ng-container>
+                    }
+                  </button>
+                </form>
+              }
             </div>
           </div>
 
@@ -2250,9 +2345,12 @@ export class SettingsComponent implements OnInit {
   private selectedLogoFile: File | null = null;
   private readonly apiService = inject(ApiService);
   private readonly notification = inject(NotificationService);
+  private readonly sequenceService = inject(SequenceService);
 
   readonly savingProfile = signal(false);
   readonly savingPassword = signal(false);
+  readonly loadingScheduleSettings = signal(false);
+  readonly savingScheduleSettings = signal(false);
   readonly team = signal<TeamMember[]>([]);
 
   // Team Invite signals
@@ -2384,6 +2482,21 @@ export class SettingsComponent implements OnInit {
     ]
   });
 
+  readonly scheduleSettingsForm: FormGroup = this.fb.group({
+    morning_start_time: ['08:30', [Validators.required]],
+    morning_end_time: ['11:30', [Validators.required]],
+    afternoon_start_time: ['13:30', [Validators.required]],
+    afternoon_end_time: ['15:30', [Validators.required]],
+    monday: [true],
+    tuesday: [true],
+    wednesday: [true],
+    thursday: [true],
+    friday: [true],
+    saturday: [true],
+    sunday: [false],
+    org_timezone: ['Asia/Kolkata', [Validators.required]]
+  });
+
   passwordMatchValidator(g: FormGroup) {
     return g.get('new_password')?.value === g.get('confirm_password')?.value
       ? null
@@ -2420,12 +2533,55 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loadTeam();
+    this.loadScheduleSettings();
     if (this.isAdmin()) {
       this.loadGmailConfig();
     }
     this.loadPrompts();
     this.loadLinkedInConfig();
     this.loadLLMStats();
+  }
+
+  // ─── Sequence Schedule Settings ──────────────
+  loadScheduleSettings(): void {
+    this.loadingScheduleSettings.set(true);
+    this.sequenceService.getScheduleSettings().subscribe({
+      next: (res) => {
+        this.loadingScheduleSettings.set(false);
+        if (res) {
+          this.scheduleSettingsForm.patchValue({
+            morning_start_time: res.morning_start_time || '08:30',
+            morning_end_time: res.morning_end_time || '11:30',
+            afternoon_start_time: res.afternoon_start_time || '13:30',
+            afternoon_end_time: res.afternoon_end_time || '15:30',
+            monday: res.monday ?? true,
+            tuesday: res.tuesday ?? true,
+            wednesday: res.wednesday ?? true,
+            thursday: res.thursday ?? true,
+            friday: res.friday ?? true,
+            saturday: res.saturday ?? true,
+            sunday: res.sunday ?? false,
+            org_timezone: res.org_timezone || 'Asia/Kolkata'
+          });
+        }
+      },
+      error: () => this.loadingScheduleSettings.set(false)
+    });
+  }
+
+  onScheduleSettingsSubmit(): void {
+    if (this.scheduleSettingsForm.invalid) return;
+    this.savingScheduleSettings.set(true);
+    this.sequenceService.updateScheduleSettings(this.scheduleSettingsForm.value).subscribe({
+      next: () => {
+        this.savingScheduleSettings.set(false);
+        this.notification.success('Sequence sending window schedule settings updated successfully');
+      },
+      error: (err) => {
+        this.savingScheduleSettings.set(false);
+        this.notification.error(err.error?.error?.message || 'Failed to save schedule settings');
+      }
+    });
   }
 
   // ─── Profile ────────────────────────────────

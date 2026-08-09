@@ -28,7 +28,7 @@ export class SequenceService {
   }
 
   updateSequence(id: string, sequence: Partial<Sequence>): Observable<Sequence> {
-    return this.api.put<Sequence>(`/sequences/${id}/`, sequence);
+    return this.api.patch<Sequence>(`/sequences/${id}/`, sequence);
   }
 
   deleteSequence(id: string): Observable<void> {
@@ -59,6 +59,14 @@ export class SequenceService {
     return this.api.post<SequenceEnrollment>(`/sequences/enrollments/${id}/stop/`, { reason });
   }
 
+  sendNowEnrollment(id: string): Observable<SequenceEnrollment> {
+    return this.api.post<SequenceEnrollment>(`/sequences/enrollments/${id}/send-now/`, {});
+  }
+
+  scheduleEnrollment(id: string, payload?: { send_mode?: string; manual_time_utc?: string }): Observable<SequenceEnrollment> {
+    return this.api.post<SequenceEnrollment>(`/sequences/enrollments/${id}/schedule/`, payload || {});
+  }
+
   bulkPauseEnrollments(ids: string[]): Observable<any> {
     if (!ids || ids.length === 0) return of([]);
     return forkJoin(ids.map(id => this.pauseEnrollment(id)));
@@ -78,8 +86,12 @@ export class SequenceService {
     return this.api.get<PaginatedResult<SequenceEmailDraft>>('/sequences/approvals/');
   }
 
-  approveDraft(id: string, payload?: { subject?: string; reply_to?: string; body_html?: string; body_text?: string }): Observable<SequenceEmailDraft> {
+  approveDraft(id: string, payload?: { subject?: string; reply_to?: string; body_html?: string; body_text?: string; send_now?: boolean; send_mode?: string; manual_time_utc?: string }): Observable<SequenceEmailDraft> {
     return this.api.post<SequenceEmailDraft>(`/sequences/approvals/${id}/approve/`, payload || {});
+  }
+
+  sendNowDraft(id: string): Observable<SequenceEmailDraft> {
+    return this.api.post<SequenceEmailDraft>(`/sequences/approvals/${id}/send-now/`, {});
   }
 
   regenerateDraft(id: string, feedback: string): Observable<SequenceEmailDraft> {
@@ -88,6 +100,14 @@ export class SequenceService {
 
   rejectDraft(id: string, reason?: string, stopEnrollment: boolean = true): Observable<SequenceEmailDraft> {
     return this.api.post<SequenceEmailDraft>(`/sequences/approvals/${id}/reject/`, { reason, stop_enrollment: stopEnrollment });
+  }
+
+  getScheduleSettings(): Observable<any> {
+    return this.api.get<any>('/sequences/schedule-settings/');
+  }
+
+  updateScheduleSettings(settings: any): Observable<any> {
+    return this.api.patch<any>('/sequences/schedule-settings/', settings);
   }
 
   getDashboardMetrics(sequenceId?: string): Observable<SequenceDashboardMetrics> {

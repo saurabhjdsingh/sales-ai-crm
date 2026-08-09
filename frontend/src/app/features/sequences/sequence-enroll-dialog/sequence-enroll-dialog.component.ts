@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -15,6 +16,8 @@ export interface SequenceEnrollDialogData {
   contactName?: string;
   contactEmail?: string;
   contactIds?: string[];
+  listId?: string;
+  listName?: string;
 }
 
 @Component({
@@ -30,14 +33,18 @@ export interface SequenceEnrollDialogData {
   ],
   template: `
     <h2 mat-dialog-title class="dialog-title">
-      <mat-icon class="title-icon">auto_awesome</mat-icon> {{ contactCount > 1 ? 'Enroll Contacts in Sequence' : 'Enroll Contact in Sequence' }}
+      <mat-icon class="title-icon">auto_awesome</mat-icon>
+      {{ data.listId ? 'Enroll List Contacts in Sequence' : (contactCount > 1 ? 'Enroll Contacts in Sequence' : 'Enroll Contact in Sequence') }}
     </h2>
 
     <div mat-dialog-content class="dialog-content">
-      <p class="subtitle" *ngIf="data.contactIds && data.contactIds.length > 1">
+      <p class="subtitle" *ngIf="data.listId">
+        Select an active outreach sequence to enroll contacts in <strong>'{{ data.listName || 'Prospect List' }}'</strong>:
+      </p>
+      <p class="subtitle" *ngIf="!data.listId && data.contactIds && data.contactIds.length > 1">
         Select an active outreach sequence for <strong>{{ data.contactIds.length }} selected contacts</strong>:
       </p>
-      <p class="subtitle" *ngIf="!data.contactIds || data.contactIds.length <= 1">
+      <p class="subtitle" *ngIf="!data.listId && (!data.contactIds || data.contactIds.length <= 1)">
         Select an active outreach sequence for <strong>{{ data.contactName || 'selected contact' }}</strong>:
       </p>
 
@@ -98,7 +105,7 @@ export interface SequenceEnrollDialogData {
         [disabled]="!selectedSequenceId || enrolling || hasMissingEmail"
         class="submit-btn"
       >
-        {{ enrolling ? 'Enrolling...' : ('Enroll ' + (contactCount > 1 ? contactCount + ' Contacts' : 'Contact')) }}
+        {{ enrolling ? 'Enrolling...' : (data.listId ? 'Enroll List Contacts' : ('Enroll ' + (contactCount > 1 ? contactCount + ' Contacts' : 'Contact'))) }}
       </button>
     </div>
   `,
@@ -283,6 +290,7 @@ export class SequenceEnrollDialogComponent implements OnInit {
   private readonly sequenceService = inject(SequenceService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly http = inject(HttpClient);
 
   sequences: Sequence[] = [];
   selectedSequenceId: string | null = null;
@@ -299,7 +307,7 @@ export class SequenceEnrollDialogComponent implements OnInit {
   }
 
   get hasMissingEmail(): boolean {
-    if (this.data.contactEmail !== undefined && (!this.data.contactEmail || !this.data.contactEmail.trim())) {
+    if (!this.data.listId && this.data.contactEmail !== undefined && (!this.data.contactEmail || !this.data.contactEmail.trim())) {
       return true;
     }
     return false;
@@ -333,6 +341,30 @@ export class SequenceEnrollDialogComponent implements OnInit {
   onEnroll(): void {
     if (!this.selectedSequenceId) return;
 
+    const targetSeq = this.sequences.find((s) => s.id === this.selectedSequenceId);
+
+    // List bulk enrollment
+    if (this.data.listId) {
+      this.enrolling = true;
+      this.http.post<any>(`/api/v1/prospect-lists/${this.data.listId}/enroll-in-sequence/`, { sequence_id: this.selectedSequenceId }).subscribe({
+        next: (res) => {
+          this.enrolling = false;
+          let msg = `Enrolled ${res.enrolled_count} contacts into '${targetSeq?.name || 'Sequence'}'.`;
+          if (res.skipped_no_email_count > 0) {
+            msg += ` (Skipped ${res.skipped_no_email_count} contacts without email)`;
+          }
+          this.notification.success(msg);
+          this.dialogRef.close(true);
+        },
+        error: (err) => {
+          this.enrolling = false;
+          const msg = err.error?.detail || err.error?.error || err.message || 'List enrollment failed.';
+          this.notification.error(msg);
+        }
+      });
+      return;
+    }
+
     const targetIds = this.data.contactIds?.length
       ? this.data.contactIds
       : (this.data.contactId ? [this.data.contactId] : []);
@@ -340,7 +372,6 @@ export class SequenceEnrollDialogComponent implements OnInit {
     if (targetIds.length === 0) return;
 
     this.enrolling = true;
-    const targetSeq = this.sequences.find((s) => s.id === this.selectedSequenceId);
 
     this.sequenceService.enrollContacts(this.selectedSequenceId, { contact_ids: targetIds }).subscribe({
       next: () => {

@@ -66,6 +66,15 @@ import { SequenceStep, SequenceActionType, DelayUnit } from '../../../core/model
             <input type="email" [(ngModel)]="replyTo" placeholder="reply@company.com (optional)" class="form-input" />
             <span class="field-hint">Auto-pushed to every AI draft. Editable during approval.</span>
           </div>
+          <div class="form-group">
+            <label class="form-label">Default Step Send Mode</label>
+            <select [(ngModel)]="defaultSendMode" class="form-select">
+              <option value="smart_send">Smart Send (Timezone-Aware Local Window)</option>
+              <option value="immediate">Send Immediately</option>
+              <option value="manual">Manual Schedule</option>
+            </select>
+            <span class="field-hint">Default delivery mode for AI email steps in this sequence.</span>
+          </div>
 
           <div class="toggle-group">
             <div class="toggle-row">
@@ -416,6 +425,7 @@ export class SequenceBuilderComponent implements OnInit {
 
   emailAccountRole: string = 'primary';
   replyTo: string = '';
+  defaultSendMode: 'smart_send' | 'immediate' | 'manual' = 'smart_send';
 
   readonly contactStageOptions = [
     { value: 'cold', label: 'Cold' },
@@ -494,6 +504,7 @@ export class SequenceBuilderComponent implements OnInit {
         }
         this.emailAccountRole = seq.email_account_role || 'primary';
         this.replyTo = seq.reply_to || '';
+        this.defaultSendMode = seq.default_send_mode || 'smart_send';
         if (seq.steps && seq.steps.length > 0) {
           this.steps = seq.steps;
         }
@@ -594,6 +605,7 @@ export class SequenceBuilderComponent implements OnInit {
       auto_stop_deal_stages: this.autoStopDealStages,
       email_account_role: this.emailAccountRole,
       reply_to: this.replyTo,
+      default_send_mode: this.defaultSendMode,
       steps: this.steps
     };
 

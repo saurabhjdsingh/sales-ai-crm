@@ -20,7 +20,7 @@ class ContactService:
     @staticmethod
     def get_contact(contact_id: UUID) -> Contact:
         try:
-            return Contact.objects.select_related("company", "owner").get(id=contact_id)
+            return Contact.objects.select_related("company", "owner").prefetch_related("lists").get(id=contact_id)
         except Contact.DoesNotExist:
             raise EntityNotFoundException(f"Contact with id {contact_id} not found.")
 
@@ -28,6 +28,7 @@ class ContactService:
     def get_contacts_queryset():
         from django.db.models import ExpressionWrapper, BooleanField, Q
         return Contact.objects.select_related("company", "owner").prefetch_related(
+            "lists",
             "sequence_enrollments__sequence",
             "sequence_enrollments__executions",
         ).annotate(
@@ -38,7 +39,11 @@ class ContactService:
     @staticmethod
     @transaction.atomic
     def create_contact(data: dict, user) -> Contact:
+        lists = data.pop("lists", None)
         contact = Contact.objects.create(**data, created_by=user, updated_by=user)
+        if lists is not None:
+            contact.lists.set(lists)
+
         ContactService._log_activity(
             contact=contact,
             activity_type=ActivityType.IMPORT,
@@ -68,6 +73,10 @@ class ContactService:
     @staticmethod
     @transaction.atomic
     def update_contact(contact: Contact, data: dict, user) -> Contact:
+        lists = data.pop("lists", None)
+        if lists is not None:
+            contact.lists.set(lists)
+
         old_stage = contact.stage
         for key, value in data.items():
             setattr(contact, key, value)

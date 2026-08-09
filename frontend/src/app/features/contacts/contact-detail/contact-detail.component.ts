@@ -23,6 +23,8 @@ import { SequenceService } from '../../sequences/services/sequence.service';
 import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-dialog/sequence-enroll-dialog.component';
 import { ContactEmailComposerComponent } from '../contact-email-composer/contact-email-composer.component';
 
+import { MatTooltipModule } from '@angular/material/tooltip';
+
 @Component({
   selector: 'app-contact-detail',
   standalone: true,
@@ -34,6 +36,7 @@ import { ContactEmailComposerComponent } from '../contact-email-composer/contact
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     TimelineComponent,
     AIChatPanelComponent
   ],
@@ -95,13 +98,14 @@ import { ContactEmailComposerComponent } from '../contact-email-composer/contact
                   <mat-icon style="font-size: 16px; width: 16px; height: 16px;">call</mat-icon>
                 </button>
               </div>
-              <div class="info-item" *ngIf="contact.timezone">
-                <mat-icon>schedule</mat-icon>
+              <div class="info-item" *ngIf="contact.timezone" [matTooltip]="'Timezone source: ' + (contact.timezone_source || 'AUTOMATIC') + ' (' + (contact.timezone_confidence || 'HIGH') + ' confidence)'">
+                <mat-icon style="color: #3b82f6;">schedule</mat-icon>
                 <span>{{ contact.timezone }}</span>
+                <span class="badge" style="font-size: 0.65rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 1px 5px; border-radius: 4px; text-transform: uppercase;">{{ contact.timezone_source || 'AUTO' }}</span>
               </div>
-              <div class="info-item" *ngIf="contact.country">
-                <mat-icon>place</mat-icon>
-                <span>{{ contact.country }}</span>
+              <div class="info-item" *ngIf="contact.city || contact.state || contact.country">
+                <mat-icon style="color: #f59e0b;">place</mat-icon>
+                <span>{{ getLocationDisplay(contact) }}</span>
               </div>
               <div class="info-item" *ngIf="contact.company_website">
                 <mat-icon>language</mat-icon>
@@ -978,6 +982,12 @@ export class ContactDetailComponent implements OnInit {
   readonly tasks = signal<Task[]>([]);
   readonly notes = signal<Note[]>([]);
   readonly emailThreads = signal<EmailThread[]>([]);
+
+  getLocationDisplay(contact: any): string {
+    if (!contact) return '';
+    const parts = [contact.city, contact.state, contact.country_display || contact.country].filter(Boolean);
+    return parts.join(', ');
+  }
 
   getThreadDirection(thread: EmailThread): string {
     if (thread.messages && thread.messages.length > 0) {
