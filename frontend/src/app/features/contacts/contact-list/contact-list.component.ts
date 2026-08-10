@@ -20,6 +20,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SequenceEnrollDialogComponent } from '../../sequences/sequence-enroll-dialog/sequence-enroll-dialog.component';
+import { ProspectListAddDialogComponent } from '../../prospect-lists/prospect-list-add-dialog/prospect-list-add-dialog.component';
 import { AdvanceFilterDrawerComponent, AdvanceFilterState } from '../../../shared/components/advance-filter-drawer/advance-filter-drawer.component';
 
 @Component({
@@ -296,6 +297,10 @@ import { AdvanceFilterDrawerComponent, AdvanceFilterState } from '../../../share
             <mat-icon>play_circle</mat-icon>
             <span>Enroll in Sequence</span>
           </button>
+          <button mat-flat-button (click)="openBulkAddToListDialog()" class="bulk-list-btn">
+            <mat-icon>playlist_add</mat-icon>
+            <span>Add to List</span>
+          </button>
           <button mat-flat-button color="warn" (click)="bulkDelete()" class="bulk-delete-btn">
             <mat-icon>delete</mat-icon>
             <span>Delete Selected</span>
@@ -548,54 +553,130 @@ import { AdvanceFilterDrawerComponent, AdvanceFilterState } from '../../../share
 
     .bulk-actions-banner {
       position: fixed;
-      bottom: 2rem;
+      bottom: 1.5rem;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      border-radius: 12px;
-      padding: 0.75rem 1.5rem;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 16px;
+      padding: 0.625rem 1.25rem;
       display: flex;
       align-items: center;
-      gap: 1.5rem;
+      gap: 1rem;
       z-index: 1000;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.04);
+      animation: bannerSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      white-space: nowrap;
+    }
+
+    @keyframes bannerSlideUp {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
     }
 
     .selection-info {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.95rem;
-      color: #f8fafc;
+      font-size: 0.875rem;
+      color: #e2e8f0;
+      padding-right: 0.5rem;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      margin-right: 0.25rem;
     }
 
     .selection-info .count {
       font-weight: 700;
-      color: #3b82f6;
+      color: #60a5fa;
       background: rgba(59, 130, 246, 0.15);
-      padding: 0.1rem 0.5rem;
-      border-radius: 4px;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
     }
 
     .info-icon {
-      color: #3b82f6;
+      color: #60a5fa;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .bulk-enroll-btn,
+    .bulk-list-btn,
+    .bulk-delete-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.375rem !important;
+      height: 34px !important;
+      padding: 0 0.875rem !important;
+      border-radius: 8px !important;
+      font-weight: 600 !important;
+      font-size: 0.8rem !important;
+      letter-spacing: 0.01em !important;
+      border: none !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+      white-space: nowrap !important;
+    }
+
+    .bulk-enroll-btn ::ng-deep .mat-icon,
+    .bulk-list-btn ::ng-deep .mat-icon,
+    .bulk-delete-btn ::ng-deep .mat-icon {
+      font-size: 18px !important;
+      width: 18px !important;
+      height: 18px !important;
+      margin: 0 !important;
     }
 
     .bulk-enroll-btn {
-      background-color: #3b82f6 !important;
-      color: white !important;
-      border-radius: 6px;
-      font-weight: 600;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.4) !important;
+    }
+    .bulk-enroll-btn:hover {
+      background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%) !important;
+      box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.5) !important;
+    }
+
+    .bulk-list-btn {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 8px -2px rgba(124, 58, 237, 0.4) !important;
+    }
+    .bulk-list-btn:hover {
+      background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%) !important;
+      box-shadow: 0 4px 12px -2px rgba(124, 58, 237, 0.5) !important;
     }
 
     .bulk-delete-btn {
-      background-color: #ef4444 !important;
-      color: white !important;
-      border-radius: 6px;
-      font-weight: 600;
+      background: rgba(239, 68, 68, 0.12) !important;
+      color: #f87171 !important;
+      border: 1px solid rgba(239, 68, 68, 0.25) !important;
+      box-shadow: none !important;
+    }
+    .bulk-delete-btn:hover {
+      background: rgba(239, 68, 68, 0.2) !important;
+      color: #fca5a5 !important;
+      border-color: rgba(239, 68, 68, 0.4) !important;
+    }
+
+    .clear-btn {
+      color: #64748b !important;
+      font-size: 0.8rem !important;
+      font-weight: 500 !important;
+      min-width: auto !important;
+      padding: 0 0.5rem !important;
+    }
+    .clear-btn:hover {
+      color: #94a3b8 !important;
     }
 
     .seq-status-pill {
@@ -694,8 +775,48 @@ import { AdvanceFilterDrawerComponent, AdvanceFilterState } from '../../../share
     :host-context(body.light-theme) ::ng-deep .dark-table td.mat-mdc-cell { color: #1e293b; border-bottom-color: #f1f5f9; }
     :host-context(body.light-theme) .contact-name { color: #0f172a; }
     :host-context(body.light-theme) .dark-paginator { background-color: #ffffff !important; color: #64748b !important; border-top-color: #e2e8f0; }
-    :host-context(body.light-theme) .bulk-actions-banner { background-color: #ffffff; border-color: #cbd5e1; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
-    :host-context(body.light-theme) .selection-info { color: #0f172a; }
+
+    :host-context(body.light-theme) .bulk-actions-banner {
+      background: rgba(255, 255, 255, 0.95);
+      border-color: #e2e8f0;
+      box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    }
+    :host-context(body.light-theme) .selection-info {
+      color: #1e293b;
+      border-right-color: #e2e8f0;
+    }
+    :host-context(body.light-theme) .selection-info .count {
+      color: #2563eb;
+      background: rgba(37, 99, 235, 0.1);
+    }
+    :host-context(body.light-theme) .info-icon { color: #2563eb; }
+    :host-context(body.light-theme) .bulk-enroll-btn {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.35) !important;
+    }
+    :host-context(body.light-theme) .bulk-enroll-btn:hover {
+      background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%) !important;
+    }
+    :host-context(body.light-theme) .bulk-list-btn {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 8px -2px rgba(109, 40, 217, 0.35) !important;
+    }
+    :host-context(body.light-theme) .bulk-list-btn:hover {
+      background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%) !important;
+    }
+    :host-context(body.light-theme) .bulk-delete-btn {
+      background: rgba(239, 68, 68, 0.08) !important;
+      color: #dc2626 !important;
+      border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    }
+    :host-context(body.light-theme) .bulk-delete-btn:hover {
+      background: rgba(239, 68, 68, 0.15) !important;
+      color: #b91c1c !important;
+    }
+    :host-context(body.light-theme) .clear-btn { color: #64748b !important; }
+    :host-context(body.light-theme) .clear-btn:hover { color: #475569 !important; }
   `]
 })
 export class ContactListComponent implements OnInit {
@@ -840,6 +961,24 @@ export class ContactListComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe((enrolled) => {
       if (enrolled) {
+        this.selection.clear();
+        this.store.loadContacts();
+      }
+    });
+  }
+
+  openBulkAddToListDialog(): void {
+    const contactIds = [...this.selection.selected];
+    if (!contactIds.length) return;
+
+    const dialogRef = this.dialog.open(ProspectListAddDialogComponent, {
+      width: '640px',
+      panelClass: 'dark-dialog-panel',
+      data: { contactIds }
+    });
+
+    dialogRef.afterClosed().subscribe((added) => {
+      if (added) {
         this.selection.clear();
         this.store.loadContacts();
       }

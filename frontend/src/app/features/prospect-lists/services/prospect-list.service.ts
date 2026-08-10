@@ -80,4 +80,8 @@ export class ProspectListService {
   removeContactFromList(listId: string, contactId: string): Observable<any> {
     return this.http.post(`${this.apiUrl}${listId}/remove-contact/`, { contact_id: contactId });
   }
+
+  bulkAddContacts(listId: string, contactIds: string[]): Observable<any> {
+    return this.http.post(`${this.apiUrl}${listId}/bulk-add-contacts/`, { contact_ids: contactIds });
+  }
 }

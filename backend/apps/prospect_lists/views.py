@@ -93,6 +93,24 @@ class ProspectListViewSet(viewsets.ModelViewSet):
             "contact_count": prospect_list.contact_count
         })
 
+    @action(detail=True, methods=["post"], url_path="bulk-add-contacts")
+    def bulk_add_contacts(self, request, pk=None):
+        """Add multiple contacts to a prospect list in one request."""
+        prospect_list = self.get_object()
+        contact_ids = request.data.get("contact_ids", [])
+        if not contact_ids or not isinstance(contact_ids, list):
+            return Response(
+                {"error": "contact_ids list is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        contacts = Contact.objects.filter(pk__in=contact_ids, is_deleted=False)
+        prospect_list.contacts.add(*contacts)
+        return Response({
+            "status": "contacts added to list",
+            "added_count": contacts.count(),
+            "contact_count": prospect_list.contact_count,
+        })
+
     @action(detail=True, methods=["get"])
     def companies(self, request, pk=None):
         prospect_list = self.get_object()
