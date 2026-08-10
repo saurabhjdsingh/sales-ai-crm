@@ -9,8 +9,6 @@ COMPANY_FIELD_MAP = {
     "industry": {"required": False, "aliases": ["sector", "vertical"]},
     "company_size": {"required": False, "aliases": ["size", "employees", "employee_count", "num_employees"]},
     "country": {"required": False, "aliases": ["country", "location", "hq_country", "headquarters", "company_country"]},
-    "city": {"required": False, "aliases": ["city", "town", "hq_city", "company_city"]},
-    "state": {"required": False, "aliases": ["state", "province", "region", "hq_state", "company_state", "state_code"]},
     "linkedin_url": {"required": False, "aliases": ["linkedin", "linkedin_company_url", "company_linkedin"]},
     "apollo_id": {"required": False, "aliases": ["apollo_organization_id"]},
     "description": {"required": False, "aliases": ["about", "bio", "summary", "company_description"]},

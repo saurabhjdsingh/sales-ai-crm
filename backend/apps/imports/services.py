@@ -161,7 +161,7 @@ class ImportService:
                         existing.lists.add(prospect_list)
 
                     updated_company_fields = []
-                    for f_name in ["website", "industry", "company_size", "city", "state", "linkedin_url", "description"]:
+                    for f_name in ["website", "industry", "company_size", "linkedin_url", "description"]:
                         col_name = mapping.get(f_name)
                         if col_name and row.get(col_name):
                             val = str(row[col_name]).strip()
@@ -198,7 +198,7 @@ class ImportService:
                 }
 
                 # Map optional fields
-                for field in ["website", "industry", "company_size", "country", "city", "state", "linkedin_url", "apollo_id", "description"]:
+                for field in ["website", "industry", "company_size", "country", "linkedin_url", "apollo_id", "description"]:
                     csv_col = mapping.get(field)
                     if csv_col and row.get(csv_col):
                         company_data[field] = str(row[csv_col]).strip()
@@ -300,8 +300,7 @@ class ImportService:
                         "company_website": "website",
                         "company_industry": "industry",
                         "company_size": "company_size",
-                        "company_city": "city",
-                        "company_state": "state",
+
                         "company_linkedin_url": "linkedin_url",
                         "company_description": "description",
                         "country": "country",
@@ -334,7 +333,7 @@ class ImportService:
                                 updated = True
                         if updated:
                             company.save(update_fields=[
-                                "website", "industry", "company_size", "city", "state",
+                                "website", "industry", "company_size",
                                 "linkedin_url", "description", "country"
                             ])
 
