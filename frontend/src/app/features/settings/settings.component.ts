@@ -2411,7 +2411,7 @@ export class SettingsComponent implements OnInit {
       name: 'OpenAI',
       icon: '🟢',
       color: '#10a37f',
-      defaultModels: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+      defaultModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-4o', 'gpt-4o-mini', 'o3-mini'],
       placeholder: 'sk-proj-...'
     },
     {

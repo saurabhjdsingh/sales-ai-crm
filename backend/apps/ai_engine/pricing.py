@@ -46,8 +46,20 @@ def calculate_cost(model_name: str, input_tokens: int, output_tokens: int) -> fl
         output_rate = 5.00
 
     # -----------------------------
-    # OpenAI GPT-5 Family
+    # OpenAI GPT-5 / GPT-5.6 Family
     # -----------------------------
+
+    elif "gpt-5.6-luna" in model or "luna" in model:
+        input_rate = 0.20
+        output_rate = 1.20
+
+    elif "gpt-5.6-sol" in model or "sol" in model:
+        input_rate = 5.00
+        output_rate = 30.00
+
+    elif "gpt-5.6-terra" in model or "terra" in model:
+        input_rate = 2.00
+        output_rate = 12.00
 
     elif "gpt-5-mini" in model:
         input_rate = 0.25

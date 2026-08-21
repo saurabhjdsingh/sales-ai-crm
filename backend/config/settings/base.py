@@ -278,7 +278,7 @@ OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 
 AI_DEFAULT_PROVIDER = config("AI_DEFAULT_PROVIDER", default="claude")
 AI_CLAUDE_MODEL = config("ANTHROPIC_MODEL", default=config("AI_CLAUDE_MODEL", default="claude-3-5-sonnet-20241022"))
-AI_OPENAI_MODEL = config("AI_OPENAI_MODEL", default="gpt-4o")
+AI_OPENAI_MODEL = config("AI_OPENAI_MODEL", default="gpt-5.6-luna")
 AI_MAX_CONTEXT_TOKENS = config("AI_MAX_CONTEXT_TOKENS", default=8000, cast=int)
 AI_MAX_RESPONSE_TOKENS = config("AI_MAX_RESPONSE_TOKENS", default=4096, cast=int)
 

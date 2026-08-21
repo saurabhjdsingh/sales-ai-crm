@@ -444,7 +444,7 @@ export class AIConfigDialogComponent implements OnInit {
   readonly showKey = signal(false);
 
   readonly providers = [
-    { id: 'openai', name: 'OpenAI GPT', icon: '🤖', defaultModels: ['gpt-4o', 'gpt-4-turbo'] },
+    { id: 'openai', name: 'OpenAI GPT', icon: '🤖', defaultModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-4o', 'gpt-4-turbo'] },
     { id: 'anthropic', name: 'Anthropic Claude', icon: '🧠', defaultModels: ['claude-3-5-sonnet', 'claude-3-opus'] },
     { id: 'gemini', name: 'Google Gemini', icon: '✨', defaultModels: ['gemini-1.5-pro', 'gemini-1.5-flash'] },
     { id: 'custom', name: 'Local/Custom Ollama', icon: '💻', defaultModels: ['llama3', 'mistral'] }
