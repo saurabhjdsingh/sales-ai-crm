@@ -35,18 +35,23 @@ logger = logging.getLogger(__name__)
 def get_public_base_url(request=None, fallback_base_url: str = "") -> str:
     """
     Computes the true public base URL for tracking links/pixels.
-    Handles Cloudflare Tunnels, X-Forwarded-Host, and SITE_URL environment settings.
-    Ensures HTTPS protocol for external proxy domains (e.g. pinggy, ngrok, cloudflare).
+    Handles Cloudflare Tunnels, X-Forwarded-Host, and SITE_URL / BACKEND_URL / FRONTEND_URL environment settings.
+    Ensures HTTPS protocol for external proxy domains (e.g. pinggy, ngrok, cloudflare, custom domains).
     """
     from django.conf import settings
 
-    site_url = getattr(settings, "SITE_URL", "").strip()
-    if site_url and "localhost" not in site_url and "127.0.0.1" not in site_url:
-        url = site_url.rstrip("/")
-        if not url.startswith("http://") and not url.startswith("https://"):
-            url = "https://" + url
-        return url
+    # 1. First priority: Check explicit SITE_URL, BACKEND_URL, or FRONTEND_URL
+    for candidate_name in ["SITE_URL", "BACKEND_URL", "FRONTEND_URL"]:
+        candidate = getattr(settings, candidate_name, "").strip()
+        if candidate and "localhost" not in candidate and "127.0.0.1" not in candidate:
+            url = candidate.rstrip("/")
+            if url.endswith("/api"):
+                url = url[:-4]
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            return url
 
+    # 2. Second priority: Infer from incoming HTTP request headers (traefik/nginx reverse proxy)
     if request:
         forwarded_host = request.META.get("HTTP_X_FORWARDED_HOST") or request.META.get("HTTP_HOST", "")
         forwarded_proto = request.META.get("HTTP_X_FORWARDED_PROTO") or ("https" if request.is_secure() else "http")
@@ -64,11 +69,14 @@ def get_public_base_url(request=None, fallback_base_url: str = "") -> str:
                 uri = "https://" + uri[7:]
         return uri
 
+    # 3. Third priority: Non-localhost fallback passed by caller
     if fallback_base_url and "localhost" not in fallback_base_url and "127.0.0.1" not in fallback_base_url:
         if fallback_base_url.startswith("http://"):
             fallback_base_url = "https://" + fallback_base_url[7:]
         return fallback_base_url.rstrip("/")
 
+    # 4. Ultimate fallback (local development default)
+    site_url = getattr(settings, "SITE_URL", "").strip()
     return (site_url or fallback_base_url or getattr(settings, "FRONTEND_URL", "http://localhost:8000")).rstrip("/")
 
 
@@ -386,6 +394,10 @@ class SequenceEngineService:
         - send_mode='manual': Schedule for a specific manual_time_utc.
         - send_mode='immediate' (or legacy default): Send immediately.
         """
+        if draft.status == DraftStatus.SENT:
+            logger.warning("Draft %s is already sent. Skipping duplicate dispatch.", draft.id)
+            return draft
+
         if draft.status not in [DraftStatus.DRAFT_PENDING, DraftStatus.APPROVED, DraftStatus.SCHEDULED]:
             raise ValueError(f"Draft {draft.id} cannot be approved from status '{draft.status}'.")
 
@@ -487,6 +499,16 @@ class SequenceEngineService:
             return draft
 
         # Mode: IMMEDIATE — proceed with sending
+        # Safety check: Reload status from DB to ensure no concurrent worker already sent this draft
+        try:
+            current_status = SequenceEmailDraft.objects.filter(id=draft.id).values_list("status", flat=True).first()
+            if current_status == DraftStatus.SENT:
+                logger.warning("Draft %s was already sent concurrently by another process. Skipping.", draft.id)
+                draft.status = DraftStatus.SENT
+                return draft
+        except Exception:
+            pass
+
         sequence = draft.enrollment.sequence
         effective_base_url = get_public_base_url(fallback_base_url=base_url)
 
@@ -654,69 +676,83 @@ class SequenceEngineService:
         Background runner: Finds scheduled drafts whose scheduled_at_utc <= now()
         and sends them via the existing email delivery pipeline.
         Called periodically by Celery (every minute alongside process_due_executions).
+        Uses atomic select_for_update(skip_locked=True) to prevent duplicate execution across workers.
         """
         now = timezone.now()
-        due_drafts = SequenceEmailDraft.objects.filter(
-            status=DraftStatus.SCHEDULED,
-            scheduled_at_utc__lte=now,
-        ).select_related(
-            "contact", "enrollment__sequence", "enrollment__company",
-            "enrollment__deal", "execution__step", "sender",
+        due_draft_ids = list(
+            SequenceEmailDraft.objects.filter(
+                status=DraftStatus.SCHEDULED,
+                scheduled_at_utc__lte=now,
+            ).values_list("id", flat=True)
         )
 
         sent_count = 0
-        for draft in due_drafts:
+        for draft_id in due_draft_ids:
             try:
-                # Pre-send validation: check enrollment is still active
-                enrollment = draft.enrollment
-                if enrollment.status in [
-                    EnrollmentStatus.STOPPED,
-                    EnrollmentStatus.COMPLETED,
-                    EnrollmentStatus.FAILED,
-                ]:
-                    draft.status = DraftStatus.CANCELLED
-                    draft.save(update_fields=["status", "updated_at"])
-                    logger.info(
-                        "Cancelled scheduled draft %s — enrollment %s is %s",
-                        draft.id, enrollment.id, enrollment.status,
+                with transaction.atomic():
+                    draft = (
+                        SequenceEmailDraft.objects.select_for_update(skip_locked=True)
+                        .filter(id=draft_id, status=DraftStatus.SCHEDULED)
+                        .select_related(
+                            "contact", "enrollment__sequence", "enrollment__company",
+                            "enrollment__deal", "execution__step", "sender",
+                        )
+                        .first()
                     )
-                    continue
+                    if not draft:
+                        # Row is either locked by another concurrent worker or already sent
+                        continue
 
-                # Check if contact has replied (auto-stop check)
-                if enrollment.has_replied and enrollment.sequence.auto_stop_on_reply:
-                    draft.status = DraftStatus.CANCELLED
-                    draft.save(update_fields=["status", "updated_at"])
-                    logger.info("Cancelled scheduled draft %s — contact has replied", draft.id)
-                    continue
+                    # Pre-send validation: check enrollment is still active
+                    enrollment = draft.enrollment
+                    if enrollment.status in [
+                        EnrollmentStatus.STOPPED,
+                        EnrollmentStatus.COMPLETED,
+                        EnrollmentStatus.FAILED,
+                    ]:
+                        draft.status = DraftStatus.CANCELLED
+                        draft.save(update_fields=["status", "updated_at"])
+                        logger.info(
+                            "Cancelled scheduled draft %s — enrollment %s is %s",
+                            draft.id, enrollment.id, enrollment.status,
+                        )
+                        continue
 
-                # Send the email immediately (force send_now=True)
-                user = draft.sender
-                if not user:
-                    user = enrollment.enrolled_by
+                    # Check if contact has replied (auto-stop check)
+                    if enrollment.has_replied and enrollment.sequence.auto_stop_on_reply:
+                        draft.status = DraftStatus.CANCELLED
+                        draft.save(update_fields=["status", "updated_at"])
+                        logger.info("Cancelled scheduled draft %s — contact has replied", draft.id)
+                        continue
 
-                if not user:
-                    logger.error("No sender for scheduled draft %s, skipping", draft.id)
-                    continue
+                    # Send the email immediately (force send_now=True)
+                    user = draft.sender
+                    if not user:
+                        user = enrollment.enrolled_by
 
-                base_url = ""
-                from django.conf import settings as django_settings
-                base_url = getattr(django_settings, "SITE_URL", "") or "http://localhost:8000"
+                    if not user:
+                        logger.error("No sender for scheduled draft %s, skipping", draft.id)
+                        continue
 
-                SequenceEngineService.approve_and_send_draft(
-                    draft=draft,
-                    user=user,
-                    base_url=base_url,
-                    send_now=True,
-                )
-                sent_count += 1
-                logger.info(
-                    "Sent scheduled draft %s for contact %s (was scheduled for %s)",
-                    draft.id, draft.contact.full_name, draft.scheduled_at_utc,
-                )
+                    base_url = ""
+                    from django.conf import settings as django_settings
+                    base_url = getattr(django_settings, "SITE_URL", "") or "http://localhost:8000"
+
+                    SequenceEngineService.approve_and_send_draft(
+                        draft=draft,
+                        user=user,
+                        base_url=base_url,
+                        send_now=True,
+                    )
+                    sent_count += 1
+                    logger.info(
+                        "Sent scheduled draft %s for contact %s (was scheduled for %s)",
+                        draft.id, draft.contact.full_name, draft.scheduled_at_utc,
+                    )
 
             except Exception as e:
                 logger.error(
-                    "Error sending scheduled draft %s: %s", draft.id, e, exc_info=True
+                    "Error sending scheduled draft %s: %s", draft_id, e, exc_info=True
                 )
 
         return sent_count
