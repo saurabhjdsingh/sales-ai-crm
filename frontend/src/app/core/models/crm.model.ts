@@ -385,6 +385,7 @@ export interface Sequence {
   steps_count?: number;
   active_enrollments_count?: number;
   total_enrolled_count?: number;
+  pending_approvals_count?: number;
   steps?: SequenceStep[];
   created_at: string;
   updated_at: string;

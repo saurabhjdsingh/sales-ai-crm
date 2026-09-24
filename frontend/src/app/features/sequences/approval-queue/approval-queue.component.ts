@@ -1,14 +1,15 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { SequenceService } from '../services/sequence.service';
 import { SequenceStore } from '../store/sequence.store';
-import { SequenceEmailDraft } from '../../../core/models/crm.model';
+import { Sequence, SequenceEmailDraft } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { RichTextEditorComponent } from '../../../shared/components/rich-text-editor/rich-text-editor.component';
 
@@ -22,6 +23,7 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    MatPaginatorModule,
     RichTextEditorComponent,
   ],
   template: `
@@ -31,38 +33,91 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
           <a routerLink="/sequences" class="back-link">
             <mat-icon class="tiny-icon">arrow_back</mat-icon> Back to Sequences
           </a>
-          <h1 class="page-title">AI Draft Approval Queue</h1>
+          <div class="title-row">
+            <h1 class="page-title">AI Draft Approval Queue</h1>
+            <span class="header-count-pill" *ngIf="totalCount > 0">{{ totalCount }} Pending</span>
+          </div>
           <p class="page-subtitle">Review, edit, or regenerate AI-generated follow-up emails before explicit sending.</p>
         </div>
       </div>
 
-      <div *ngIf="store.loading()" class="loading-state">
+      <div *ngIf="loading" class="loading-state">
         <mat-icon class="spin-icon">sync</mat-icon> Loading pending drafts...
       </div>
 
-      <div *ngIf="!store.loading() && drafts.length === 0" class="empty-card">
+      <div *ngIf="!loading && totalCount === 0 && !selectedSequenceId && !searchQuery" class="empty-card">
         <mat-icon class="empty-icon">verified</mat-icon>
         <h3>All Caught Up!</h3>
         <p>No AI email drafts are currently awaiting review. New drafts will appear here as sequence steps become due.</p>
         <a routerLink="/sequences" class="secondary-btn margin-top">View Active Sequences</a>
       </div>
 
-      <div class="drafts-grid" *ngIf="drafts.length > 0">
+      <div *ngIf="!loading && totalCount === 0 && (selectedSequenceId || searchQuery)" class="empty-card">
+        <mat-icon class="empty-icon">search_off</mat-icon>
+        <h3>No Drafts Found</h3>
+        <p>No pending drafts match the active search or sequence filter.</p>
+        <button (click)="clearAllFilters()" class="secondary-btn margin-top" type="button">Clear Filters</button>
+      </div>
+
+      <div class="drafts-grid" *ngIf="totalCount > 0 || drafts.length > 0">
         <!-- Draft Selector Column -->
         <div class="draft-list-panel">
-          <div
-            *ngFor="let draft of drafts"
-            class="draft-item"
-            [class.selected]="selectedDraft?.id === draft.id"
-            (click)="selectDraft(draft)"
-          >
-            <div class="draft-item-header">
-              <span class="contact-name">{{ draft.contact_name }}</span>
-              <span class="time-ago">{{ draft.created_at | date:'shortTime' }}</span>
+          <!-- Filter & Search Controls -->
+          <div class="panel-filters">
+            <div class="search-box">
+              <mat-icon class="search-icon">search</mat-icon>
+              <input
+                type="text"
+                [(ngModel)]="searchQuery"
+                (ngModelChange)="onSearchChange()"
+                placeholder="Search contact, subject..."
+                class="search-input"
+              />
+              <button *ngIf="searchQuery" (click)="clearSearch()" class="clear-search-btn" type="button">
+                <mat-icon class="tiny-icon">close</mat-icon>
+              </button>
             </div>
-            <div class="draft-seq-name">{{ draft.sequence_name }}</div>
-            <div class="draft-subject-snippet">{{ draft.subject }}</div>
+
+            <div class="seq-select-wrapper" *ngIf="sequencesList.length > 0">
+              <select [(ngModel)]="selectedSequenceId" (change)="onSequenceFilterChange()" class="filter-select">
+                <option value="">All Sequences</option>
+                <option *ngFor="let s of sequencesList" [value]="s.id">{{ s.name }}</option>
+              </select>
+            </div>
           </div>
+
+          <div *ngIf="drafts.length === 0" class="panel-empty">
+            <p>No drafts match filter.</p>
+          </div>
+
+          <!-- Scrollable Draft List -->
+          <div class="draft-items-scroll">
+            <div
+              *ngFor="let draft of drafts"
+              class="draft-item"
+              [class.selected]="selectedDraft?.id === draft.id"
+              (click)="selectDraft(draft)"
+            >
+              <div class="draft-item-header">
+                <span class="contact-name">{{ draft.contact_name }}</span>
+                <span class="time-ago">{{ draft.created_at | date:'shortTime' }}</span>
+              </div>
+              <div class="draft-seq-name">{{ draft.sequence_name }}</div>
+              <div class="draft-subject-snippet">{{ draft.subject }}</div>
+            </div>
+          </div>
+
+          <!-- Paginator -->
+          <mat-paginator
+            *ngIf="totalCount > 0"
+            [length]="totalCount"
+            [pageSize]="pageSize"
+            [pageIndex]="pageIndex"
+            [pageSizeOptions]="[25, 50, 100, 250]"
+            (page)="onPageChange($event)"
+            [showFirstLastButtons]="true"
+            class="dark-paginator queue-paginator"
+          ></mat-paginator>
         </div>
 
         <!-- Draft Review & Edit Panel -->
@@ -190,6 +245,22 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
       align-items: center;
     }
 
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .header-count-pill {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.2rem 0.65rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -215,7 +286,7 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
 
     .drafts-grid {
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: 360px 1fr;
       gap: 1.5rem;
       min-height: 500px;
     }
@@ -228,8 +299,109 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      max-height: 750px;
+    }
+
+    .panel-filters {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.65rem;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: #64748b;
+      pointer-events: none;
+    }
+
+    .search-input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 0.4rem 1.8rem 0.4rem 2rem;
+      color: #f8fafc;
+      font-size: 0.825rem;
+      width: 100%;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: #3b82f6;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .clear-search-btn {
+      position: absolute;
+      right: 0.4rem;
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 0;
+    }
+
+    .clear-search-btn:hover {
+      color: #e2e8f0;
+    }
+
+    .seq-select-wrapper {
+      width: 100%;
+    }
+
+    .filter-select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 0.4rem 0.65rem;
+      color: #f8fafc;
+      font-size: 0.8rem;
+      outline: none;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    .filter-select:focus {
+      border-color: #3b82f6;
+    }
+
+    .panel-empty {
+      padding: 1.5rem;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+
+    .draft-items-scroll {
+      flex: 1;
       overflow-y: auto;
-      max-height: 700px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 520px;
+    }
+
+    .queue-paginator {
+      background: transparent !important;
+      color: #94a3b8 !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      margin-top: 0.25rem;
     }
 
     .draft-item {
@@ -502,6 +674,11 @@ import { RichTextEditorComponent } from '../../../shared/components/rich-text-ed
     :host-context(body.light-theme) .regen-prompt-box { background: #f8fafc; border-color: #cbd5e1; }
     :host-context(body.light-theme) .empty-card { background: #ffffff; border-color: #cbd5e1; color: #475569; }
     :host-context(body.light-theme) .secondary-btn { background: #f1f5f9; border-color: #cbd5e1; color: #0f172a; }
+    :host-context(body.light-theme) .header-count-pill { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+    :host-context(body.light-theme) .panel-filters { border-bottom-color: #e2e8f0; }
+    :host-context(body.light-theme) .search-input { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+    :host-context(body.light-theme) .filter-select { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
+    :host-context(body.light-theme) .queue-paginator { background: #f8fafc !important; color: #475569 !important; border-top-color: #cbd5e1; }
 
     .ai-icon {
       font-size: 18px;
@@ -604,25 +781,99 @@ export class ApprovalQueueComponent implements OnInit {
   readonly store = inject(SequenceStore);
   private readonly service = inject(SequenceService);
   private readonly dialog = inject(MatDialog);
+  private readonly route = inject(ActivatedRoute);
 
   drafts: SequenceEmailDraft[] = [];
   selectedDraft: SequenceEmailDraft | null = null;
   feedbackPrompt = '';
   processing = false;
+  loading = false;
+
+  // Pagination & Filtering
+  totalCount = 0;
+  pageSize = 25;
+  pageIndex = 0;
+  selectedSequenceId = '';
+  searchQuery = '';
+  sequencesList: Sequence[] = [];
 
   ngOnInit(): void {
+    const seqParam = this.route.snapshot.queryParamMap.get('sequence');
+    if (seqParam) {
+      this.selectedSequenceId = seqParam;
+    }
+
+    this.loadSequences();
     this.loadQueue();
   }
 
+  loadSequences(): void {
+    this.service.getSequences({ page_size: 100 }).subscribe({
+      next: (res) => {
+        this.sequencesList = res.results || [];
+      },
+      error: (err) => console.error('Error loading sequences for filter:', err)
+    });
+  }
+
   loadQueue(): void {
-    this.service.getApprovalQueue().subscribe((res) => {
-      this.drafts = res.results || [];
-      if (this.drafts.length > 0) {
-        this.selectedDraft = { ...this.drafts[0] };
-      } else {
-        this.selectedDraft = null;
+    this.loading = true;
+    const params: Record<string, any> = {
+      page: this.pageIndex + 1,
+      page_size: this.pageSize,
+    };
+    if (this.selectedSequenceId) {
+      params['sequence'] = this.selectedSequenceId;
+    }
+    if (this.searchQuery && this.searchQuery.trim()) {
+      params['search'] = this.searchQuery.trim();
+    }
+
+    this.service.getApprovalQueue(params).subscribe({
+      next: (res) => {
+        this.loading = false;
+        this.drafts = res.results || [];
+        this.totalCount = res.count ?? this.drafts.length;
+        if (this.drafts.length > 0) {
+          const stillThere = this.drafts.find(d => d.id === this.selectedDraft?.id);
+          this.selectedDraft = stillThere ? { ...stillThere } : { ...this.drafts[0] };
+        } else {
+          this.selectedDraft = null;
+        }
+      },
+      error: (err) => {
+        this.loading = false;
+        console.error('Error loading approval queue:', err);
       }
     });
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadQueue();
+  }
+
+  onSequenceFilterChange(): void {
+    this.pageIndex = 0;
+    this.loadQueue();
+  }
+
+  onSearchChange(): void {
+    this.pageIndex = 0;
+    this.loadQueue();
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.onSearchChange();
+  }
+
+  clearAllFilters(): void {
+    this.selectedSequenceId = '';
+    this.searchQuery = '';
+    this.pageIndex = 0;
+    this.loadQueue();
   }
 
   selectDraft(draft: SequenceEmailDraft): void {
@@ -664,6 +915,10 @@ export class ApprovalQueueComponent implements OnInit {
     this.service.approveDraft(draft.id, payload).subscribe({
       next: () => {
         this.processing = false;
+        this.store.decrementPendingCount();
+        if (this.drafts.length === 1 && this.pageIndex > 0) {
+          this.pageIndex--;
+        }
         this.loadQueue();
         this.store.loadApprovalQueue();
       },
@@ -678,6 +933,10 @@ export class ApprovalQueueComponent implements OnInit {
     this.service.sendNowDraft(draft.id).subscribe({
       next: () => {
         this.processing = false;
+        this.store.decrementPendingCount();
+        if (this.drafts.length === 1 && this.pageIndex > 0) {
+          this.pageIndex--;
+        }
         this.loadQueue();
         this.store.loadApprovalQueue();
       },
@@ -703,6 +962,10 @@ export class ApprovalQueueComponent implements OnInit {
         this.service.rejectDraft(draft.id, 'Task completed / rejected via Approval Queue', true).subscribe({
           next: () => {
             this.processing = false;
+            this.store.decrementPendingCount();
+            if (this.drafts.length === 1 && this.pageIndex > 0) {
+              this.pageIndex--;
+            }
             this.loadQueue();
             this.store.loadApprovalQueue();
           },

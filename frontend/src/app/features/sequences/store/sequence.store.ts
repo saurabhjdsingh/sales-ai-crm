@@ -18,6 +18,7 @@ export class SequenceStore {
   private readonly _currentSequence = signal<Sequence | null>(null);
   private readonly _enrollments = signal<SequenceEnrollment[]>([]);
   private readonly _pendingDrafts = signal<SequenceEmailDraft[]>([]);
+  private readonly _totalPendingCount = signal<number>(0);
   private readonly _metrics = signal<SequenceDashboardMetrics | null>(null);
   private readonly _loading = signal<boolean>(false);
   private readonly _error = signal<string | null>(null);
@@ -27,7 +28,7 @@ export class SequenceStore {
   readonly currentSequence = computed(() => this._currentSequence());
   readonly enrollments = computed(() => this._enrollments());
   readonly pendingDrafts = computed(() => this._pendingDrafts());
-  readonly pendingCount = computed(() => this._pendingDrafts().length);
+  readonly pendingCount = computed(() => this._totalPendingCount());
   readonly metrics = computed(() => this._metrics());
   readonly loading = computed(() => this._loading());
   readonly error = computed(() => this._error());
@@ -61,15 +62,20 @@ export class SequenceStore {
     });
   }
 
-  loadApprovalQueue(): void {
-    this.sequenceService.getApprovalQueue().subscribe({
+  loadApprovalQueue(filters?: Record<string, any>): void {
+    this.sequenceService.getApprovalQueue(filters).subscribe({
       next: (res) => {
         this._pendingDrafts.set(res.results || []);
+        this._totalPendingCount.set(res.count ?? (res.results?.length || 0));
       },
       error: (err) => {
         console.error('Error loading approval queue:', err);
       }
     });
+  }
+
+  decrementPendingCount(): void {
+    this._totalPendingCount.update((c) => Math.max(0, c - 1));
   }
 
   loadDashboardMetrics(sequenceId?: string): void {

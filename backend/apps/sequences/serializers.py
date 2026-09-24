@@ -67,6 +67,7 @@ class SequenceDetailSerializer(AuditFieldsMixin, serializers.ModelSerializer):
     steps = SequenceStepSerializer(many=True, read_only=True)
     active_enrollments_count = serializers.SerializerMethodField()
     total_enrolled_count = serializers.SerializerMethodField()
+    pending_approvals_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Sequence
@@ -91,6 +92,7 @@ class SequenceDetailSerializer(AuditFieldsMixin, serializers.ModelSerializer):
             "steps",
             "active_enrollments_count",
             "total_enrolled_count",
+            "pending_approvals_count",
             "created_at",
             "updated_at",
             "created_by",
@@ -102,6 +104,13 @@ class SequenceDetailSerializer(AuditFieldsMixin, serializers.ModelSerializer):
 
     def get_total_enrolled_count(self, obj):
         return obj.enrollments.count()
+
+    def get_pending_approvals_count(self, obj):
+        from apps.sequences.models import DraftStatus, SequenceEmailDraft
+        return SequenceEmailDraft.objects.filter(
+            enrollment__sequence=obj,
+            status=DraftStatus.DRAFT_PENDING
+        ).count()
 
 
 class SequenceCreateUpdateSerializer(serializers.ModelSerializer):

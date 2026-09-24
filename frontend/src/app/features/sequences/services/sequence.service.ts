@@ -82,8 +82,8 @@ export class SequenceService {
     return forkJoin(ids.map(id => this.stopEnrollment(id, reason)));
   }
 
-  getApprovalQueue(): Observable<PaginatedResult<SequenceEmailDraft>> {
-    return this.api.get<PaginatedResult<SequenceEmailDraft>>('/sequences/approvals/');
+  getApprovalQueue(filters?: Record<string, any>): Observable<PaginatedResult<SequenceEmailDraft>> {
+    return this.api.get<PaginatedResult<SequenceEmailDraft>>('/sequences/approvals/', filters);
   }
 
   approveDraft(id: string, payload?: { subject?: string; reply_to?: string; body_html?: string; body_text?: string; send_now?: boolean; send_mode?: string; manual_time_utc?: string }): Observable<SequenceEmailDraft> {

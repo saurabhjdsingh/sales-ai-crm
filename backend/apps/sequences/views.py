@@ -118,6 +118,9 @@ class SequenceEnrollmentViewSet(CRMViewMixin, viewsets.ModelViewSet):
     queryset = SequenceEnrollment.objects.select_related("sequence", "contact", "company", "deal")
     serializer_class = SequenceEnrollmentSerializer
     filterset_fields = ["sequence", "status", "contact"]
+    search_fields = ["contact__first_name", "contact__last_name", "contact__email"]
+    ordering_fields = ["created_at", "next_execution_at", "status", "open_count", "click_count"]
+    ordering = ["-created_at"]
 
     @action(detail=True, methods=["post"], url_path="pause")
     def pause(self, request, pk=None):
@@ -247,11 +250,17 @@ class SequenceEnrollmentViewSet(CRMViewMixin, viewsets.ModelViewSet):
 class ApprovalQueueViewSet(CRMViewMixin, viewsets.ReadOnlyModelViewSet):
     """ViewSet for sales rep approval queue of AI-generated sequence email drafts."""
     serializer_class = SequenceEmailDraftSerializer
+    filterset_fields = ["status", "contact"]
+    search_fields = ["subject", "contact__first_name", "contact__last_name", "contact__email", "enrollment__sequence__name"]
 
     def get_queryset(self):
-        return SequenceEmailDraft.objects.filter(
+        qs = SequenceEmailDraft.objects.filter(
             status=DraftStatus.DRAFT_PENDING
         ).select_related("enrollment__sequence", "contact", "execution")
+        seq_id = self.request.query_params.get("sequence") or self.request.query_params.get("sequence_id")
+        if seq_id:
+            qs = qs.filter(enrollment__sequence_id=seq_id)
+        return qs
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):

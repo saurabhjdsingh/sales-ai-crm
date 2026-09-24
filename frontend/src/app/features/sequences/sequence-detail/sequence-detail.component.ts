@@ -1,11 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { SelectionModel } from '@angular/cdk/collections';
 import { SequenceService } from '../services/sequence.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -19,11 +21,13 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
   imports: [
     CommonModule,
     RouterModule,
+    FormsModule,
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
     MatCheckboxModule,
     MatDialogModule,
+    MatPaginatorModule,
     ScheduleDialogComponent
   ],
   template: `
@@ -44,6 +48,14 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
         </div>
 
         <div class="header-actions">
+          <a
+            *ngIf="(sequence.pending_approvals_count || 0) > 0"
+            [routerLink]="['/sequences/approvals']"
+            [queryParams]="{ sequence: sequence.id }"
+            class="warning-btn"
+          >
+            <mat-icon>rate_review</mat-icon> {{ sequence.pending_approvals_count }} Pending Approvals
+          </a>
           <a [routerLink]="['/sequences', sequence.id, 'edit']" class="secondary-btn">
             <mat-icon>edit</mat-icon> Edit Sequence
           </a>
@@ -61,6 +73,17 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
           <div class="kpi-label">Total Enrolled</div>
           <div class="kpi-value">{{ sequence.total_enrolled_count || 0 }}</div>
         </div>
+
+        <a
+          *ngIf="(sequence.pending_approvals_count || 0) > 0"
+          [routerLink]="['/sequences/approvals']"
+          [queryParams]="{ sequence: sequence.id }"
+          class="kpi-card approval-kpi"
+        >
+          <div class="kpi-label">Pending Approval</div>
+          <div class="kpi-value warning-accent">{{ sequence.pending_approvals_count }} ⚠️</div>
+          <span class="kpi-sublink">Review in Queue &rarr;</span>
+        </a>
 
         <div class="kpi-card">
           <div class="kpi-label">Total Steps</div>
@@ -95,11 +118,46 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
 
       <!-- Enrolled Contacts Progress Table -->
       <div class="card">
-        <h3 class="card-title">Enrolled Contacts Progress</h3>
+        <div class="card-header-flex">
+          <div class="card-title-group">
+            <h3 class="card-title">Enrolled Contacts Progress</h3>
+            <span class="total-badge" *ngIf="totalEnrollments > 0">{{ totalEnrollments }} Total</span>
+          </div>
+
+          <div class="table-filters">
+            <!-- Search -->
+            <div class="search-box">
+              <mat-icon class="search-icon">search</mat-icon>
+              <input
+                type="text"
+                [(ngModel)]="searchQuery"
+                (ngModelChange)="onSearchChange()"
+                placeholder="Search contact or email..."
+                class="search-input"
+              />
+              <button *ngIf="searchQuery" (click)="clearSearch()" class="clear-search-btn" type="button">
+                <mat-icon class="tiny-icon">close</mat-icon>
+              </button>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="filter-group">
+              <select [(ngModel)]="statusFilter" (change)="onStatusFilterChange()" class="filter-select">
+                <option value="">All Statuses ({{ totalEnrollments }})</option>
+                <option value="running">Running</option>
+                <option value="waiting">Waiting</option>
+                <option value="waiting_approval">Waiting Approval</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+                <option value="stopped">Stopped</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div *ngIf="enrollments.length === 0" class="empty-state">
           <mat-icon class="empty-icon">person_add</mat-icon>
-          <p>No contacts enrolled in this sequence yet.</p>
+          <p>{{ statusFilter || searchQuery ? 'No enrolled contacts match your search or filter.' : 'No contacts enrolled in this sequence yet.' }}</p>
         </div>
 
         <div *ngIf="enrollments.length > 0" class="table-container">
@@ -234,6 +292,17 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
             </tbody>
           </table>
         </div>
+
+        <mat-paginator
+          *ngIf="totalEnrollments > 0"
+          [length]="totalEnrollments"
+          [pageSize]="pageSize"
+          [pageIndex]="pageIndex"
+          [pageSizeOptions]="[25, 50, 100, 250]"
+          (page)="onPageChange($event)"
+          [showFirstLastButtons]="true"
+          class="dark-paginator"
+        ></mat-paginator>
       </div>
 
       <!-- Floating Bulk Actions Banner for Enrollments -->
@@ -624,6 +693,156 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
       color: #f8fafc !important;
     }
 
+    .card-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .total-badge {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .table-filters {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.65rem;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: #64748b;
+      pointer-events: none;
+    }
+
+    .search-input {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.45rem 2rem 0.45rem 2.2rem;
+      color: #f8fafc;
+      font-size: 0.85rem;
+      width: 220px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: #3b82f6;
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .clear-search-btn {
+      position: absolute;
+      right: 0.5rem;
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .clear-search-btn:hover {
+      color: #e2e8f0;
+    }
+
+    .filter-select {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      color: #f8fafc;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .filter-select:focus {
+      border-color: #3b82f6;
+    }
+
+    .warning-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .warning-btn:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+
+    .approval-kpi {
+      text-decoration: none;
+      cursor: pointer;
+      border-color: rgba(245, 158, 11, 0.3) !important;
+      transition: all 0.2s ease;
+    }
+
+    .approval-kpi:hover {
+      background: rgba(245, 158, 11, 0.08) !important;
+      border-color: #f59e0b !important;
+      transform: translateY(-2px);
+    }
+
+    .warning-accent {
+      color: #fbbf24 !important;
+    }
+
+    .kpi-sublink {
+      font-size: 0.75rem;
+      color: #fbbf24;
+      font-weight: 600;
+      margin-top: 0.35rem;
+      display: inline-block;
+    }
+
+    .dark-paginator {
+      background: transparent !important;
+      color: #94a3b8 !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      margin-top: 0.5rem;
+    }
+
     /* Light Theme Overrides */
     :host-context(body.light-theme) .page-title { color: #0f172a; }
     :host-context(body.light-theme) .page-subtitle { color: #334155; }
@@ -640,6 +859,11 @@ import { Sequence, SequenceEnrollment } from '../../../core/models/crm.model';
     :host-context(body.light-theme) .contact-link { color: #2563eb; }
     :host-context(body.light-theme) .email-sub { color: #475569; }
     :host-context(body.light-theme) .secondary-btn { background: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
+    :host-context(body.light-theme) .total-badge { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+    :host-context(body.light-theme) .search-input { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+    :host-context(body.light-theme) .filter-select { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
+    :host-context(body.light-theme) .warning-btn { background: #fef3c7; border-color: #f59e0b; color: #b45309; }
+    :host-context(body.light-theme) .dark-paginator { background: #f8fafc !important; color: #475569 !important; border-top-color: #cbd5e1; }
   `]
 })
 export class SequenceDetailComponent implements OnInit {
@@ -651,6 +875,13 @@ export class SequenceDetailComponent implements OnInit {
   sequence: Sequence | null = null;
   enrollments: SequenceEnrollment[] = [];
   selection = new SelectionModel<string>(true, []);
+
+  // Pagination & Filtering
+  totalEnrollments = 0;
+  pageSize = 25;
+  pageIndex = 0;
+  statusFilter = '';
+  searchQuery = '';
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -664,10 +895,50 @@ export class SequenceDetailComponent implements OnInit {
     this.service.getSequence(id).subscribe((seq) => (this.sequence = seq));
   }
 
-  loadEnrollments(sequenceId: string): void {
-    this.service.getEnrollments({ sequence: sequenceId }).subscribe((res) => {
+  loadEnrollments(sequenceId?: string): void {
+    const seqId = sequenceId || (this.sequence ? this.sequence.id : null);
+    if (!seqId) return;
+
+    const params: Record<string, any> = {
+      sequence: seqId,
+      page: this.pageIndex + 1,
+      page_size: this.pageSize,
+    };
+    if (this.statusFilter) {
+      params['status'] = this.statusFilter;
+    }
+    if (this.searchQuery && this.searchQuery.trim()) {
+      params['search'] = this.searchQuery.trim();
+    }
+
+    this.service.getEnrollments(params).subscribe((res) => {
       this.enrollments = res.results || [];
+      this.totalEnrollments = res.count ?? this.enrollments.length;
     });
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.selection.clear();
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadEnrollments();
+  }
+
+  onStatusFilterChange(): void {
+    this.selection.clear();
+    this.pageIndex = 0;
+    this.loadEnrollments();
+  }
+
+  onSearchChange(): void {
+    this.selection.clear();
+    this.pageIndex = 0;
+    this.loadEnrollments();
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.onSearchChange();
   }
 
   isAllSelected(): boolean {
@@ -697,14 +968,18 @@ export class SequenceDetailComponent implements OnInit {
   }
 
   pauseEnrollment(e: SequenceEnrollment): void {
-    this.service.pauseEnrollment(e.id).subscribe(() => this.loadEnrollments(e.sequence));
+    this.service.pauseEnrollment(e.id).subscribe(() => {
+      this.loadEnrollments();
+      if (this.sequence) this.loadSequence(this.sequence.id);
+    });
   }
 
   sendRightAway(e: SequenceEnrollment): void {
     this.service.sendNowEnrollment(e.id).subscribe({
       next: () => {
         this.notification.success(`Sent email right away to ${e.contact_name || 'contact'}`);
-        if (this.sequence) this.loadEnrollments(this.sequence.id);
+        this.loadEnrollments();
+        if (this.sequence) this.loadSequence(this.sequence.id);
       },
       error: (err) => {
         this.notification.error(err.error?.error?.message || 'Failed to send email right away');
@@ -731,7 +1006,8 @@ export class SequenceDetailComponent implements OnInit {
         next: (res) => {
           const timeStr = res.scheduled_delivery_time || 'scheduled time';
           this.notification.success(`Email scheduled for ${e.contact_name || 'contact'} at ${timeStr}`);
-          if (this.sequence) this.loadEnrollments(this.sequence.id);
+          this.loadEnrollments();
+          if (this.sequence) this.loadSequence(this.sequence.id);
         },
         error: (err) => {
           this.notification.error(err.error?.error?.message || 'Failed to schedule email');
@@ -741,12 +1017,18 @@ export class SequenceDetailComponent implements OnInit {
   }
 
   resumeEnrollment(e: SequenceEnrollment): void {
-    this.service.resumeEnrollment(e.id).subscribe(() => this.loadEnrollments(e.sequence));
+    this.service.resumeEnrollment(e.id).subscribe(() => {
+      this.loadEnrollments();
+      if (this.sequence) this.loadSequence(this.sequence.id);
+    });
   }
 
   stopEnrollment(e: SequenceEnrollment): void {
     if (confirm(`Stop sequence for contact ${e.contact_name}?`)) {
-      this.service.stopEnrollment(e.id, 'Manually stopped by rep').subscribe(() => this.loadEnrollments(e.sequence));
+      this.service.stopEnrollment(e.id, 'Manually stopped by rep').subscribe(() => {
+        this.loadEnrollments();
+        if (this.sequence) this.loadSequence(this.sequence.id);
+      });
     }
   }
 
@@ -758,7 +1040,8 @@ export class SequenceDetailComponent implements OnInit {
       next: () => {
         this.notification.success(`Paused ${selectedIds.length} sequence enrollments.`);
         this.selection.clear();
-        if (this.sequence) this.loadEnrollments(this.sequence.id);
+        this.loadEnrollments();
+        if (this.sequence) this.loadSequence(this.sequence.id);
       },
       error: (err) => {
         this.notification.error(err.message || 'Failed to bulk pause enrollments.');
@@ -774,7 +1057,8 @@ export class SequenceDetailComponent implements OnInit {
       next: () => {
         this.notification.success(`Resumed ${selectedIds.length} sequence enrollments.`);
         this.selection.clear();
-        if (this.sequence) this.loadEnrollments(this.sequence.id);
+        this.loadEnrollments();
+        if (this.sequence) this.loadSequence(this.sequence.id);
       },
       error: (err) => {
         this.notification.error(err.message || 'Failed to bulk resume enrollments.');
@@ -801,7 +1085,8 @@ export class SequenceDetailComponent implements OnInit {
           next: () => {
             this.notification.success(`Stopped sequence for ${selectedIds.length} contacts.`);
             this.selection.clear();
-            if (this.sequence) this.loadEnrollments(this.sequence.id);
+            this.loadEnrollments();
+            if (this.sequence) this.loadSequence(this.sequence.id);
           },
           error: (err) => {
             this.notification.error(err.message || 'Failed to bulk stop enrollments.');
