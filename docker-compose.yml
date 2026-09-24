@@ -79,7 +79,7 @@ services:
       dockerfile: Dockerfile
       args:
         - REQUIREMENTS_FILE=requirements/dev.txt  # Use dev.txt for local dev with debug toolbar
-    command: celery -A config beat -l info
+    command: sh -c "rm -f /app/celerybeat.pid && celery -A config beat -l info --pidfile=/tmp/celerybeat.pid"
     volumes:
       - ./backend:/app
     env_file:

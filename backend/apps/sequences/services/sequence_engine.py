@@ -405,6 +405,8 @@ class SequenceEngineService:
             draft.subject = updated_subject
         if updated_reply_to is not None:
             draft.reply_to = updated_reply_to
+        if user and not draft.sender:
+            draft.sender = user
         if not draft.reply_to and getattr(user, "email", None):
             draft.reply_to = user.email
 
@@ -561,15 +563,35 @@ class SequenceEngineService:
             logger.warning("Failed to send sequence email via Gmail OAuth: %s. Falling back to default mailer.", ex)
 
         if not email_sent:
-            from django.core.mail import EmailMultiAlternatives
+            from django.conf import settings
+            from django.core.mail import EmailMultiAlternatives, get_connection
+            from apps.accounts.services.branding import BrandingService
+
+            settings_obj = BrandingService.get_settings()
+            connection = None
+            from_email = getattr(user, "email", None) or getattr(settings, "DEFAULT_FROM_EMAIL", "webmaster@localhost")
+
+            if settings_obj.smtp_host:
+                connection = get_connection(
+                    backend="django.core.mail.backends.smtp.EmailBackend",
+                    host=settings_obj.smtp_host,
+                    port=settings_obj.smtp_port,
+                    username=settings_obj.smtp_username,
+                    password=settings_obj.smtp_password_decrypted,
+                    use_tls=settings_obj.smtp_use_tls,
+                    use_ssl=settings_obj.smtp_use_ssl,
+                )
+                if settings_obj.smtp_from_email:
+                    from_email = settings_obj.smtp_from_email
 
             headers = {"Reply-To": draft.reply_to} if draft.reply_to else None
             msg = EmailMultiAlternatives(
                 subject=draft.subject,
                 body=draft.body_text,
-                from_email=getattr(user, "email", None),
+                from_email=from_email,
                 to=[recipient_email],
                 headers=headers,
+                connection=connection,
             )
             if final_html:
                 msg.attach_alternative(final_html, "text/html")
@@ -691,7 +713,7 @@ class SequenceEngineService:
             try:
                 with transaction.atomic():
                     draft = (
-                        SequenceEmailDraft.objects.select_for_update(skip_locked=True)
+                        SequenceEmailDraft.objects.select_for_update(of=("self",), skip_locked=True)
                         .filter(id=draft_id, status=DraftStatus.SCHEDULED)
                         .select_related(
                             "contact", "enrollment__sequence", "enrollment__company",
@@ -726,9 +748,15 @@ class SequenceEngineService:
                         continue
 
                     # Send the email immediately (force send_now=True)
-                    user = draft.sender
+                    user = (
+                        draft.sender
+                        or (enrollment.enrolled_by if enrollment else None)
+                        or draft.created_by
+                        or (enrollment.sequence.created_by if (enrollment and enrollment.sequence) else None)
+                    )
                     if not user:
-                        user = enrollment.enrolled_by
+                        from django.contrib.auth import get_user_model
+                        user = get_user_model().objects.filter(is_active=True).first()
 
                     if not user:
                         logger.error("No sender for scheduled draft %s, skipping", draft.id)
