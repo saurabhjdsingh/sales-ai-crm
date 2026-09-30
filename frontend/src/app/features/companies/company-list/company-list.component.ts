@@ -19,6 +19,7 @@ import { CompanyStore } from '../services/company.store';
 import { CompanyFormComponent } from '../company-form/company-form.component';
 import { Company } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ResearchIngestDialogComponent } from '../components/research-ingest-dialog/research-ingest-dialog.component';
 
 @Component({
   selector: 'app-company-list',
@@ -36,7 +37,8 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     MatIconModule,
     MatChipsModule,
     MatProgressSpinnerModule,
-    MatCheckboxModule
+    MatCheckboxModule,
+    ResearchIngestDialogComponent
   ],
   template: `
     <div class="list-container">
@@ -45,10 +47,16 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           <h1>Companies</h1>
           <p class="subtitle">Manage prospect and client accounts</p>
         </div>
-        <button mat-flat-button color="primary" (click)="openCreateDialog()" class="create-btn">
-          <mat-icon>add</mat-icon>
-          <span>Add Company</span>
-        </button>
+        <div class="header-action-group" style="display: flex; gap: 0.75rem;">
+          <button mat-stroked-button (click)="openImportResearchDialog()" class="import-research-btn">
+            <mat-icon style="margin-right: 4px;">auto_stories</mat-icon>
+            <span>Import from Research</span>
+          </button>
+          <button mat-flat-button color="primary" (click)="openCreateDialog()" class="create-btn">
+            <mat-icon>add</mat-icon>
+            <span>Add Company</span>
+          </button>
+        </div>
       </div>
 
       <!-- Filters Bar -->
@@ -559,6 +567,25 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     .clear-btn:hover {
       color: #f8fafc !important;
     }
+
+    .import-research-btn {
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+
+      &:hover {
+        background: rgba(56, 189, 248, 0.1);
+      }
+    }
+
+    :host-context(body.light-theme) .import-research-btn {
+      color: #0284c7;
+      border-color: #0284c7;
+      background: rgba(2, 132, 199, 0.04);
+
+      &:hover {
+        background: rgba(2, 132, 199, 0.1);
+      }
+    }
   `]
 })
 export class CompanyListComponent implements OnInit {
@@ -661,6 +688,21 @@ export class CompanyListComponent implements OnInit {
           this.selection.clear();
           this.store.loadCompanies(this.store.page(), this.filterForm.value);
         });
+      }
+    });
+  }
+
+  openImportResearchDialog(): void {
+    const dialogRef = this.dialog.open(ResearchIngestDialogComponent, {
+      width: '920px',
+      maxWidth: '95vw',
+      panelClass: ['dark-dialog-panel', 'research-dialog-panel'],
+      data: {}
+    });
+
+    dialogRef.afterClosed().subscribe((res) => {
+      if (res?.success) {
+        this.store.loadCompanies(1, this.filterForm.value);
       }
     });
   }

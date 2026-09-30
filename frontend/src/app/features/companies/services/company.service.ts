@@ -40,4 +40,16 @@ export class CompanyService {
   getResearchResults(id: string): Observable<CompanyResearch> {
     return this.api.get<CompanyResearch>(`/companies/${id}/research-results/`);
   }
+
+  ingestDossier(payload: any): Observable<any> {
+    return this.api.post<any>('/companies/ingest-dossier/', payload);
+  }
+
+  updateDossier(companyId: string, payload: any): Observable<any> {
+    return this.api.patch<any>(`/companies/${companyId}/update-dossier/`, payload);
+  }
+
+  importSingleContact(companyId: string, person: any): Observable<any> {
+    return this.api.post<any>(`/companies/${companyId}/import-single-contact/`, person);
+  }
 }

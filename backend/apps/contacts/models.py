@@ -101,6 +101,8 @@ class Contact(BaseModel):
 
     @property
     def full_name(self):
+        if not self.last_name or self.last_name == ".":
+            return self.first_name.strip()
         return f"{self.first_name} {self.last_name}".strip()
 
     def save(self, *args, **kwargs):

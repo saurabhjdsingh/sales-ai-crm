@@ -78,6 +78,35 @@ body:not(.light-theme) .dark-dialog-panel {
   }
 }
 
+/* Wide dialog panel for Research Ingestion */
+.research-dialog-panel {
+  max-width: 95vw !important;
+
+  .mat-mdc-dialog-container {
+    --mdc-dialog-container-max-width: 920px !important;
+    max-width: 920px !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    --mdc-dialog-container-max-width: 920px !important;
+    max-width: 920px !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
+body:not(.light-theme) .research-dialog-panel {
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    background-color: #090d16 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+  }
+}
+
 /* ==========================================================================
    Angular Material Tooltip Global Overrides (Dark & Light Theme Contrast Fix)
    ========================================================================== */
@@ -507,6 +536,151 @@ body.light-theme {
     color: #3b82f6 !important;
   }
 
+  /* Account Intelligence & Org Tree Light Theme Overrides */
+  .dossier-btn {
+    color: #0284c7 !important;
+    border-color: #0284c7 !important;
+    background: rgba(2, 132, 199, 0.04) !important;
+
+    &:hover {
+      background: rgba(2, 132, 199, 0.1) !important;
+    }
+  }
+
+  .dossier-toolbar {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+
+    .toolbar-meta {
+      color: #64748b !important;
+
+      .source-pill {
+        background: #f0f9ff !important;
+        color: #0284c7 !important;
+        border-color: #bae6fd !important;
+      }
+      .date-pill {
+        color: #64748b !important;
+      }
+    }
+
+    .tool-btn {
+      color: #334155 !important;
+      border-color: #cbd5e1 !important;
+      background: #ffffff !important;
+
+      &:hover {
+        background: #f8fafc !important;
+        border-color: #94a3b8 !important;
+      }
+
+      &.update-btn {
+        color: #0284c7 !important;
+        border-color: #7dd3fc !important;
+        background: #f0f9ff !important;
+
+        &:hover {
+          background: #e0f2fe !important;
+          border-color: #0284c7 !important;
+        }
+      }
+    }
+  }
+
+  .org-tree-container {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+
+    .org-tree-header {
+      border-bottom-color: #e2e8f0 !important;
+
+      .header-left {
+        .tree-icon { color: #0284c7 !important; }
+        h3 { color: #0f172a !important; }
+        .node-count-badge {
+          background: #f1f5f9 !important;
+          color: #475569 !important;
+          border-color: #e2e8f0 !important;
+        }
+      }
+
+      .legend { color: #64748b !important; }
+    }
+
+    .horizontal-branch-line,
+    .connector-vertical,
+    .connector-branch-top {
+      background: #cbd5e1 !important;
+    }
+
+    .node-card {
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+
+      &.card-root {
+        border: 1.5px solid #f59e0b !important;
+        background: linear-gradient(145deg, #ffffff 0%, #fffbeb 100%) !important;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12) !important;
+      }
+
+      &.card-technical {
+        border-color: #818cf8 !important;
+        background: linear-gradient(145deg, #ffffff 0%, #f5f3ff 100%) !important;
+      }
+
+      .person-name { color: #0f172a !important; }
+      .person-title { color: #64748b !important; }
+      .card-actions { border-top-color: #f1f5f9 !important; }
+
+      .add-crm-btn {
+        color: #0284c7 !important;
+        border-color: #bae6fd !important;
+        background: #f0f9ff !important;
+
+        &:hover {
+          background: #e0f2fe !important;
+          border-color: #0284c7 !important;
+        }
+      }
+    }
+  }
+
+  .rendered-dossier-container {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    color: #334155 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+
+    h1, .dossier-h1 { color: #0f172a !important; }
+    h2, .dossier-h2, .dossier-title-xl {
+      color: #0284c7 !important;
+      border-bottom-color: #e2e8f0 !important;
+    }
+    h3, .dossier-h3, .dossier-title-lg { color: #1e293b !important; }
+    table, .dossier-table {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+    th {
+      background: #f8fafc !important;
+      color: #475569 !important;
+      border-bottom: 2px solid #e2e8f0 !important;
+    }
+    td {
+      border-bottom: 1px solid #f1f5f9 !important;
+      color: #334155 !important;
+    }
+    .dossier-card {
+      background: #f8fafc !important;
+      border-color: #e2e8f0 !important;
+      color: #334155 !important;
+    }
+    .dossier-divider { border-top-color: #e2e8f0 !important; }
+  }
+
   /* Generic Cards */
   .card,
   .settings-card,
@@ -827,10 +1001,23 @@ body.light-theme {
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
     }
 
-    .dialog-container, .composer-container {
+    .dialog-container, .composer-container, .ingest-dialog-container {
       background-color: #ffffff !important;
       color: #334155 !important;
     }
+
+  .research-dialog-panel {
+    .mat-mdc-dialog-container .mdc-dialog__surface {
+      background-color: #ffffff !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .ingest-dialog-container {
+      background-color: #ffffff !important;
+      color: #334155 !important;
+    }
+  }
 
     .dialog-header, .composer-header {
       border-bottom-color: rgba(0, 0, 0, 0.08) !important;

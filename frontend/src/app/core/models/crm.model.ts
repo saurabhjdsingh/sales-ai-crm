@@ -277,7 +277,25 @@ export interface CompanyResearch {
   services: string[];
   products: string[];
   website_summary?: string;
-  linkedin_summary?: string;
+  content_html?: string;
+  content_markdown?: string;
+  org_chart_data?: {
+    root_id?: string;
+    nodes?: Array<{
+      id: string;
+      name: string;
+      title?: string;
+      department?: string;
+      classification?: string;
+      classification_type?: string;
+      linkedin_url?: string;
+      reports_to?: string | null;
+      in_crm?: boolean;
+      crm_contact_id?: string;
+      notes?: string;
+    }>;
+  };
+  source_type?: string;
   researched_at?: string;
   research_status: 'pending' | 'in_progress' | 'completed' | 'failed';
   created_at: string;

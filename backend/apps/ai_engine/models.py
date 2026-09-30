@@ -39,6 +39,10 @@ class CompanyResearch(BaseModel):
     linkedin_summary = models.TextField(blank=True, default="")
     raw_research_data = models.JSONField(default=dict, blank=True)
     researched_at = models.DateTimeField(null=True, blank=True)
+    content_html = models.TextField(blank=True, default="")
+    content_markdown = models.TextField(blank=True, default="")
+    org_chart_data = models.JSONField(default=dict, blank=True)
+    source_type = models.CharField(max_length=50, blank=True, default="manual_paste")
     research_status = models.CharField(
         max_length=15,
         choices=ResearchStatus.choices,

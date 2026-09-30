@@ -158,3 +158,46 @@ class CompanyViewSet(CRMViewMixin, viewsets.ModelViewSet):
         iso = normalize_country_code(country_input) if country_input else ""
         count = Company.objects.filter(id__in=company_ids, is_deleted=False).update(country=iso)
         return Response({"message": f"Updated country for {count} companies."})
+
+    @action(detail=False, methods=["post"], url_path="ingest-dossier")
+    def ingest_dossier(self, request):
+        """
+        Deterministic ingestion of ChatGPT company research and org chart.
+        Handles both:
+        - Case 1: Brand-new company (creates company, contacts, and dossier)
+        - Case 2: Existing company (deduplicates contacts and updates dossier)
+        Zero AI tokens used.
+        """
+        from apps.companies.dossier_service import DossierService
+
+        try:
+            result = DossierService.ingest_dossier(request.data, user=request.user)
+            return Response(result, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to ingest research dossier: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=["patch", "post"], url_path="update-dossier")
+    def update_dossier(self, request, pk=None):
+        """Update content_html, content_markdown, or org_chart_data for a company dossier."""
+        from apps.companies.dossier_service import DossierService
+
+        try:
+            result = DossierService.update_dossier(str(pk), request.data, user=request.user)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": f"Failed to update dossier: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"], url_path="import-single-contact")
+    def import_single_contact(self, request, pk=None):
+        """1-Click promote an individual from the Org Tree into a CRM Contact."""
+        from apps.companies.dossier_service import DossierService
+
+        try:
+            result = DossierService.import_single_contact(str(pk), request.data, user=request.user)
+            return Response(result, status=status.HTTP_201_CREATED if result.get("is_new") else status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Failed to import contact: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

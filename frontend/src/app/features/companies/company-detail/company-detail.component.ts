@@ -14,9 +14,12 @@ import { AIChatPanelComponent } from '../../../shared/components/ai-chat-panel/a
 import { ApiService } from '../../../core/services/api.service';
 import { Company, Contact, Deal, Note, Task } from '../../../core/models/crm.model';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NotificationService } from '../../../core/services/notification.service';
 import { marked } from 'marked';
+import { OrgTreeGraphComponent } from '../components/org-tree-graph/org-tree-graph.component';
+import { ResearchIngestDialogComponent } from '../components/research-ingest-dialog/research-ingest-dialog.component';
+import { CompanyService } from '../services/company.service';
 
 @Component({
   selector: 'app-company-detail',
@@ -24,6 +27,7 @@ import { marked } from 'marked';
   imports: [
     CommonModule,
     RouterModule,
+    FormsModule,
     ReactiveFormsModule,
     MatTabsModule,
     MatIconModule,
@@ -31,7 +35,9 @@ import { marked } from 'marked';
     MatChipsModule,
     MatProgressSpinnerModule,
     TimelineComponent,
-    AIChatPanelComponent
+    AIChatPanelComponent,
+    OrgTreeGraphComponent,
+    ResearchIngestDialogComponent
   ],
   template: `
     @if (store.loading() && !store.selectedCompany()) {
@@ -71,6 +77,10 @@ import { marked } from 'marked';
                 </div>
               </div>
               <div class="header-actions">
+                <button mat-stroked-button (click)="openResearchIngestDialog(company)" class="dossier-btn">
+                  <mat-icon>auto_stories</mat-icon>
+                  <span>Research Dossier</span>
+                </button>
                 <button mat-stroked-button (click)="openEditDialog(company)" class="edit-btn">
                   <mat-icon>edit</mat-icon>
                   <span>Edit</span>
@@ -100,6 +110,72 @@ import { marked } from 'marked';
 
           <!-- Bottom Tabs Panel -->
           <mat-tab-group class="dark-tabs">
+            <!-- Account Intelligence & Org Tree Tab -->
+            <mat-tab label="Account Intelligence">
+              <div class="tab-content intel-tab-pane">
+                @if (store.research(); as res) {
+                  @if (res.content_html || res.org_chart_data?.nodes?.length) {
+                    <div class="dossier-toolbar">
+                      <div class="toolbar-meta">
+                        <span class="source-pill">Source: {{ res.source_type === 'chatgpt_json' ? 'ChatGPT JSON' : res.source_type === 'chatgpt_plugin' ? 'ChatGPT Plugin' : 'Research Dossier' }}</span>
+                        <span class="date-pill" *ngIf="res.researched_at">Researched: {{ res.researched_at | date:'mediumDate' }}</span>
+                      </div>
+                      <div class="toolbar-btn-group">
+                        <button mat-stroked-button (click)="toggleEditDossier(res)" class="tool-btn">
+                          <mat-icon>{{ isEditingDossier() ? 'visibility' : 'edit_note' }}</mat-icon>
+                          <span>{{ isEditingDossier() ? 'View Mode' : 'Edit Dossier' }}</span>
+                        </button>
+                        <button mat-stroked-button (click)="openResearchIngestDialog(company)" class="tool-btn update-btn">
+                          <mat-icon>refresh</mat-icon>
+                          <span>Import / Update Research</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Interactive Org Tree Graph -->
+                    @if (res.org_chart_data?.nodes?.length) {
+                      <app-org-tree-graph [orgData]="res.org_chart_data" [companyId]="company.id" (contactAdded)="onContactPromoted(company.id)"></app-org-tree-graph>
+                    }
+
+                    <!-- Edit Mode vs Rendered HTML -->
+                    @if (isEditingDossier()) {
+                      <div class="dossier-edit-box">
+                        <textarea [(ngModel)]="dossierEditHtml" rows="18" class="dossier-edit-textarea" placeholder="Edit HTML content..."></textarea>
+                        <div class="dossier-edit-actions">
+                          <button mat-button (click)="cancelEditDossier()">Cancel</button>
+                          <button mat-flat-button color="primary" (click)="saveEditedDossier(company.id)">
+                            <mat-icon>save</mat-icon> Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="rendered-dossier-container" [innerHTML]="res.content_html"></div>
+                    }
+                  } @else {
+                    <div class="empty-dossier-state">
+                      <mat-icon class="dossier-empty-icon">auto_stories</mat-icon>
+                      <h3>No Research Dossier Imported Yet</h3>
+                      <p>Import your ChatGPT research (via HTML, Markdown or JSON) to view company intel, decision makers, and an interactive Org Tree.</p>
+                      <button mat-flat-button color="primary" (click)="openResearchIngestDialog(company)">
+                        <mat-icon>content_paste</mat-icon>
+                        <span>Import ChatGPT Research / JSON</span>
+                      </button>
+                    </div>
+                  }
+                } @else {
+                  <div class="empty-dossier-state">
+                    <mat-icon class="dossier-empty-icon">auto_stories</mat-icon>
+                    <h3>No Research Dossier Imported Yet</h3>
+                    <p>Import your ChatGPT research (via HTML, Markdown or JSON) to view company intel, decision makers, and an interactive Org Tree.</p>
+                    <button mat-flat-button color="primary" (click)="openResearchIngestDialog(company)">
+                      <mat-icon>content_paste</mat-icon>
+                      <span>Import ChatGPT Research / JSON</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            </mat-tab>
+
             <!-- Timeline Tab -->
             <mat-tab label="Timeline">
               <div class="tab-content">
@@ -538,6 +614,204 @@ import { marked } from 'marked';
       padding: 1.5rem;
       min-height: 240px;
     }
+
+    /* Account Intelligence Dossier Styles */
+    .intel-tab-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .dossier-btn {
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.4);
+      margin-right: 6px;
+
+      &:hover {
+        background: rgba(56, 189, 248, 0.1);
+      }
+    }
+
+    .dossier-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+
+      .toolbar-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.8rem;
+        color: #94a3b8;
+
+        .source-pill {
+          background: rgba(56, 189, 248, 0.1);
+          color: #38bdf8;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+          border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+      }
+
+      .toolbar-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .tool-btn {
+          font-size: 0.8rem;
+          color: #94a3b8;
+          border-color: #334155;
+
+          &.update-btn {
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.3);
+          }
+        }
+      }
+    }
+
+    .dossier-edit-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 1rem;
+
+      .dossier-edit-textarea {
+        background: #090d16;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        color: #f8fafc;
+        font-family: monospace;
+        font-size: 0.85rem;
+        padding: 0.75rem;
+        resize: vertical;
+        outline: none;
+
+        &:focus { border-color: #38bdf8; }
+      }
+
+      .dossier-edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+    }
+
+    .rendered-dossier-container {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 1.5rem;
+      color: #cbd5e1;
+      font-size: 0.9rem;
+      line-height: 1.6;
+
+      ::ng-deep h1, ::ng-deep .dossier-h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #f8fafc;
+        margin: 1rem 0 0.5rem;
+      }
+      ::ng-deep h2, ::ng-deep .dossier-h2, ::ng-deep .dossier-title-xl {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #38bdf8;
+        margin: 1.25rem 0 0.5rem;
+        border-bottom: 1px solid #1e293b;
+        padding-bottom: 0.3rem;
+      }
+      ::ng-deep h3, ::ng-deep .dossier-h3, ::ng-deep .dossier-title-lg {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #f1f5f9;
+        margin: 1rem 0 0.4rem;
+      }
+      ::ng-deep table, ::ng-deep .dossier-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        background: #1e293b;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      ::ng-deep th {
+        background: #0f172a;
+        color: #94a3b8;
+        padding: 0.6rem 0.8rem;
+        text-align: left;
+        font-size: 0.8rem;
+        border-bottom: 1px solid #334155;
+      }
+      ::ng-deep td {
+        padding: 0.6rem 0.8rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.85rem;
+      }
+      ::ng-deep a, ::ng-deep .dossier-link {
+        color: #38bdf8;
+        text-decoration: none;
+        &:hover { text-decoration: underline; }
+      }
+      ::ng-deep .dossier-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+      ::ng-deep .dossier-badge, ::ng-deep .badge {
+        display: inline-block;
+        font-size: 0.72rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #94a3b8;
+
+        &.badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+        &.badge-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); }
+        &.badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+      }
+      ::ng-deep .dossier-divider {
+        border: none;
+        border-top: 1px solid #1e293b;
+        margin: 1.5rem 0;
+      }
+    }
+
+    .empty-dossier-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 3rem 1.5rem;
+      background: #0f172a;
+      border: 1px dashed #334155;
+      border-radius: 12px;
+      gap: 0.75rem;
+
+      .dossier-empty-icon {
+        font-size: 48px;
+        width: 48px;
+        height: 48px;
+        color: #38bdf8;
+      }
+
+      h3 { margin: 0; font-size: 1.15rem; color: #f8fafc; }
+      p { margin: 0; color: #94a3b8; max-width: 480px; font-size: 0.9rem; }
+      button { margin-top: 0.5rem; }
+    }
+
 
     .tab-section-header {
       display: flex;
@@ -1004,6 +1278,169 @@ import { marked } from 'marked';
     :host-context(body.light-theme) .profile-card-actions {
       border-top-color: rgba(0, 0, 0, 0.06);
     }
+
+    /* Light Theme - Account Intelligence Dossier */
+    :host-context(body.light-theme) .dossier-btn {
+      color: #0284c7;
+      border-color: #0284c7;
+      background: rgba(2, 132, 199, 0.04);
+
+      &:hover {
+        background: rgba(2, 132, 199, 0.1);
+      }
+    }
+
+    :host-context(body.light-theme) .dossier-toolbar {
+      background: #ffffff;
+      border-color: #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+      .toolbar-meta {
+        color: #64748b;
+
+        .source-pill {
+          background: #f0f9ff;
+          color: #0284c7;
+          border-color: #bae6fd;
+          font-weight: 500;
+        }
+
+        .date-pill {
+          color: #64748b;
+        }
+      }
+
+      .toolbar-btn-group {
+        .tool-btn {
+          color: #334155;
+          border-color: #cbd5e1;
+          background: #ffffff;
+
+          &:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+          }
+
+          &.update-btn {
+            color: #0284c7;
+            border-color: #7dd3fc;
+            background: #f0f9ff;
+
+            &:hover {
+              background: #e0f2fe;
+              border-color: #0284c7;
+            }
+          }
+        }
+      }
+    }
+
+    :host-context(body.light-theme) .rendered-dossier-container {
+      background: #ffffff;
+      border-color: #e2e8f0;
+      color: #334155;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+      ::ng-deep h1, ::ng-deep .dossier-h1 {
+        color: #0f172a !important;
+      }
+      ::ng-deep h2, ::ng-deep .dossier-h2, ::ng-deep .dossier-title-xl {
+        color: #0284c7 !important;
+        border-bottom-color: #e2e8f0 !important;
+      }
+      ::ng-deep h3, ::ng-deep .dossier-h3, ::ng-deep .dossier-title-lg {
+        color: #1e293b !important;
+      }
+      ::ng-deep table, ::ng-deep .dossier-table {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+      }
+      ::ng-deep th {
+        background: #f8fafc !important;
+        color: #475569 !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+        font-weight: 600 !important;
+      }
+      ::ng-deep td {
+        border-bottom: 1px solid #f1f5f9 !important;
+        color: #334155 !important;
+      }
+      ::ng-deep tr:hover td {
+        background-color: #f8fafc !important;
+      }
+      ::ng-deep a, ::ng-deep .dossier-link {
+        color: #0284c7 !important;
+        &:hover {
+          color: #0369a1 !important;
+        }
+      }
+      ::ng-deep .dossier-card {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #334155 !important;
+      }
+      ::ng-deep .dossier-badge, ::ng-deep .badge {
+        background: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #475569 !important;
+
+        &.badge-success {
+          background: #ecfdf5 !important;
+          color: #059669 !important;
+          border-color: #a7f3d0 !important;
+        }
+        &.badge-info {
+          background: #f0f9ff !important;
+          color: #0284c7 !important;
+          border-color: #bae6fd !important;
+        }
+        &.badge-warning {
+          background: #fffbeb !important;
+          color: #d97706 !important;
+          border-color: #fde68a !important;
+        }
+      }
+      ::ng-deep .dossier-divider {
+        border-top-color: #e2e8f0 !important;
+      }
+      ::ng-deep strong, ::ng-deep b {
+        color: #0f172a;
+      }
+    }
+
+    :host-context(body.light-theme) .dossier-edit-box {
+      background: #ffffff;
+      border-color: #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+      .dossier-edit-textarea {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #0f172a;
+
+        &:focus {
+          border-color: #0284c7;
+          background: #ffffff;
+        }
+      }
+    }
+
+    :host-context(body.light-theme) .empty-dossier-state {
+      background: #ffffff;
+      border-color: #cbd5e1;
+
+      .dossier-empty-icon {
+        color: #0284c7;
+      }
+
+      h3 {
+        color: #0f172a;
+      }
+
+      p {
+        color: #64748b;
+      }
+    }
   `]
 })
 export class CompanyDetailComponent implements OnInit {
@@ -1014,6 +1451,7 @@ export class CompanyDetailComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly companyService = inject(CompanyService);
 
   readonly contacts = signal<Contact[]>([]);
   readonly deals = signal<Deal[]>([]);
@@ -1025,6 +1463,55 @@ export class CompanyDetailComponent implements OnInit {
   });
 
   readonly syncingEmails = signal(false);
+  readonly isEditingDossier = signal(false);
+  dossierEditHtml = '';
+
+  openResearchIngestDialog(company: Company): void {
+    const dialogRef = this.dialog.open(ResearchIngestDialogComponent, {
+      width: '920px',
+      maxWidth: '95vw',
+      panelClass: ['dark-dialog-panel', 'research-dialog-panel'],
+      data: {
+        companyId: company.id,
+        companyName: company.name
+      }
+    });
+
+    dialogRef.afterClosed().subscribe((res) => {
+      if (res?.success) {
+        this.store.loadResearch(company.id);
+        this.loadLinkedData(company.id);
+      }
+    });
+  }
+
+  toggleEditDossier(res: any): void {
+    if (this.isEditingDossier()) {
+      this.isEditingDossier.set(false);
+    } else {
+      this.dossierEditHtml = res.content_html || '';
+      this.isEditingDossier.set(true);
+    }
+  }
+
+  cancelEditDossier(): void {
+    this.isEditingDossier.set(false);
+  }
+
+  saveEditedDossier(companyId: string): void {
+    this.companyService.updateDossier(companyId, { content_html: this.dossierEditHtml }).subscribe({
+      next: () => {
+        this.notification.success('Dossier updated successfully');
+        this.isEditingDossier.set(false);
+        this.store.loadResearch(companyId);
+      },
+      error: () => this.notification.error('Failed to update dossier')
+    });
+  }
+
+  onContactPromoted(companyId: string): void {
+    this.loadLinkedData(companyId);
+  }
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
