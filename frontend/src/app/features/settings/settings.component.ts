@@ -645,6 +645,162 @@ interface AIProviderOption {
             </div>
           </div>
 
+          <!-- AI Provider & Global Model Settings Card -->
+          <div class="card settings-card ai-provider-settings-card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <mat-icon style="color: #10a37f;">auto_awesome</mat-icon>
+                <h3 style="margin: 0;">AI Provider & Global Model Settings</h3>
+              </div>
+              @if (chatgptStatus()?.connected) {
+                <span class="pill-badge-active" style="background: rgba(16, 163, 127, 0.15); border: 1px solid rgba(16, 163, 127, 0.3); color: #10b981; padding: 0.25rem 0.65rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <span style="font-size: 10px;">🟢</span> ChatGPT Plan Active ($0 Cost)
+                </span>
+              }
+            </div>
+
+            <div class="card-body">
+              <p class="form-instructions" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.25rem; line-height: 1.5;">
+                Select the AI model used across the entire platform (AI Emails, Copilot Chatbot, Company Account Intelligence, Call Summaries, and Sequences). You can power all capabilities through your personal ChatGPT Subscription (Plus/Pro) at zero metered API cost.
+              </p>
+
+              @if (loadingChatGPTStatus()) {
+                <div class="ai-loading">
+                  <mat-spinner diameter="24"></mat-spinner>
+                  <span>Checking AI provider status...</span>
+                </div>
+              } @else if (chatgptStatus()?.connected) {
+                <!-- Connected State -->
+                <div class="ai-saved-config" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                      <div style="font-weight: 600; font-size: 0.95rem; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>✨ OpenAI ChatGPT Subscription</span>
+                      </div>
+                      <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.2rem;">
+                        Linked to: <strong style="color: #94a3b8;">{{ chatgptStatus()?.chatgpt_email || authService.currentUser()?.email }}</strong> (Autonomous renewals active)
+                      </div>
+                    </div>
+                    <button mat-stroked-button color="warn" type="button" (click)="disconnectChatGPT()" [disabled]="disconnectingChatGPT()" style="height: 32px; font-size: 0.75rem;">
+                      @if (disconnectingChatGPT()) {
+                        <mat-spinner diameter="16"></mat-spinner>
+                      } @else {
+                        <span>Disconnect Plan</span>
+                      }
+                    </button>
+                  </div>
+
+                  <!-- Global Model Selector -->
+                  <div style="margin-top: 0.5rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                      <label style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">
+                        Global Platform Model
+                      </label>
+                      @if (testingAIModel()) {
+                        <span style="font-size: 0.75rem; color: #38bdf8; display: flex; align-items: center; gap: 0.35rem;">
+                          <mat-spinner diameter="14"></mat-spinner>
+                          Testing token send & receive with OpenAI...
+                        </span>
+                      }
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                      <mat-form-field appearance="outline" style="min-width: 280px; flex: 1;">
+                        <mat-label>Default AI Model</mat-label>
+                        <mat-select
+                          [value]="selectedChatGPTModel()"
+                          [disabled]="testingAIModel() || savingAIModel()"
+                          (selectionChange)="onChatGPTModelSelected($event.value)"
+                        >
+                          @for (m of (chatgptModels().length > 0 ? chatgptModels() : defaultChatGPTModels); track m.slug) {
+                            <mat-option [value]="m.slug">{{ m.display_name }} ({{ m.slug }})</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+
+                      <button
+                        mat-flat-button
+                        color="primary"
+                        type="button"
+                        style="height: 48px; margin-bottom: 1.25rem;"
+                        (click)="testAndSaveChatGPTModel(selectedChatGPTModel())"
+                        [disabled]="testingAIModel() || savingAIModel()"
+                      >
+                        @if (testingAIModel() || savingAIModel()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                          <span style="margin-left: 0.5rem;">Verifying Tokens...</span>
+                        } @else {
+                          <mat-icon>verified</mat-icon>
+                          <span>Test & Save Model</span>
+                        }
+                      </button>
+                    </div>
+
+                    <!-- Live Token Test Status Banner -->
+                    @if (modelTestResult(); as tr) {
+                      <div [style.background]="tr.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'"
+                           [style.border]="tr.success ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)'"
+                           style="border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; font-size: 0.8rem; display: flex; align-items: flex-start; gap: 0.6rem;">
+                        <mat-icon [style.color]="tr.success ? '#34d399' : '#f87171'" style="font-size: 20px; width: 20px; height: 20px; margin-top: 1px;">
+                          {{ tr.success ? 'check_circle' : 'error' }}
+                        </mat-icon>
+                        <div style="flex: 1;">
+                          <div [style.color]="tr.success ? '#34d399' : '#f87171'" style="font-weight: 600;">
+                            {{ tr.success ? 'Token Roundtrip Verified & Model Saved' : 'Model Token Verification Failed' }}
+                          </div>
+                          <div style="color: #cbd5e1; margin-top: 0.2rem; line-height: 1.4;">
+                            {{ tr.message }}
+                          </div>
+                          @if (tr.reply) {
+                            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem; font-family: monospace;">
+                              Model probe output: "{{ tr.reply }}" (0 metered costs)
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <span style="font-size: 0.75rem; color: #64748b;">
+                      Whenever you select a model, the CRM sends a live test prompt via your ChatGPT Plan tokens and verifies the response before saving.
+                    </span>
+                  </div>
+                </div>
+              } @else {
+                <!-- Not Connected State -->
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                  <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                      <h4 style="margin: 0 0 0.25rem 0; font-size: 0.95rem; font-weight: 600; color: #f8fafc;">
+                        Link Your ChatGPT Subscription (Plus / Pro / Team)
+                      </h4>
+                      <p style="margin: 0; font-size: 0.8rem; color: #94a3b8; max-width: 520px; line-height: 1.4;">
+                        Uses OpenAI Sign in with ChatGPT Token Sharing. Connect once via the 1-command CLI on your laptop to bind your subscription quota to your CRM account on this production server.
+                      </p>
+                    </div>
+                    <button mat-flat-button color="primary" type="button" (click)="showCLIGuide.set(!showCLIGuide())">
+                      <mat-icon>terminal</mat-icon>
+                      <span>{{ showCLIGuide() ? 'Hide CLI Instructions' : 'Link via 1-Command CLI' }}</span>
+                    </button>
+                  </div>
+
+                  @if (showCLIGuide()) {
+                    <div style="background: #090e17; border: 1px solid #1e293b; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                      <div style="font-size: 0.8rem; color: #38bdf8; font-weight: 600; margin-bottom: 0.4rem;">
+                        Run on your computer's terminal:
+                      </div>
+                      <div style="background: #000; border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.85rem; color: #4ade80; display: flex; justify-content: space-between; align-items: center; overflow-x: auto;">
+                        <code>python scripts/link_chatgpt_plan.py --remote {{ getHostUrl() }}</code>
+                      </div>
+                      <p style="font-size: 0.75rem; color: #94a3b8; margin: 0.5rem 0 0 0; line-height: 1.4;">
+                        Enter your CRM email (<strong>{{ authService.currentUser()?.email }}</strong>) and password when prompted. The tool will open your browser to complete ChatGPT OAuth and sync the session directly to this server.
+                      </p>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
           <!-- AI Prompts Card -->
           <div class="card settings-card ai-prompts-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -2385,6 +2541,24 @@ export class SettingsComponent implements OnInit {
   readonly selectedConfigType = signal<string>('');
   readonly showAPIKey = signal(false);
 
+  // ChatGPT Plan & AI Provider signals
+  readonly loadingChatGPTStatus = signal(false);
+  readonly chatgptStatus = signal<any>(null);
+  readonly chatgptModels = signal<any[]>([]);
+  readonly loadingModels = signal(false);
+  readonly selectedChatGPTModel = signal<string>('gpt-5.6-terra');
+  readonly savingAIModel = signal(false);
+  readonly testingAIModel = signal(false);
+  readonly modelTestResult = signal<{ success: boolean; message: string; reply?: string; model?: string } | null>(null);
+  readonly disconnectingChatGPT = signal(false);
+  readonly showCLIGuide = signal(false);
+  readonly defaultChatGPTModels = [
+    { slug: 'gpt-5.6-terra', display_name: 'GPT-5.6 Terra (High-Intelligence Flagship)' },
+    { slug: 'gpt-5.6-luna', display_name: 'GPT-5.6 Luna (Fast & Efficient)' },
+    { slug: 'gpt-reserve', display_name: 'GPT-Reserve (High Reliability)' },
+    { slug: 'codex-auto-review', display_name: 'Codex Auto Review' },
+  ];
+
 
   // LLM Stats signals
   readonly loadingStats = signal(false);
@@ -2537,6 +2711,7 @@ export class SettingsComponent implements OnInit {
     if (this.isAdmin()) {
       this.loadGmailConfig();
     }
+    this.loadChatGPTStatus();
     this.loadPrompts();
     this.loadLinkedInConfig();
     this.loadLLMStats();
@@ -2950,6 +3125,111 @@ export class SettingsComponent implements OnInit {
       error: () => {
         this.deletingGmailConfig.set(false);
         this.notification.error('Failed to remove configuration.');
+      }
+    });
+  }
+
+  // ─── ChatGPT Plan & AI Provider ──────────────
+  getHostUrl(): string {
+    return typeof window !== 'undefined' ? window.location.origin : 'https://crm.radar36.com';
+  }
+
+  loadChatGPTStatus(): void {
+    this.loadingChatGPTStatus.set(true);
+    this.apiService.get<any>('/ai/chatgpt/status/').subscribe({
+      next: (status) => {
+        this.loadingChatGPTStatus.set(false);
+        this.chatgptStatus.set(status);
+        if (status.active_model) {
+          this.selectedChatGPTModel.set(status.active_model);
+        }
+        if (status.connected) {
+          this.loadChatGPTModels();
+        }
+      },
+      error: () => {
+        this.loadingChatGPTStatus.set(false);
+      }
+    });
+  }
+
+  loadChatGPTModels(): void {
+    this.loadingModels.set(true);
+    this.apiService.get<any>('/ai/chatgpt/models/').subscribe({
+      next: (res) => {
+        this.loadingModels.set(false);
+        if (res.models && res.models.length > 0) {
+          this.chatgptModels.set(res.models);
+          // If selected model not in list and no active model is loaded, pick first
+          const current = this.selectedChatGPTModel();
+          const match = res.models.find((m: any) => m.slug === current);
+          if (!match && !this.chatgptStatus()?.active_model) {
+            this.selectedChatGPTModel.set(res.models[0].slug);
+          }
+        }
+      },
+      error: () => {
+        this.loadingModels.set(false);
+      }
+    });
+  }
+
+  onChatGPTModelSelected(modelSlug: string): void {
+    if (!modelSlug || this.testingAIModel() || this.savingAIModel()) return;
+    this.testAndSaveChatGPTModel(modelSlug);
+  }
+
+  testAndSaveChatGPTModel(modelSlug: string): void {
+    if (!modelSlug) return;
+    this.testingAIModel.set(true);
+    this.savingAIModel.set(true);
+    this.modelTestResult.set(null);
+
+    this.apiService.post<any>('/ai/chatgpt/test-and-save/', {
+      model: modelSlug,
+      save: true,
+    }).subscribe({
+      next: (res) => {
+        this.testingAIModel.set(false);
+        this.savingAIModel.set(false);
+        this.selectedChatGPTModel.set(modelSlug);
+        this.modelTestResult.set({
+          success: true,
+          message: res.message || `Successfully sent & received tokens with ${modelSlug}! Model saved.`,
+          reply: res.probe_reply,
+          model: modelSlug,
+        });
+        this.notification.success(`Verified & Saved: ${modelSlug} is your active CRM AI model!`);
+      },
+      error: (err: any) => {
+        this.testingAIModel.set(false);
+        this.savingAIModel.set(false);
+        const errorMsg = err.error?.error?.message || err.error?.message || `Failed to test model ${modelSlug}`;
+        this.modelTestResult.set({
+          success: false,
+          message: errorMsg,
+          model: modelSlug,
+        });
+        this.notification.error(errorMsg);
+      }
+    });
+  }
+
+  saveGlobalAIModel(modelSlug: string): void {
+    this.testAndSaveChatGPTModel(modelSlug);
+  }
+
+  disconnectChatGPT(): void {
+    this.disconnectingChatGPT.set(true);
+    this.apiService.delete('/ai/chatgpt/status/').subscribe({
+      next: () => {
+        this.disconnectingChatGPT.set(false);
+        this.chatgptStatus.set({ connected: false });
+        this.notification.success('ChatGPT subscription disconnected');
+      },
+      error: () => {
+        this.disconnectingChatGPT.set(false);
+        this.notification.error('Failed to disconnect ChatGPT subscription');
       }
     });
   }

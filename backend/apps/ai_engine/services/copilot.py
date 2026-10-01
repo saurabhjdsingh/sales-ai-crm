@@ -49,7 +49,10 @@ class LoggingLLMProviderWrapper(BaseLLMProvider):
             from apps.ai_engine.models import LLMCallLog
             from apps.ai_engine.pricing import calculate_cost
 
-            cost = calculate_cost(response.model, response.input_tokens, response.output_tokens)
+            if "chatgpt" in str(type(self.provider)).lower():
+                cost = 0.0
+            else:
+                cost = calculate_cost(response.model, response.input_tokens, response.output_tokens)
             purpose = kwargs.get("purpose", "chat")
 
             LLMCallLog.objects.create(
@@ -65,14 +68,63 @@ class LoggingLLMProviderWrapper(BaseLLMProvider):
             logger.exception("Failed to log LLM call: %s", str(e))
 
 
+class FallbackLLMProviderWrapper(BaseLLMProvider):
+    """
+    Executes calls on primary LLM provider.
+    If the primary provider fails (e.g. ChatGPT subscription expired, token invalid, 401/403/quota),
+    it automatically fails over to the configured custom fallback provider.
+    """
+
+    def __init__(self, primary: BaseLLMProvider, fallback: BaseLLMProvider, user=None):
+        self.primary = primary
+        self.fallback = fallback
+        self.user = user
+
+    def get_model_name(self) -> str:
+        return self.primary.get_model_name()
+
+    def chat(self, messages: list[dict], system_prompt: str = "", **kwargs) -> LLMResponse:
+        try:
+            return self.primary.chat(messages, system_prompt, **kwargs)
+        except Exception as e:
+            logger.warning(
+                "Primary LLM provider (%s) failed: %s. Automatically failing over to fallback provider (%s).",
+                self.primary.get_model_name(),
+                e,
+                self.fallback.get_model_name(),
+            )
+            return self.fallback.chat(messages, system_prompt, **kwargs)
+
+    def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        system_prompt: str = "",
+        **kwargs
+    ) -> LLMToolResponse:
+        try:
+            return self.primary.chat_with_tools(messages, tools, system_prompt, **kwargs)
+        except Exception as e:
+            logger.warning(
+                "Primary LLM provider (%s) tool inference failed: %s. Automatically failing over to fallback provider (%s).",
+                self.primary.get_model_name(),
+                e,
+                self.fallback.get_model_name(),
+            )
+            return self.fallback.chat_with_tools(messages, tools, system_prompt, **kwargs)
+
+
 def get_llm_provider(user=None) -> BaseLLMProvider:
     """
     Factory function to get the LLM provider, wrapped in a logging proxy.
 
     If the user has a personal AI config (UserAIConfig), use that.
+    Supports chatgpt_plan, openai, claude, or custom endpoint.
+    Also wires up automatic failover to fallback custom API key if configured.
     Otherwise fall back to the system-wide settings from .env.
     """
     raw_provider = None
+    fallback_provider = None
 
     # 1. Try per-user config or active UserAIConfig saved in integration settings
     try:
@@ -88,18 +140,37 @@ def get_llm_provider(user=None) -> BaseLLMProvider:
             config = UserAIConfig.objects.filter(is_active=True, is_deleted=False).first()
 
         if config:
-            api_key = decrypt_api_key(config.api_key_encrypted)
-            base_url = config.base_url if config.config_type == "custom_endpoint" else ""
             model = config.model_name
 
-            if config.provider == "claude":
+            if config.provider == "chatgpt_plan":
+                from apps.ai_engine.services.providers.chatgpt_plan import ChatGPTPlanProvider
+                raw_provider = ChatGPTPlanProvider(user=user or config.user, model=model)
+            elif config.provider == "claude":
+                api_key = decrypt_api_key(config.api_key_encrypted) if config.api_key_encrypted else ""
+                base_url = config.base_url if config.config_type == "custom_endpoint" else ""
                 from apps.ai_engine.services.providers.claude import ClaudeProvider
                 raw_provider = ClaudeProvider(api_key=api_key, base_url=base_url, model=model, use_env_fallback=False)
             elif config.provider == "openai":
+                api_key = decrypt_api_key(config.api_key_encrypted) if config.api_key_encrypted else ""
+                base_url = config.base_url if config.config_type == "custom_endpoint" else ""
                 from apps.ai_engine.services.providers.openai import OpenAIProvider
                 raw_provider = OpenAIProvider(api_key=api_key, base_url=base_url, model=model, use_env_fallback=False)
             else:
                 logger.warning("Unknown provider '%s' in AI config, falling back to defaults", config.provider)
+
+            # Check if user configured a fallback provider (Phase 5)
+            if config.fallback_provider and config.fallback_api_key_encrypted:
+                fb_api_key = decrypt_api_key(config.fallback_api_key_encrypted)
+                fb_model = config.fallback_model_name or ("gpt-4o" if config.fallback_provider == "openai" else "claude-3-5-sonnet-20241022")
+                fb_base_url = config.fallback_base_url if config.fallback_config_type == "custom_endpoint" else ""
+
+                if config.fallback_provider == "openai":
+                    from apps.ai_engine.services.providers.openai import OpenAIProvider
+                    fallback_provider = OpenAIProvider(api_key=fb_api_key, base_url=fb_base_url, model=fb_model, use_env_fallback=False)
+                elif config.fallback_provider == "claude":
+                    from apps.ai_engine.services.providers.claude import ClaudeProvider
+                    fallback_provider = ClaudeProvider(api_key=fb_api_key, base_url=fb_base_url, model=fb_model, use_env_fallback=False)
+
     except Exception as e:
         logger.warning("Failed to load UserAIConfig (%s), checking system defaults", e)
 
@@ -116,7 +187,11 @@ def get_llm_provider(user=None) -> BaseLLMProvider:
         else:
             raise ValueError(f"Unknown AI provider: {provider_name}")
 
+    if fallback_provider and raw_provider:
+        raw_provider = FallbackLLMProviderWrapper(primary=raw_provider, fallback=fallback_provider, user=user)
+
     return LoggingLLMProviderWrapper(raw_provider, user=user)
+
 
 
 class CopilotService:

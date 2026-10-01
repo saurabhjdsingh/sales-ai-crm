@@ -108,9 +108,10 @@ class AISendMessageSerializer(serializers.Serializer):
 
 
 class UserAIConfigSerializer(serializers.ModelSerializer):
-    """Read serializer for UserAIConfig. Returns masked API key, never the real one."""
+    """Read serializer for UserAIConfig. Returns masked API keys, never the real ones."""
 
     api_key_masked = serializers.SerializerMethodField()
+    fallback_api_key_masked = serializers.SerializerMethodField()
 
     class Meta:
         model = UserAIConfig
@@ -121,6 +122,11 @@ class UserAIConfigSerializer(serializers.ModelSerializer):
             "model_name",
             "base_url",
             "api_key_masked",
+            "fallback_provider",
+            "fallback_config_type",
+            "fallback_model_name",
+            "fallback_base_url",
+            "fallback_api_key_masked",
             "is_active",
             "created_at",
             "updated_at",
@@ -134,7 +140,16 @@ class UserAIConfigSerializer(serializers.ModelSerializer):
             plain = decrypt_api_key(obj.api_key_encrypted)
             return mask_api_key(plain)
         except Exception:
-            return "****"
+            return "****" if obj.api_key_encrypted else ""
+
+    def get_fallback_api_key_masked(self, obj) -> str:
+        from apps.common.encryption import decrypt_api_key, mask_api_key
+
+        try:
+            plain = decrypt_api_key(obj.fallback_api_key_encrypted)
+            return mask_api_key(plain)
+        except Exception:
+            return "****" if obj.fallback_api_key_encrypted else ""
 
 
 class AIPromptSerializer(serializers.Serializer):
@@ -181,16 +196,58 @@ class AIPromptBulkWriteSerializer(serializers.Serializer):
 class UserAIConfigWriteSerializer(serializers.Serializer):
     """Write serializer for creating/updating UserAIConfig. Encrypts the API key."""
 
-    provider = serializers.ChoiceField(choices=["openai", "claude"])
-    config_type = serializers.ChoiceField(choices=["cloud_api", "custom_endpoint"])
-    api_key = serializers.CharField(min_length=1, max_length=500, write_only=True)
+    provider = serializers.ChoiceField(choices=["chatgpt_plan", "openai", "claude"])
+    config_type = serializers.ChoiceField(choices=["chatgpt_oauth", "cloud_api", "custom_endpoint"])
+    api_key = serializers.CharField(required=False, allow_blank=True, default="", max_length=500, write_only=True)
     model_name = serializers.CharField(min_length=1, max_length=100)
     base_url = serializers.URLField(required=False, allow_blank=True, default="")
 
+    # Phase 5: Fallback LLM fields
+    fallback_provider = serializers.ChoiceField(choices=["", "openai", "claude"], required=False, allow_blank=True, default="")
+    fallback_config_type = serializers.ChoiceField(choices=["cloud_api", "custom_endpoint"], required=False, default="cloud_api")
+    fallback_api_key = serializers.CharField(required=False, allow_blank=True, default="", max_length=500, write_only=True)
+    fallback_model_name = serializers.CharField(required=False, allow_blank=True, default="", max_length=100)
+    fallback_base_url = serializers.URLField(required=False, allow_blank=True, default="")
+
     def validate(self, attrs):
-        if attrs["config_type"] == "custom_endpoint" and not attrs.get("base_url"):
-            raise serializers.ValidationError(
-                {"base_url": "Base URL is required for custom endpoint configuration."}
-            )
+        provider = attrs["provider"]
+        config_type = attrs["config_type"]
+        api_key = attrs.get("api_key", "").strip()
+
+        if provider == "chatgpt_plan" or config_type == "chatgpt_oauth":
+            # For ChatGPT subscription, API key is not required because tokens are in ChatGPTSession
+            pass
+        else:
+            if not api_key:
+                raise serializers.ValidationError(
+                    {"api_key": "API key is required for API provider configuration."}
+                )
+            if config_type == "custom_endpoint" and not attrs.get("base_url"):
+                raise serializers.ValidationError(
+                    {"base_url": "Base URL is required for custom endpoint configuration."}
+                )
+
+        fb_provider = attrs.get("fallback_provider", "")
+        fb_key = attrs.get("fallback_api_key", "").strip()
+        if fb_provider and not fb_key:
+            # Check if an existing fallback key already exists on instance, else require it
+            pass
+
         return attrs
+
+
+class ApolloConfigSerializer(serializers.Serializer):
+    """Read serializer for Apollo.io configuration."""
+
+    configured = serializers.BooleanField()
+    api_key_masked = serializers.CharField()
+    is_active = serializers.BooleanField()
+    last_verified_at = serializers.DateTimeField(allow_null=True)
+
+
+class ApolloConfigWriteSerializer(serializers.Serializer):
+    """Write serializer for saving Apollo.io API key."""
+
+    api_key = serializers.CharField(min_length=10, max_length=500, write_only=True)
+
 

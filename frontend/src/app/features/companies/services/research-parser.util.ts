@@ -50,11 +50,26 @@ export class ResearchParserUtil {
   static parse(rawContent: string): ParsedResearch {
     const content = rawContent.trim();
 
+    let cleanContent = content;
+    if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    }
+
     // 0. Auto-detect and parse JSON format
-    if (content.startsWith('{')) {
+    if (cleanContent.startsWith('{')) {
       try {
-        const parsedObj = JSON.parse(content);
-        if (parsedObj.report || parsedObj.company || parsedObj.vapt_team || parsedObj.organization_chart) {
+        const parsedObj = JSON.parse(cleanContent);
+        if (
+          parsedObj.report ||
+          parsedObj.company ||
+          parsedObj.company_snapshot ||
+          parsedObj.vapt_team ||
+          parsedObj.organization_chart ||
+          parsedObj.report_title ||
+          parsedObj.vapt_capability ||
+          parsedObj.sales_intelligence ||
+          parsedObj.icp_qualification
+        ) {
           return this.parseJson(parsedObj);
         }
       } catch (e) {
@@ -382,17 +397,28 @@ export class ResearchParserUtil {
   }
 
   /**
-   * Parses structured ChatGPT JSON (e.g. Radar 36 Account Intelligence schema).
+   * Parses structured ChatGPT JSON (supports custom Radar 36 Account Intelligence schema and legacy schemas).
    */
   static parseJson(json: any): ParsedResearch {
     const report = json.report || json;
-    const company = report.company || {};
-    const orgChart = report.organization_chart || {};
-    const vaptTeam = report.vapt_team || {};
-    const outreachMap = report.outreach_map || {};
+    const company = report.company_snapshot || report.company || json.company_snapshot || json.company || {};
+    const orgChart = report.organization_chart || json.organization_chart || {};
+    const vaptTeam = report.vapt_team || json.vapt_team || {};
+    const outreachMap = report.outreach_map || json.outreach_map || {};
+    const vaptCap = report.vapt_capability || json.vapt_capability || {};
+    const icpQual = report.icp_qualification || json.icp_qualification || {};
+    const salesIntel = report.sales_intelligence || json.sales_intelligence || {};
 
-    const companyName = (company.name || report.name || report.company_name || '').trim();
-    const website = (company.website || '').trim();
+    const companyName = (
+      company.company_name ||
+      company.name ||
+      report.company_name ||
+      report.name ||
+      report.report_title ||
+      ''
+    ).trim();
+
+    const website = (company.website || report.website || '').trim();
 
     let headquarters = '';
     let country = '';
@@ -405,17 +431,29 @@ export class ResearchParserUtil {
         headquarters = String(company.headquarters);
       }
     }
+    if (!country && company.country) {
+      country = String(company.country);
+    }
 
     let companySize = '';
-    if (company.employee_count) {
+    if (company.approximate_employee_count) {
+      companySize = String(company.approximate_employee_count);
+    } else if (company.employee_count) {
       if (typeof company.employee_count === 'object') {
         companySize = company.employee_count.reported_range || '';
       } else {
         companySize = String(company.employee_count);
       }
+    } else if (vaptTeam.headcount?.total_identifiable) {
+      companySize = `${vaptTeam.headcount.total_identifiable} identifiable`;
     }
 
-    const industry = (company.business_type || company.industry || '').trim();
+    const industry = (
+      company.industry ||
+      company.business_type ||
+      (Array.isArray(company.primary_cybersecurity_services) ? company.primary_cybersecurity_services.join(', ') : '') ||
+      ''
+    ).trim();
 
     const people: ParsedPerson[] = [];
 
@@ -424,74 +462,17 @@ export class ResearchParserUtil {
       return val.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     };
 
-    // 1. Executive from organization_chart
-    if (orgChart.executive && orgChart.executive.name) {
-      this.addPersonIfNotExists(people, {
-        name: orgChart.executive.name.trim(),
-        role: (orgChart.executive.title || 'Executive Leadership').trim(),
-        classification: 'Primary Business Contact',
-        classification_type: 'primary',
-        linkedin_url: orgChart.executive.linkedin_url || '',
-        selected: true
-      });
-    }
-
-    // 2. Outreach Map Contacts
-    if (outreachMap.primary_business_contact?.name) {
-      const p = outreachMap.primary_business_contact;
-      this.addPersonIfNotExists(people, {
-        name: p.name.trim(),
-        role: (p.title || 'Business Authority').trim(),
-        classification: 'Primary Business Contact',
-        classification_type: 'primary',
-        linkedin_url: p.linkedin_url || '',
-        selected: true
-      });
-    }
-
-    if (outreachMap.technical_contact?.name) {
-      const p = outreachMap.technical_contact;
-      this.addPersonIfNotExists(people, {
-        name: p.name.trim(),
-        role: (p.title || 'Technical Specialist').trim(),
-        classification: 'Technical Contact',
-        classification_type: 'technical',
-        linkedin_url: p.linkedin_url || '',
-        selected: true
-      });
-    }
-
-    if (outreachMap.additional_technical_contact?.name) {
-      const p = outreachMap.additional_technical_contact;
-      this.addPersonIfNotExists(people, {
-        name: p.name.trim(),
-        role: (p.title || 'Technical Specialist').trim(),
-        classification: 'Technical Contact',
-        classification_type: 'technical',
-        linkedin_url: p.linkedin_url || '',
-        selected: true
-      });
-    }
-
-    // 3. Team People (e.g. vapt_team.people or team.people or people)
-    const teamPeopleList = Array.isArray(vaptTeam.people) 
-      ? vaptTeam.people 
-      : Array.isArray(report.team?.people) 
-        ? report.team.people 
-        : Array.isArray(report.people) 
-          ? report.people 
-          : [];
-
-    if (teamPeopleList.length > 0) {
-      teamPeopleList.forEach((p: any) => {
+    // 1. Process organization_chart.people list
+    if (Array.isArray(orgChart.people)) {
+      orgChart.people.forEach((p: any) => {
         if (p && p.name) {
-          const rawClass = p.classification || '';
-          const isDirect = /direct/i.test(rawClass) || /lead|director|vp|head|architect/i.test(p.title || '');
+          const role = (p.current_title || p.title || p.role || 'Practitioner').trim();
+          const rawClass = p.role_in_organization || p.decision_making_role || p.vapt_classification || p.classification || '';
           this.addPersonIfNotExists(people, {
             name: p.name.trim(),
-            role: (p.title || 'Team Member').trim(),
-            classification: formatClassification(rawClass),
-            classification_type: isDirect ? 'technical' : 'practitioner',
+            role,
+            classification: rawClass ? formatClassification(rawClass) : 'Security Team',
+            classification_type: this.determineClassification(role, rawClass),
             linkedin_url: p.linkedin_url || '',
             selected: true
           });
@@ -499,46 +480,158 @@ export class ResearchParserUtil {
       });
     }
 
-    // 4. Functional Groups in Org Chart
-    if (Array.isArray(orgChart.functional_groups)) {
-      orgChart.functional_groups.forEach((group: any) => {
-        if (Array.isArray(group.people)) {
-          group.people.forEach((p: any) => {
-            if (p && p.name) {
-              const isDirect = /direct/i.test(p.classification || '') || /lead|director|vp|head/i.test(p.title || '');
-              this.addPersonIfNotExists(people, {
-                name: p.name.trim(),
-                role: (p.title || 'Team Member').trim(),
-                classification: formatClassification(p.classification || 'Practitioner'),
-                classification_type: isDirect ? 'technical' : 'practitioner',
-                linkedin_url: p.linkedin_url || '',
-                selected: true
-              });
-            }
-          });
-        }
-        if (Array.isArray(group.other_possible_members)) {
-          group.other_possible_members.forEach((m: any) => {
-            const name = typeof m === 'string' ? m : m?.name;
-            if (name) {
-              this.addPersonIfNotExists(people, {
-                name: name.trim(),
-                role: 'Team Member',
-                classification: 'Practitioner',
-                classification_type: 'practitioner',
-                linkedin_url: '',
-                selected: true
-              });
-            }
+    // 2. Process vapt_team professionals lists
+    const vaptLists = [
+      ...(vaptTeam.confirmed_vapt_professionals || []),
+      ...(vaptTeam.probable_vapt_professionals || []),
+      ...(vaptTeam.possible_vapt_professionals || []),
+    ];
+    if (vaptLists.length > 0) {
+      vaptLists.forEach((p: any) => {
+        if (p && p.name) {
+          const role = (p.current_title || p.title || p.role || 'VAPT Specialist').trim();
+          const rawClass = p.vapt_classification || p.classification || 'VAPT Practitioner';
+          this.addPersonIfNotExists(people, {
+            name: p.name.trim(),
+            role,
+            classification: formatClassification(rawClass),
+            classification_type: 'technical',
+            linkedin_url: p.linkedin_url || '',
+            selected: true
           });
         }
       });
     }
 
-    // 5. Build Org Tree Data
-    const orgChartData = this.buildOrgTree(people);
+    // 3. Process outreach_map key contacts
+    const mapContacts = [
+      { contact: outreachMap.primary_contact || outreachMap.primary_business_contact, roleDefault: 'Primary Business Authority', classType: 'primary' as const },
+      { contact: outreachMap.secondary_contact || outreachMap.technical_contact, roleDefault: 'Technical Specialist', classType: 'technical' as const },
+      { contact: outreachMap.executive_escalation, roleDefault: 'Executive Leadership', classType: 'primary' as const },
+      { contact: outreachMap.vapt_practitioner_champion, roleDefault: 'VAPT Champion', classType: 'practitioner' as const },
+    ];
+    mapContacts.forEach(({ contact, roleDefault, classType }) => {
+      if (contact && contact.name) {
+        const role = (contact.title || contact.current_title || roleDefault).trim();
+        this.addPersonIfNotExists(people, {
+          name: contact.name.trim(),
+          role,
+          classification: formatClassification(contact.role || roleDefault),
+          classification_type: classType,
+          linkedin_url: contact.linkedin_url || '',
+          selected: true
+        });
+      }
+    });
 
-    // 6. Generate rich HTML dossier
+    // 4. Process conversation sequence contacts
+    const seqList = Array.isArray(outreachMap.conversation_sequence)
+      ? outreachMap.conversation_sequence
+      : Array.isArray(outreachMap.recommended_conversation_sequence)
+        ? outreachMap.recommended_conversation_sequence
+        : [];
+    seqList.forEach((seq: any) => {
+      const name = seq.person_name || seq.contact;
+      if (name && typeof name === 'string' && name.trim()) {
+        const title = (seq.person_title || 'Outreach Contact').trim();
+        this.addPersonIfNotExists(people, {
+          name: name.trim(),
+          role: title,
+          classification: 'Outreach Sequence',
+          classification_type: this.determineClassification(title, ''),
+          linkedin_url: seq.linkedin_url || '',
+          selected: true
+        });
+      }
+    });
+
+    // 5. Traverse organization_chart.tree
+    const traverseTree = (nodes: any[]) => {
+      if (!Array.isArray(nodes)) return;
+      nodes.forEach((item: any) => {
+        const p = item.person || item;
+        if (p && p.name) {
+          const role = (p.title || p.current_title || 'Team Member').trim();
+          this.addPersonIfNotExists(people, {
+            name: p.name.trim(),
+            role,
+            classification: 'Organization Tree',
+            classification_type: this.determineClassification(role, ''),
+            linkedin_url: p.linkedin_url || '',
+            selected: true
+          });
+        }
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          traverseTree(item.children);
+        }
+      });
+    };
+    if (Array.isArray(orgChart.tree)) {
+      traverseTree(orgChart.tree);
+    }
+
+    // 6. Legacy fallback arrays
+    const legacyTeam = Array.isArray(vaptTeam.people)
+      ? vaptTeam.people
+      : Array.isArray(report.team?.people)
+        ? report.team.people
+        : Array.isArray(report.people)
+          ? report.people
+          : [];
+    legacyTeam.forEach((p: any) => {
+      if (p && p.name) {
+        const role = (p.title || p.role || 'Team Member').trim();
+        const rawClass = p.classification || '';
+        this.addPersonIfNotExists(people, {
+          name: p.name.trim(),
+          role,
+          classification: formatClassification(rawClass),
+          classification_type: this.determineClassification(role, rawClass),
+          linkedin_url: p.linkedin_url || '',
+          selected: true
+        });
+      }
+    });
+
+    // 7. Build Org Tree Data
+    let orgChartData: OrgChartData = { nodes: [] };
+    if (Array.isArray(orgChart.tree) && orgChart.tree.length > 0) {
+      const treeNodes: OrgNode[] = [];
+      let counter = 1;
+      const walkTree = (nodes: any[], parentId: string | null) => {
+        nodes.forEach(item => {
+          const p = item.person || item;
+          if (p && p.name) {
+            const nodeId = `tree-node-${counter++}`;
+            const role = (p.title || p.current_title || 'Team Member').trim();
+            treeNodes.push({
+              id: nodeId,
+              name: p.name.trim(),
+              title: role,
+              classification: p.vapt_classification || p.role_in_organization || 'Organization Node',
+              classification_type: this.determineClassification(role, ''),
+              linkedin_url: p.linkedin_url || '',
+              reports_to: parentId,
+              in_crm: false,
+              notes: item.reporting_relationship_confidence ? `Confidence: ${item.reporting_relationship_confidence}` : undefined
+            });
+            if (Array.isArray(item.children) && item.children.length > 0) {
+              walkTree(item.children, nodeId);
+            }
+          }
+        });
+      };
+      walkTree(orgChart.tree, null);
+      if (treeNodes.length > 0) {
+        orgChartData = { root_id: treeNodes[0].id, nodes: treeNodes };
+      }
+    }
+
+    if (orgChartData.nodes.length === 0) {
+      orgChartData = this.buildOrgTree(people);
+    }
+
+    // 8. Generate rich HTML dossier
     const formattedHtml = this.generateHtmlFromJson(report, people);
 
     return {
@@ -558,11 +651,13 @@ export class ResearchParserUtil {
    * Synthesizes an executive-grade HTML dossier from structured JSON report.
    */
   static generateHtmlFromJson(report: any, people: ParsedPerson[]): string {
-    const company = report.company || {};
+    const company = report.company_snapshot || report.company || {};
     const vapt = report.vapt_capability || {};
+    const vaptTeam = report.vapt_team || {};
     const outreach = report.outreach_map || {};
+    const icp = report.icp_qualification || {};
     const salesIntel = report.sales_intelligence || {};
-    const positioning = report.radar36_positioning || {};
+    const positioning = report.radar36_positioning || salesIntel.positioning || {};
     const metadata = report.research_metadata || {};
 
     let hqStr = '';
@@ -573,15 +668,36 @@ export class ResearchParserUtil {
     }
 
     let empStr = '';
-    if (company.employee_count) {
+    if (company.approximate_employee_count) {
+      empStr = String(company.approximate_employee_count);
+    } else if (company.employee_count) {
       empStr = typeof company.employee_count === 'object' ? company.employee_count.reported_range : String(company.employee_count);
     }
 
-    const services = Array.isArray(company.primary_services) ? company.primary_services : [];
-    const identifiedServices = Array.isArray(vapt.identified_services) ? vapt.identified_services : [];
-    const questions = Array.isArray(report.discovery_questions) ? report.discovery_questions : [];
-    const hypotheses = Array.isArray(salesIntel.hypotheses_to_validate) ? salesIntel.hypotheses_to_validate : [];
-    const sequences = Array.isArray(outreach.recommended_conversation_sequence) ? outreach.recommended_conversation_sequence : [];
+    const compName = company.company_name || company.name || report.name || 'Account';
+    const compWebsite = company.website || report.website || '';
+    const identifiedServices = Array.isArray(vapt.identified_vapt_services)
+      ? vapt.identified_vapt_services
+      : Array.isArray(vapt.identified_services)
+        ? vapt.identified_services
+        : Array.isArray(company.primary_cybersecurity_services)
+          ? company.primary_cybersecurity_services
+          : [];
+
+    const sequences = Array.isArray(outreach.conversation_sequence)
+      ? outreach.conversation_sequence
+      : Array.isArray(outreach.recommended_conversation_sequence)
+        ? outreach.recommended_conversation_sequence
+        : [];
+
+    const primaryContact = outreach.primary_contact || outreach.primary_business_contact;
+    const secondaryContact = outreach.secondary_contact || outreach.technical_contact;
+    const executiveContact = outreach.executive_escalation;
+    const championContact = outreach.vapt_practitioner_champion;
+
+    const headcount = vaptTeam.headcount || {};
+    const icpReasons = Array.isArray(icp.reason) ? icp.reason : [];
+    const icpUncertainties = Array.isArray(icp.biggest_uncertainty) ? icp.biggest_uncertainty : [];
 
     let html = `
       <div class="dossier-wrapper">
@@ -589,69 +705,137 @@ export class ResearchParserUtil {
         <div class="dossier-card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
             <div>
-              <h1 class="dossier-h1" style="margin: 0 0 0.5rem 0;">${company.name || 'Account'} · Intelligence Dossier</h1>
+              <h1 class="dossier-h1" style="margin: 0 0 0.5rem 0;">${compName} · Intelligence Dossier</h1>
               <p style="color: #64748b; font-size: 0.85rem; margin: 0;">
-                Source: <strong>ChatGPT Structured JSON</strong> · Researched: <strong>${metadata.research_date || 'Recent'}</strong>
+                Source: <strong>Radar 36 Account Intelligence</strong> · Researched: <strong>${metadata.research_date || 'Live Verified'}</strong>
               </p>
             </div>
-            <div>
-              <span class="dossier-badge badge-info" style="font-size: 0.8rem; padding: 0.3rem 0.75rem;">Verified Research Report</span>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              ${icp.tier ? `<span class="dossier-badge badge-warning" style="font-size: 0.8rem; padding: 0.3rem 0.75rem;">${icp.tier}</span>` : ''}
+              <span class="dossier-badge badge-info" style="font-size: 0.8rem; padding: 0.3rem 0.75rem;">Zero-Credit Research</span>
             </div>
           </div>
 
           <hr class="dossier-divider" style="margin: 1rem 0;" />
 
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.88rem;">
-            <div><strong>Website:</strong> <br/><a href="${company.website}" target="_blank" rel="noopener noreferrer" class="dossier-link">${company.website} ↗</a></div>
-            <div><strong>Headquarters:</strong> <br/>${hqStr || 'N/A'}</div>
-            <div><strong>Employee Range:</strong> <br/>${empStr || 'N/A'} Employees</div>
-            <div><strong>Business Type:</strong> <br/>${company.business_type || 'Cybersecurity Services'}</div>
-            <div><strong>Founded:</strong> <br/>${company.founded || 'N/A'}</div>
-            <div><strong>Ownership:</strong> <br/>${company.ownership || 'Privately held'}</div>
+            <div><strong>Website:</strong> <br/>${compWebsite ? `<a href="${compWebsite}" target="_blank" rel="noopener noreferrer" class="dossier-link">${compWebsite} ↗</a>` : 'N/A'}</div>
+            <div><strong>Headquarters:</strong> <br/>${hqStr || company.country || 'N/A'}</div>
+            <div><strong>Employee Count:</strong> <br/>${empStr || 'N/A'} Employees</div>
+            <div><strong>Business Type:</strong> <br/>${company.business_type || company.industry || 'Cybersecurity Firm'}</div>
+            <div><strong>Founded:</strong> <br/>${company.founded_year || company.founded || 'N/A'}</div>
+            <div><strong>VAPT Provided:</strong> <br/>${company.provides_vapt !== null && company.provides_vapt !== undefined ? (company.provides_vapt ? 'Yes (Verified)' : 'No') : (vapt.status || 'Verified')}</div>
           </div>
         </div>
 
-        <!-- VAPT Capability & Identified Services -->
+        <!-- ICP Qualification Card -->
+        ${icp.status || icpReasons.length > 0 ? `
+          <div class="dossier-card">
+            <h2 class="dossier-h2" style="margin-top: 0;">ICP Qualification & Scoring</h2>
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <span class="dossier-badge ${icp.status === 'QUALIFIED' ? 'badge-success' : 'badge-warning'}">Status: ${icp.status || 'NEEDS VERIFICATION'}</span>
+              ${icp.tier ? `<span class="dossier-badge badge-info">Tier: ${icp.tier}</span>` : ''}
+            </div>
+
+            ${icpReasons.length > 0 ? `
+              <h3 class="dossier-h3">Qualification Rationale</h3>
+              <ul style="margin: 0.25rem 0 0.5rem 1.25rem; font-size: 0.88rem; line-height: 1.6;">
+                ${icpReasons.map((r: string) => `<li>${r}</li>`).join('')}
+              </ul>
+            ` : ''}
+
+            ${icpUncertainties.length > 0 ? `
+              <h3 class="dossier-h3" style="margin-top: 0.75rem; color: #f59e0b;">Key Uncertainties / Validation Needed</h3>
+              <ul style="margin: 0.25rem 0 0.5rem 1.25rem; font-size: 0.88rem; line-height: 1.6;">
+                ${icpUncertainties.map((u: string) => `<li>${u}</li>`).join('')}
+              </ul>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <!-- VAPT Capability & Team Headcount -->
         <div class="dossier-card">
           <h2 class="dossier-h2" style="margin-top: 0;">VAPT & Security Capabilities</h2>
           <p style="margin: 0.5rem 0 1rem 0;">
             Capability Status: <span class="dossier-badge badge-success">${vapt.status || 'CONFIRMED'}</span>
           </p>
 
-          <h3 class="dossier-h3">Identified Assessment Portfolio</h3>
-          <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem;">
-            ${(identifiedServices.length > 0 ? identifiedServices : services).map((s: string) => `<span class="dossier-badge">${s}</span>`).join('')}
-          </div>
+          ${identifiedServices.length > 0 ? `
+            <h3 class="dossier-h3">Identified Assessment Portfolio</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem;">
+              ${identifiedServices.map((s: string) => `<span class="dossier-badge">${s}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          ${headcount.total_identifiable !== undefined || headcount.confirmed !== undefined ? `
+            <h3 class="dossier-h3" style="margin-top: 1.25rem;">VAPT Delivery Team Size</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 0.5rem;">
+              <div style="background: rgba(16, 185, 129, 0.08); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                <div style="font-size: 0.75rem; color: #10b981; font-weight: 600;">CONFIRMED</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #34d399;">${headcount.confirmed ?? 0}</div>
+              </div>
+              <div style="background: rgba(59, 130, 246, 0.08); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                <div style="font-size: 0.75rem; color: #3b82f6; font-weight: 600;">PROBABLE</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #60a5fa;">${headcount.probable ?? 0}</div>
+              </div>
+              <div style="background: rgba(245, 158, 11, 0.08); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.2);">
+                <div style="font-size: 0.75rem; color: #f59e0b; font-weight: 600;">POSSIBLE</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #fbbf24;">${headcount.possible ?? 0}</div>
+              </div>
+              <div style="background: rgba(139, 92, 246, 0.08); padding: 0.6rem; border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.2);">
+                <div style="font-size: 0.75rem; color: #8b5cf6; font-weight: 600;">TOTAL IDENTIFIABLE</div>
+                <div style="font-size: 1.25rem; font-weight: 700; color: #a78bfa;">${headcount.total_identifiable ?? (people.length || 0)}</div>
+              </div>
+            </div>
+          ` : ''}
 
           ${Array.isArray(vapt.evidence) && vapt.evidence.length > 0 ? `
             <h3 class="dossier-h3" style="margin-top: 1.25rem;">Capability Evidence</h3>
             <ul style="margin: 0.25rem 0 0.5rem 1.25rem; padding: 0; font-size: 0.88rem; line-height: 1.6;">
-              ${vapt.evidence.map((e: string) => `<li>${e}</li>`).join('')}
+              ${vapt.evidence.map((e: any) => `<li>${typeof e === 'string' ? e : e?.claim || JSON.stringify(e)}</li>`).join('')}
             </ul>
           ` : ''}
         </div>
 
         <!-- Outreach Strategy & Key Decision Makers -->
         <div class="dossier-card">
-          <h2 class="dossier-h2" style="margin-top: 0;">Outreach Strategy & Key Stakeholders</h2>
+          <h2 class="dossier-h2" style="margin-top: 0;">Outreach Strategy & Stakeholder Mapping</h2>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            ${outreach.primary_business_contact?.name ? `
+            ${primaryContact?.name ? `
               <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 0.85rem;">
                 <span class="dossier-badge badge-warning" style="margin-bottom: 0.4rem;">Primary Business Contact</span>
-                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${outreach.primary_business_contact.name}</div>
-                <div style="color: #64748b; font-size: 0.82rem;">${outreach.primary_business_contact.title || 'Executive Leadership'}</div>
-                ${outreach.primary_business_contact.linkedin_url ? `<a href="${outreach.primary_business_contact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
-                ${outreach.primary_business_contact.reason ? `<p style="font-size: 0.8rem; margin: 0.5rem 0 0 0; color: #475569;">${outreach.primary_business_contact.reason}</p>` : ''}
+                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${primaryContact.name}</div>
+                <div style="color: #64748b; font-size: 0.82rem;">${primaryContact.title || primaryContact.current_title || 'Executive Leadership'}</div>
+                ${primaryContact.linkedin_url ? `<a href="${primaryContact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
+                ${primaryContact.why_this_person_matters || primaryContact.reason ? `<p style="font-size: 0.8rem; margin: 0.5rem 0 0 0; color: #475569;">${primaryContact.why_this_person_matters || primaryContact.reason}</p>` : ''}
               </div>
             ` : ''}
 
-            ${outreach.technical_contact?.name ? `
+            ${secondaryContact?.name ? `
               <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 0.85rem;">
                 <span class="dossier-badge badge-info" style="margin-bottom: 0.4rem;">Technical Contact</span>
-                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${outreach.technical_contact.name}</div>
-                <div style="color: #64748b; font-size: 0.82rem;">${outreach.technical_contact.title || 'Technical Specialist'}</div>
-                ${outreach.technical_contact.linkedin_url ? `<a href="${outreach.technical_contact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
-                ${outreach.technical_contact.reason ? `<p style="font-size: 0.8rem; margin: 0.5rem 0 0 0; color: #475569;">${outreach.technical_contact.reason}</p>` : ''}
+                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${secondaryContact.name}</div>
+                <div style="color: #64748b; font-size: 0.82rem;">${secondaryContact.title || secondaryContact.current_title || 'Technical Specialist'}</div>
+                ${secondaryContact.linkedin_url ? `<a href="${secondaryContact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
+                ${secondaryContact.why_this_person_matters || secondaryContact.reason ? `<p style="font-size: 0.8rem; margin: 0.5rem 0 0 0; color: #475569;">${secondaryContact.why_this_person_matters || secondaryContact.reason}</p>` : ''}
+              </div>
+            ` : ''}
+
+            ${executiveContact?.name ? `
+              <div style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 8px; padding: 0.85rem;">
+                <span class="dossier-badge" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6; margin-bottom: 0.4rem;">Executive Escalation</span>
+                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${executiveContact.name}</div>
+                <div style="color: #64748b; font-size: 0.82rem;">${executiveContact.title || executiveContact.current_title || 'Executive'}</div>
+                ${executiveContact.linkedin_url ? `<a href="${executiveContact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
+              </div>
+            ` : ''}
+
+            ${championContact?.name ? `
+              <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 0.85rem;">
+                <span class="dossier-badge badge-success" style="margin-bottom: 0.4rem;">VAPT Champion</span>
+                <div style="font-weight: 700; font-size: 0.95rem; margin-top: 0.25rem;">${championContact.name}</div>
+                <div style="color: #64748b; font-size: 0.82rem;">${championContact.title || championContact.current_title || 'Practitioner'}</div>
+                ${championContact.linkedin_url ? `<a href="${championContact.linkedin_url}" target="_blank" class="dossier-link" style="font-size: 0.8rem; display: inline-block; margin-top: 0.4rem;">LinkedIn Profile ↗</a>` : ''}
               </div>
             ` : ''}
           </div>
@@ -660,9 +844,13 @@ export class ResearchParserUtil {
             <h3 class="dossier-h3" style="margin-top: 1.5rem;">Recommended Conversation Sequence</h3>
             <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
               ${sequences.map((sq: any) => `
-                <div style="display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.86rem; line-height: 1.5;">
-                  <span class="dossier-badge" style="font-weight: 700;">Step ${sq.step}</span>
-                  <div><strong>${sq.contact}:</strong> ${sq.objective}</div>
+                <div style="display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.86rem; line-height: 1.5; background: rgba(0,0,0,0.02); padding: 0.5rem; border-radius: 6px;">
+                  <span class="dossier-badge" style="font-weight: 700;">Step ${sq.step || 1}</span>
+                  <div>
+                    <strong>${sq.person_name || sq.contact || 'Contact'}${sq.person_title ? ` (${sq.person_title})` : ''}:</strong> 
+                    ${sq.purpose || sq.objective || sq.rationale || ''}
+                    ${sq.rationale && sq.purpose ? `<br/><span style="color: #64748b; font-size: 0.8rem;">Rationale: ${sq.rationale}</span>` : ''}
+                  </div>
                 </div>
               `).join('')}
             </div>
@@ -670,7 +858,7 @@ export class ResearchParserUtil {
         </div>
 
         <!-- Security Team Directory Table -->
-        <h2 class="dossier-h2">Identified Security Practitioners (${people.length})</h2>
+        <h2 class="dossier-h2">Identified Team Directory (${people.length})</h2>
         <table class="dossier-table">
           <thead>
             <tr>
@@ -698,40 +886,32 @@ export class ResearchParserUtil {
           </tbody>
         </table>
 
-        <!-- Sales Intelligence & Questions -->
-        <div class="dossier-card" style="margin-top: 1.5rem;">
-          <h2 class="dossier-h2" style="margin-top: 0;">Sales Intelligence & Discovery Questions</h2>
+        <!-- Sales Intelligence -->
+        ${salesIntel.what_company_sells || salesIntel.most_relevant_radar36_conversation || positioning.value_proposition ? `
+          <div class="dossier-card" style="margin-top: 1.5rem;">
+            <h2 class="dossier-h2" style="margin-top: 0;">Sales Intelligence & Radar 36 Fit</h2>
 
-          ${hypotheses.length > 0 ? `
-            <h3 class="dossier-h3">Operational Hypotheses to Validate</h3>
-            <ul style="margin: 0.25rem 0 1rem 1.25rem; font-size: 0.88rem; line-height: 1.6;">
-              ${hypotheses.map((h: string) => `<li>${h}</li>`).join('')}
-            </ul>
-          ` : ''}
-
-          ${questions.length > 0 ? `
-            <h3 class="dossier-h3">Recommended Discovery Questions</h3>
-            <ol style="margin: 0.25rem 0 1rem 1.25rem; font-size: 0.88rem; line-height: 1.6;">
-              ${questions.map((q: string) => `<li>${q}</li>`).join('')}
-            </ol>
-          ` : ''}
-
-          ${positioning.value_proposition ? `
-            <h3 class="dossier-h3">Radar 36 Positioning</h3>
-            <p style="font-size: 0.88rem; line-height: 1.5; color: #475569; margin: 0.25rem 0;">
-              <strong>Value Proposition:</strong> ${positioning.value_proposition}
-            </p>
-            ${positioning.suggested_conversation ? `
-              <p style="font-size: 0.88rem; line-height: 1.5; color: #475569; margin: 0.5rem 0 0 0;">
-                <strong>Suggested Pitch:</strong> ${positioning.suggested_conversation}
-              </p>
+            ${salesIntel.what_company_sells ? `
+              <h3 class="dossier-h3">What This Company Sells</h3>
+              <p style="font-size: 0.88rem; line-height: 1.5; color: #475569; margin: 0.25rem 0;">${salesIntel.what_company_sells}</p>
             ` : ''}
-          ` : ''}
-        </div>
+
+            ${salesIntel.most_relevant_radar36_conversation ? `
+              <h3 class="dossier-h3" style="margin-top: 0.75rem;">Most Relevant Pitch Angle</h3>
+              <p style="font-size: 0.88rem; line-height: 1.5; color: #475569; margin: 0.25rem 0;">${salesIntel.most_relevant_radar36_conversation}</p>
+            ` : ''}
+
+            ${positioning.value_proposition ? `
+              <h3 class="dossier-h3" style="margin-top: 0.75rem;">Radar 36 Value Proposition</h3>
+              <p style="font-size: 0.88rem; line-height: 1.5; color: #475569; margin: 0.25rem 0;">${positioning.value_proposition}</p>
+            ` : ''}
+          </div>
+        ` : ''}
       </div>
     `;
 
     return html;
   }
 }
+
 

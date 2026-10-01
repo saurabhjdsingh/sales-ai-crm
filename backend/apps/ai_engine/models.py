@@ -145,22 +145,58 @@ class AIMessage(models.Model):
         return f"[{self.role}] {self.content[:50]}"
 
 
+class ChatGPTSession(BaseModel):
+    """
+    Stores OpenAI SIWC OAuth credentials bound to a specific CRM user.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chatgpt_session",
+    )
+    client_id = models.CharField(max_length=255, help_text="Dynamic agent client ID issued by OpenAI")
+    ext_agent_host_id = models.CharField(max_length=255, help_text="Host UUID (urn:uuid:...)")
+    access_token = models.TextField(help_text="Protected Bearer token")
+    refresh_token = models.TextField(help_text="OAuth refresh token for autonomous renewals")
+    id_token = models.TextField(blank=True, default="", help_text="Retained ID token for reauthorization hint")
+    token_type = models.CharField(max_length=50, default="Bearer")
+    expires_at = models.DateTimeField(help_text="Access token expiration timestamp")
+    chatgpt_email = models.EmailField(blank=True, default="")
+    chatgpt_user_id = models.CharField(max_length=255, blank=True, default="")
+    scopes = models.JSONField(default=list, help_text="Granted OAuth scopes")
+
+    class Meta:
+        db_table = "ai_engine_chatgpt_session"
+        verbose_name = "ChatGPT Plan Session"
+        verbose_name_plural = "ChatGPT Plan Sessions"
+
+    def __str__(self):
+        return f"ChatGPT ({self.chatgpt_email or 'Active'}) — {self.user.email}"
+
+    @property
+    def has_plan_usage(self) -> bool:
+        return "chatgpt.tokens.use.direct" in self.scopes and bool(self.refresh_token)
+
+
 class UserAIConfig(BaseModel):
     """
     Per-user AI provider configuration.
 
     Stores the user's chosen AI provider, API key (encrypted), model name,
-    and optional custom endpoint URL. Supports two config types:
+    and optional custom endpoint URL. Supports three config types:
+    - chatgpt_oauth: Linked ChatGPT Subscription (Zero per-token cost)
     - cloud_api: Direct API key + model name (uses provider's default endpoint)
     - custom_endpoint: API key + model name + custom base URL (e.g., Azure AI Foundry)
     """
 
     PROVIDER_CHOICES = [
+        ("chatgpt_plan", "ChatGPT Subscription Plan (Zero Cost)"),
         ("openai", "OpenAI"),
         ("claude", "Claude (Anthropic)"),
     ]
 
     CONFIG_TYPE_CHOICES = [
+        ("chatgpt_oauth", "ChatGPT Subscription Plan"),
         ("cloud_api", "Cloud API"),
         ("custom_endpoint", "Custom Endpoint"),
     ]
@@ -181,7 +217,9 @@ class UserAIConfig(BaseModel):
         default="cloud_api",
     )
     api_key_encrypted = models.TextField(
-        help_text="Fernet-encrypted API key. Never stored in plaintext.",
+        blank=True,
+        default="",
+        help_text="Fernet-encrypted API key. Never stored in plaintext. Optional for ChatGPT plan.",
     )
     model_name = models.CharField(
         max_length=100,
@@ -194,6 +232,37 @@ class UserAIConfig(BaseModel):
     )
     is_active = models.BooleanField(default=True)
 
+    # Phase 5: Fallback LLM configuration if primary (e.g. ChatGPT subscription) expires or fails
+    fallback_provider = models.CharField(
+        max_length=20,
+        choices=PROVIDER_CHOICES,
+        blank=True,
+        default="",
+        help_text="Fallback provider (e.g. 'openai', 'claude') if primary fails.",
+    )
+    fallback_config_type = models.CharField(
+        max_length=20,
+        choices=CONFIG_TYPE_CHOICES,
+        default="cloud_api",
+        help_text="Fallback config type: cloud_api or custom_endpoint.",
+    )
+    fallback_api_key_encrypted = models.TextField(
+        blank=True,
+        default="",
+        help_text="Fernet-encrypted fallback API key.",
+    )
+    fallback_model_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Fallback model name (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022').",
+    )
+    fallback_base_url = models.URLField(
+        blank=True,
+        default="",
+        help_text="Custom base URL for fallback provider if custom_endpoint.",
+    )
+
     class Meta:
         db_table = "ai_engine_user_ai_config"
         verbose_name = "User AI Config"
@@ -201,6 +270,58 @@ class UserAIConfig(BaseModel):
 
     def __str__(self):
         return f"{self.user.get_full_name()} — {self.provider} ({self.model_name})"
+
+
+class ApolloConfig(BaseModel):
+    """
+    Stores Apollo.io API credentials per user/organization for
+    zero-credit account intelligence and on-demand contact revelation.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="apollo_config",
+    )
+    api_key_encrypted = models.TextField(
+        blank=True,
+        default="",
+        help_text="Fernet-encrypted Apollo API key.",
+    )
+    is_active = models.BooleanField(default=True)
+    last_verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "ai_engine_apollo_config"
+        verbose_name = "Apollo Configuration"
+        verbose_name_plural = "Apollo Configurations"
+
+    def __str__(self):
+        return f"Apollo Config — {self.user.email}"
+
+    @property
+    def api_key(self) -> str:
+        if not self.api_key_encrypted:
+            return ""
+        from apps.common.encryption import decrypt_api_key
+        return decrypt_api_key(self.api_key_encrypted)
+
+    @api_key.setter
+    def api_key(self, value: str):
+        if not value:
+            self.api_key_encrypted = ""
+        else:
+            from apps.common.encryption import encrypt_api_key
+            self.api_key_encrypted = encrypt_api_key(value)
+
+    @property
+    def masked_api_key(self) -> str:
+        key = self.api_key
+        if not key:
+            return ""
+        if len(key) <= 8:
+            return "••••••••"
+        return f"{key[:4]}••••••••{key[-4:]}"
+
 
 
 class UserAIPrompt(BaseModel):

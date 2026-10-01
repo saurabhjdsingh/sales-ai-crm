@@ -11,6 +11,7 @@ from apps.agent.tools.crm import (
 from apps.agent.tools import knowledge
 from apps.agent.tools.research import (
     website_research,
+    apollo_research,
     linkedin_company,
     linkedin_person,
     news_research,

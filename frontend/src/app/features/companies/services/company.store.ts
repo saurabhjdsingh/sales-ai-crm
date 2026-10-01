@@ -144,8 +144,29 @@ export class CompanyStore {
     this.companyService.triggerResearch(id).subscribe({
       next: (res) => {
         this.notification.success(res.message);
-        // Refresh selected company or research state after short delay
-        setTimeout(() => this.loadCompany(id), 2000);
+        this.loadCompany(id);
+        let attempts = 0;
+        const maxAttempts = 12;
+        const pollInterval = setInterval(() => {
+          attempts++;
+          this.companyService.getResearchResults(id).subscribe({
+            next: (research) => {
+              this._research.set(research);
+              if (research.research_status !== 'in_progress' || attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                this.loadCompany(id);
+                if (research.research_status === 'completed') {
+                  this.notification.success('AI Analysis completed successfully!');
+                }
+              }
+            },
+            error: () => {
+              if (attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+              }
+            }
+          });
+        }, 3000);
       },
       error: () => this.notification.error('Failed to trigger AI research')
     });

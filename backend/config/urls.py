@@ -28,6 +28,12 @@ api_v1_patterns = [
     path("sequences/", include("apps.sequences.urls")),
     path("common/", include("apps.common.urls")),
     path("prospect-lists/", include("apps.prospect_lists.urls")),
+    path("integrations/apollo/", include([
+        path("status/", __import__("apps.ai_engine.views", fromlist=["ApolloConfigView"]).ApolloConfigView.as_view(), name="int-apollo-status"),
+        path("save/", __import__("apps.ai_engine.views", fromlist=["ApolloConfigView"]).ApolloConfigView.as_view(), name="int-apollo-save"),
+        path("test/", __import__("apps.ai_engine.views", fromlist=["ApolloTestView"]).ApolloTestView.as_view(), name="int-apollo-test"),
+        path("disconnect/", __import__("apps.ai_engine.views", fromlist=["ApolloDisconnectView"]).ApolloDisconnectView.as_view(), name="int-apollo-disconnect"),
+    ])),
 ]
 
 from apps.sequences.views import StealthClickRedirectView

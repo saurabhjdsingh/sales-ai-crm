@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from apps.agent.prompts.agent import AGENT_SYSTEM_PROMPT
 from apps.ai_engine.prompts.copilot import COPILOT_CONTEXT_TEMPLATE, COPILOT_SYSTEM_PROMPT
 from apps.ai_engine.prompts.icp import ICP_SYSTEM_PROMPT
-from apps.ai_engine.prompts.research import RESEARCH_SYSTEM_PROMPT, RESEARCH_USER_PROMPT
+from apps.ai_engine.prompts.research import (
+    RESEARCH_SYSTEM_PROMPT,
+    RESEARCH_USER_PROMPT,
+    ACCOUNT_INTELLIGENCE_SYSTEM_PROMPT,
+    ACCOUNT_INTELLIGENCE_USER_PROMPT,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,30 @@ PROMPT_REGISTRY: dict[str, PromptDefinition] = {
         description="Tell the AI about your organization, products/services, sales strategy, target audience, and guidelines. Used across AI Copilot, Analysis, Calls, and ICP scoring.",
         default_content=COPILOT_SYSTEM_PROMPT,
         category="organization",
+        is_internal=False,
+    ),
+    "account_intelligence_system": PromptDefinition(
+        key="account_intelligence_system",
+        label="Account Intelligence System Prompt",
+        description="Core reconnaissance instructions and output JSON schema for Company Account Intelligence dossiers.",
+        default_content=ACCOUNT_INTELLIGENCE_SYSTEM_PROMPT,
+        category="research",
+        is_internal=False,
+    ),
+    "account_intelligence_user": PromptDefinition(
+        key="account_intelligence_user",
+        label="Account Intelligence User Prompt Template",
+        description="Prompt template sent to the AI for each target company. Available variables: {company_name}, {website}, {industry}, {description}, {country}, {company_size}.",
+        default_content=ACCOUNT_INTELLIGENCE_USER_PROMPT,
+        category="research",
+        template_variables=(
+            "{company_name}",
+            "{website}",
+            "{industry}",
+            "{description}",
+            "{country}",
+            "{company_size}",
+        ),
         is_internal=False,
     ),
     "icp_system": PromptDefinition(

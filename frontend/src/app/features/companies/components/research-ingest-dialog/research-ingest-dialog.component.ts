@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, signal, computed } from '@angular/core';
+import { Component, Inject, OnInit, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -8,9 +8,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { CompanyService } from '../../services/company.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { ApiService } from '../../../../core/services/api.service';
+import { TokenService } from '../../../../core/auth/token.service';
+import { environment } from '../../../../../environments/environment';
 import { ResearchParserUtil, ParsedResearch, ParsedPerson } from '../../services/research-parser.util';
 import { OrgTreeGraphComponent } from '../org-tree-graph/org-tree-graph.component';
 
@@ -25,6 +28,7 @@ export interface ResearchIngestDialogData {
   imports: [
     CommonModule,
     FormsModule,
+    RouterModule,
     MatDialogModule,
     MatTabsModule,
     MatButtonModule,
@@ -41,7 +45,7 @@ export interface ResearchIngestDialogData {
           <mat-icon class="title-icon">auto_stories</mat-icon>
           <div>
             <h2>{{ isExistingCompany ? 'Update Account Research' : 'Import Company & Members from Research' }}</h2>
-            <p class="subtitle">Import ChatGPT Account Intelligence via Smart Paste (HTML/Markdown) or JSON format (Zero AI Consumption)</p>
+            <p class="subtitle">Run live Account Intelligence with ChatGPT Plan ($0 metered API cost) or import via Smart Paste/JSON</p>
           </div>
         </div>
         <button mat-icon-button (click)="dialogRef.close()" class="close-btn">
@@ -52,6 +56,15 @@ export interface ResearchIngestDialogData {
       <div class="dialog-content">
         <!-- Mode Switcher (Visible before parsing) -->
         <div class="mode-tabs" *ngIf="!parsedData()">
+          <button 
+            type="button" 
+            class="mode-tab-btn" 
+            [class.active]="importMode() === 'chatgpt'" 
+            (click)="setImportMode('chatgpt')">
+            <mat-icon class="ai-spark-icon">auto_awesome</mat-icon>
+            <span>Run with ChatGPT Plan</span>
+            <span class="badge-free">$0 Cost</span>
+          </button>
           <button 
             type="button" 
             class="mode-tab-btn" 
@@ -68,6 +81,169 @@ export interface ResearchIngestDialogData {
             <mat-icon>data_object</mat-icon>
             <span>Import via JSON (ChatGPT Export)</span>
           </button>
+        </div>
+
+        <!-- Mode 0: Live Run with ChatGPT Plan -->
+        <div class="chatgpt-run-section" *ngIf="!parsedData() && importMode() === 'chatgpt'">
+          <!-- Loading status -->
+          <div *ngIf="chatgptLoading()" class="loading-state">
+            <mat-spinner diameter="32"></mat-spinner>
+            <p>Checking ChatGPT Plan connection status...</p>
+          </div>
+
+          <!-- Not connected banner -->
+          <div *ngIf="!chatgptLoading() && !chatgptConnected()" class="chatgpt-not-connected-card">
+            <div class="card-icon-col">
+              <div class="chatgpt-logo-badge">
+                <mat-icon>psychology</mat-icon>
+              </div>
+            </div>
+            <div class="card-info-col">
+              <div class="badge-unlinked">ChatGPT Plan Not Linked</div>
+              <h3>Connect Your ChatGPT Plus/Pro Account</h3>
+              <p>
+                Run deep Radar 36 Account Intelligence at <strong>$0 metered API cost</strong> directly utilizing your
+                personal or team ChatGPT subscription (Token Sharing).
+              </p>
+              
+              <div class="quick-connect-instructions">
+                <div class="instruction-step">
+                  <span class="step-num">1</span>
+                  <span>Link your account via 1-command CLI:</span>
+                </div>
+                <div class="cli-command-box">
+                  <code>python manage.py link_chatgpt_plan --email your&#64;email.com</code>
+                  <button mat-icon-button (click)="copyCliCommand()" matTooltip="Copy CLI command">
+                    <mat-icon>content_copy</mat-icon>
+                  </button>
+                </div>
+                <div class="instruction-step">
+                  <span class="step-num">2</span>
+                  <span>Or configure in Settings:</span>
+                  <a routerLink="/settings" (click)="dialogRef.close()" class="settings-link">
+                    Open Settings &rarr; AI Provider
+                  </a>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <button mat-stroked-button (click)="checkChatGPTStatus()" class="recheck-btn">
+                  <mat-icon>refresh</mat-icon> Check Connection Again
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connected and ready to run -->
+          <div *ngIf="!chatgptLoading() && chatgptConnected()" class="chatgpt-ready-card">
+            <div class="chatgpt-status-header">
+              <div class="conn-badge">
+                <span class="status-dot"></span>
+                <span>ChatGPT Plan Active &bull; {{ chatgptStatus()?.email || 'Connected' }}</span>
+              </div>
+              <div class="model-select-wrapper">
+                <label>Model:</label>
+                <select 
+                  class="custom-select" 
+                  [ngModel]="selectedModel()" 
+                  (ngModelChange)="onModelChange($event)" 
+                  [disabled]="isStreaming()">
+                  @for (m of chatgptModels(); track m.id) {
+                    <option [value]="m.id">{{ m.name }}</option>
+                  }
+                  @if (chatgptModels().length === 0) {
+                    <option value="gpt-5.6-terra">GPT-5.6 Terra (Default)</option>
+                    <option value="gpt-5.6-luna">GPT-5.6 Luna</option>
+                    <option value="gpt-reserve">GPT-Reserve</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Company Inputs (if not already existing company) -->
+            <div class="company-inputs-grid" *ngIf="!isExistingCompany">
+              <div class="input-group">
+                <label>Company Name <span class="required">*</span></label>
+                <input 
+                  type="text" 
+                  [ngModel]="chatgptCompanyName()" 
+                  (ngModelChange)="chatgptCompanyName.set($event)" 
+                  placeholder="e.g. Acme Corporation" 
+                  class="custom-input" 
+                  [disabled]="isStreaming()"
+                />
+              </div>
+              <div class="input-group">
+                <label>Website (optional)</label>
+                <input 
+                  type="text" 
+                  [ngModel]="chatgptWebsite()" 
+                  (ngModelChange)="chatgptWebsite.set($event)" 
+                  placeholder="https://example.com" 
+                  class="custom-input" 
+                  [disabled]="isStreaming()"
+                />
+              </div>
+              <div class="input-group">
+                <label>Industry (optional)</label>
+                <input 
+                  type="text" 
+                  [ngModel]="chatgptIndustry()" 
+                  (ngModelChange)="chatgptIndustry.set($event)" 
+                  placeholder="e.g. Cybersecurity, Fintech" 
+                  class="custom-input" 
+                  [disabled]="isStreaming()"
+                />
+              </div>
+            </div>
+
+            <!-- Existing Company Display -->
+            <div class="existing-company-info" *ngIf="isExistingCompany">
+              <mat-icon>business</mat-icon>
+              <span>Targeting company: <strong>{{ data.companyName }}</strong></span>
+            </div>
+
+            <div class="prompt-info-notice">
+              <mat-icon>tune</mat-icon>
+              <span>Prompts editable in <strong>Settings &rarr; AI Prompts</strong> (Account Intelligence System & User prompts).</span>
+            </div>
+
+            <!-- Action button -->
+            <div class="run-action-bar">
+              <button 
+                mat-flat-button 
+                color="primary" 
+                class="run-ai-btn" 
+                (click)="runChatGPTAccountIntelligence()" 
+                [disabled]="isStreaming() || (!isExistingCompany && !chatgptCompanyName().trim())">
+                <mat-icon>{{ isStreaming() ? 'hourglass_top' : 'auto_awesome' }}</mat-icon>
+                <span>{{ isStreaming() ? 'Generating Intelligence...' : 'Run Account Intelligence' }}</span>
+              </button>
+
+              <button 
+                *ngIf="isStreaming()" 
+                mat-stroked-button 
+                color="warn" 
+                class="cancel-btn" 
+                (click)="cancelChatGPTStream()">
+                <mat-icon>stop</mat-icon> Cancel
+              </button>
+            </div>
+
+            <!-- Live Streaming Box -->
+            <div class="streaming-console" *ngIf="isStreaming() || streamingText()">
+              <div class="console-header">
+                <div class="console-title">
+                  <span class="live-dot" [class.pulsing]="isStreaming()"></span>
+                  <span>Live ChatGPT Stream {{ isStreaming() ? '(Generating...)' : '(Completed)' }}</span>
+                </div>
+                <div class="console-stats">
+                  <span>{{ streamingText().length }} chars generated</span>
+                </div>
+              </div>
+              <pre #streamPre class="console-output">{{ streamingText() }}<span *ngIf="isStreaming()" class="cursor">|</span></pre>
+            </div>
+          </div>
         </div>
 
         <!-- Mode 1: Smart Paste Area -->
@@ -268,7 +444,7 @@ export interface ResearchIngestDialogData {
       <!-- Dialog Footer -->
       <div class="dialog-footer">
         <button mat-stroked-button (click)="resetPaste()" *ngIf="parsedData()" class="repaste-btn">
-          <mat-icon>refresh</mat-icon> Paste Different Research
+          <mat-icon>refresh</mat-icon> Reset / Different Research
         </button>
         <div class="footer-spacer"></div>
         <button mat-button (click)="dialogRef.close()" class="cancel-btn">Cancel</button>
@@ -389,6 +565,451 @@ export interface ResearchIngestDialogData {
         color: #38bdf8;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
+    }
+
+    /* ChatGPT Run Mode Styles */
+    .badge-free {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ai-spark-icon {
+      color: #10b981 !important;
+    }
+
+    .chatgpt-run-section {
+      width: 100%;
+    }
+
+    .loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 3rem;
+      color: #94a3b8;
+    }
+
+    .chatgpt-not-connected-card {
+      background: #0b1120;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      gap: 1.5rem;
+
+      .card-icon-col {
+        .chatgpt-logo-badge {
+          width: 52px;
+          height: 52px;
+          border-radius: 12px;
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          mat-icon {
+            color: #10b981;
+            font-size: 30px;
+            width: 30px;
+            height: 30px;
+          }
+        }
+      }
+
+      .card-info-col {
+        flex: 1;
+
+        .badge-unlinked {
+          display: inline-block;
+          font-size: 11px;
+          font-weight: 600;
+          color: #f59e0b;
+          background: rgba(245, 158, 11, 0.12);
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin-bottom: 0.5rem;
+        }
+
+        h3 {
+          margin: 0 0 0.5rem;
+          font-size: 1.15rem;
+          color: #f1f5f9;
+        }
+
+        p {
+          margin: 0 0 1rem;
+          font-size: 0.85rem;
+          color: #94a3b8;
+          line-height: 1.45;
+        }
+
+        .quick-connect-instructions {
+          background: #070b14;
+          border: 1px solid #1e293b;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+
+          .instruction-step {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            margin-bottom: 0.4rem;
+
+            .step-num {
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: #334155;
+              color: #f8fafc;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 10px;
+              font-weight: 700;
+            }
+
+            .settings-link {
+              color: #38bdf8;
+              text-decoration: underline;
+              cursor: pointer;
+              margin-left: 0.5rem;
+
+              &:hover {
+                color: #7dd3fc;
+              }
+            }
+          }
+
+          .cli-command-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #030712;
+            border: 1px solid #1f2937;
+            border-radius: 6px;
+            padding: 0.4rem 0.75rem;
+            margin: 0.35rem 0 0.85rem 1.6rem;
+
+            code {
+              font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+              font-size: 0.8rem;
+              color: #10b981;
+            }
+
+            button {
+              width: 28px;
+              height: 28px;
+              line-height: 28px;
+              color: #94a3b8;
+
+              mat-icon {
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+              }
+
+              &:hover {
+                color: #f1f5f9;
+              }
+            }
+          }
+        }
+
+        .card-actions {
+          .recheck-btn {
+            border-color: #334155;
+            color: #cbd5e1;
+
+            mat-icon {
+              font-size: 18px;
+              width: 18px;
+              height: 18px;
+              margin-right: 6px;
+            }
+
+            &:hover {
+              border-color: #38bdf8;
+              color: #38bdf8;
+            }
+          }
+        }
+      }
+    }
+
+    .chatgpt-ready-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+
+      .chatgpt-status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 1.25rem;
+
+        .conn-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #059669;
+
+          .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+          }
+        }
+
+        .model-select-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+
+          label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #475569;
+          }
+
+          .custom-select {
+            background: #ffffff;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0.4rem 0.85rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            min-width: 220px;
+            height: 38px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:focus {
+              border-color: #0284c7;
+              box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+            }
+
+            option {
+              background: #ffffff;
+              color: #0f172a;
+            }
+          }
+        }
+      }
+
+      .company-inputs-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+
+        .input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+
+          label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #475569;
+
+            .required {
+              color: #e11d48;
+            }
+          }
+
+          .custom-input {
+            background: #ffffff;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.2s;
+
+            &:focus {
+              border-color: #0284c7;
+              box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+            }
+          }
+        }
+      }
+
+      .existing-company-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.65rem 0.85rem;
+        font-size: 0.85rem;
+        color: #334155;
+        margin-bottom: 1rem;
+
+        mat-icon {
+          color: #0284c7;
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
+        strong {
+          color: #0f172a;
+        }
+      }
+
+      .prompt-info-notice {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-bottom: 1rem;
+
+        mat-icon {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+          color: #64748b;
+        }
+
+        strong {
+          color: #94a3b8;
+        }
+      }
+
+      .run-action-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+
+        .run-ai-btn {
+          height: 40px;
+          padding: 0 1.25rem;
+          background: linear-gradient(135deg, #0284c7, #2563eb);
+          color: #ffffff;
+          font-weight: 600;
+          font-size: 0.85rem;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+
+          mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+          }
+
+          &:disabled {
+            background: #1e293b;
+            color: #64748b;
+            box-shadow: none;
+          }
+        }
+
+        .cancel-btn {
+          height: 40px;
+          border-radius: 8px;
+        }
+      }
+
+      .streaming-console {
+        background: #030712;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        overflow: hidden;
+
+        .console-header {
+          padding: 0.5rem 0.85rem;
+          background: #090d16;
+          border-bottom: 1px solid #1f2937;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+
+          .console-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+
+            .live-dot {
+              width: 7px;
+              height: 7px;
+              border-radius: 50%;
+              background: #10b981;
+
+              &.pulsing {
+                animation: pulse 1.5s infinite;
+              }
+            }
+          }
+
+          .console-stats {
+            font-size: 0.7rem;
+            color: #64748b;
+          }
+        }
+
+        .console-output {
+          margin: 0;
+          padding: 0.85rem;
+          max-height: 240px;
+          overflow-y: auto;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          font-size: 0.78rem;
+          line-height: 1.45;
+          color: #e2e8f0;
+          white-space: pre-wrap;
+          word-break: break-word;
+
+          .cursor {
+            color: #38bdf8;
+            font-weight: bold;
+            animation: blink 1s step-end infinite;
+          }
+        }
+      }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
     }
 
     /* JSON Import Card */
@@ -1126,31 +1747,274 @@ export interface ResearchIngestDialogData {
   `]
 })
 export class ResearchIngestDialogComponent implements OnInit {
-  readonly importMode = signal<'smart' | 'json'>('smart');
+  readonly importMode = signal<'chatgpt' | 'smart' | 'json'>('chatgpt');
   manualInputText = '';
   jsonInputText = '';
   readonly jsonError = signal<string | null>(null);
   readonly jsonValidSummary = signal<string | null>(null);
-  readonly activeSourceType = signal<'chatgpt_plugin' | 'chatgpt_json'>('chatgpt_plugin');
+  readonly activeSourceType = signal<'chatgpt_plan' | 'chatgpt_plugin' | 'chatgpt_json'>('chatgpt_plan');
   parsedData = signal<ParsedResearch | null>(null);
   submitting = signal(false);
+
+  // ChatGPT Plan Live AI State
+  readonly chatgptLoading = signal(true);
+  readonly chatgptConnected = signal(false);
+  readonly chatgptStatus = signal<any>(null);
+  readonly chatgptModels = signal<{ id: string; name: string }[]>([]);
+  readonly selectedModel = signal('gpt-5.6-terra');
+  readonly chatgptCompanyName = signal('');
+  readonly chatgptWebsite = signal('');
+  readonly chatgptIndustry = signal('');
+  readonly isStreaming = signal(false);
+  readonly streamingText = signal('');
+  readonly streamStatusText = signal('');
+  private abortController: AbortController | null = null;
+
+  @ViewChild('streamPre') streamPreRef?: ElementRef<HTMLPreElement>;
 
   constructor(
     public dialogRef: MatDialogRef<ResearchIngestDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: ResearchIngestDialogData,
     private companyService: CompanyService,
     private notification: NotificationService,
-    private router: Router
+    private router: Router,
+    private apiService: ApiService,
+    private tokenService: TokenService
   ) {}
 
   get isExistingCompany(): boolean {
     return !!this.data.companyId;
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    if (this.data?.companyName) {
+      this.chatgptCompanyName.set(this.data.companyName);
+    }
+    this.checkChatGPTStatus();
+  }
 
-  setImportMode(mode: 'smart' | 'json'): void {
+  setImportMode(mode: 'chatgpt' | 'smart' | 'json'): void {
     this.importMode.set(mode);
+    if (mode === 'chatgpt' && !this.chatgptStatus()) {
+      this.checkChatGPTStatus();
+    }
+  }
+
+  checkChatGPTStatus(): void {
+    this.chatgptLoading.set(true);
+    this.apiService.get<any>('/ai/chatgpt/status/').subscribe({
+      next: (res) => {
+        this.chatgptLoading.set(false);
+        this.chatgptConnected.set(!!res?.connected);
+        this.chatgptStatus.set(res);
+        if (res?.active_model) {
+          this.selectedModel.set(res.active_model);
+        } else {
+          this.apiService.get<any>('/ai/config/').subscribe({
+            next: (cfg) => {
+              if (cfg?.model_name) {
+                this.selectedModel.set(cfg.model_name);
+              }
+            }
+          });
+        }
+        if (res?.connected) {
+          this.loadChatGPTModels();
+        }
+      },
+      error: () => {
+        this.chatgptLoading.set(false);
+        this.chatgptConnected.set(false);
+      }
+    });
+  }
+
+  loadChatGPTModels(): void {
+    this.apiService.get<any>('/ai/chatgpt/models/').subscribe({
+      next: (res) => {
+        if (res?.models && res.models.length > 0) {
+          const list = res.models.map((m: any) => ({
+            id: m.slug || m.id,
+            name: m.display_name || m.name || m.slug || m.id
+          }));
+          this.chatgptModels.set(list);
+
+          const savedModel = this.chatgptStatus()?.active_model;
+          if (savedModel && list.some((m: { id: string; name: string }) => m.id === savedModel)) {
+            this.selectedModel.set(savedModel);
+          } else if (!list.some((m: { id: string; name: string }) => m.id === this.selectedModel())) {
+            this.selectedModel.set(list[0].id);
+          }
+        }
+      },
+      error: () => {}
+    });
+  }
+
+  onModelChange(newModel: string): void {
+    this.selectedModel.set(newModel);
+  }
+
+  copyCliCommand(): void {
+    const cmd = `python manage.py link_chatgpt_plan --email your@email.com`;
+    navigator.clipboard.writeText(cmd);
+    this.notification.success('Command copied to clipboard!');
+  }
+
+  async runChatGPTAccountIntelligence(): Promise<void> {
+    const compName = ((this.isExistingCompany ? this.data?.companyName : this.chatgptCompanyName()) || '').trim();
+    if (!compName && !this.data?.companyId) {
+      this.notification.error('Company Name is required to run Account Intelligence.');
+      return;
+    }
+
+    const token = this.tokenService.getAccessToken();
+    if (!token) {
+      this.notification.error('Authentication session expired. Please log in again.');
+      return;
+    }
+
+    this.isStreaming.set(true);
+    this.streamingText.set('');
+    this.streamStatusText.set('Connecting to ChatGPT Plan...');
+    this.abortController = new AbortController();
+
+    const payload = {
+      company_id: this.data.companyId || null,
+      company_name: compName,
+      website: this.chatgptWebsite().trim(),
+      industry: this.chatgptIndustry().trim(),
+      model: this.selectedModel()
+    };
+
+    try {
+      const response = await fetch(`${environment.apiUrl}/ai/chatgpt/account-intelligence/stream/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+        signal: this.abortController.signal
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errMsg = 'Failed to start Account Intelligence';
+        try {
+          const errObj = JSON.parse(errorText);
+          errMsg = errObj.error?.message || errObj.message || errMsg;
+        } catch (_) {
+          errMsg = errorText || errMsg;
+        }
+        throw new Error(errMsg);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body streaming is not supported by your browser.');
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let accumulatedOutput = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+          const dataStr = trimmedLine.substring(6).trim();
+          if (dataStr === '[DONE]') break;
+
+          try {
+            const event = JSON.parse(dataStr);
+            if (event.type === 'delta') {
+              accumulatedOutput += event.delta;
+              this.streamingText.set(accumulatedOutput);
+              this.scrollConsoleToBottom();
+            } else if (event.type === 'completed') {
+              accumulatedOutput = event.full_text || accumulatedOutput;
+              this.streamingText.set(accumulatedOutput);
+              this.handleStreamCompleted(accumulatedOutput, compName);
+              return;
+            } else if (event.type === 'error') {
+              throw new Error(event.message || 'Stream inference error');
+            }
+          } catch (e: any) {
+            if (e.message && !e.message.includes('JSON')) {
+              throw e;
+            }
+          }
+        }
+      }
+
+      if (accumulatedOutput && !this.parsedData()) {
+        this.handleStreamCompleted(accumulatedOutput, compName);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        this.notification.info('Intelligence generation cancelled.');
+      } else {
+        const msg = err.message || 'Failed to generate intelligence';
+        this.streamingText.set((this.streamingText() ? this.streamingText() + '\n\n' : '') + '❌ Error: ' + msg);
+        this.notification.error(msg);
+      }
+    } finally {
+      this.isStreaming.set(false);
+      this.abortController = null;
+    }
+  }
+
+  cancelChatGPTStream(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    this.isStreaming.set(false);
+  }
+
+  private scrollConsoleToBottom(): void {
+    if (this.streamPreRef?.nativeElement) {
+      const el = this.streamPreRef.nativeElement;
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+
+  private handleStreamCompleted(fullText: string, compName: string): void {
+    let cleanText = fullText.trim();
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    }
+
+    try {
+      let parsed: ParsedResearch;
+      if (cleanText.startsWith('{')) {
+        try {
+          const jsonReport = JSON.parse(cleanText);
+          parsed = ResearchParserUtil.parseJson(jsonReport);
+        } catch (_) {
+          parsed = ResearchParserUtil.parse(cleanText);
+        }
+      } else {
+        parsed = ResearchParserUtil.parse(cleanText);
+      }
+
+      if (compName && (!parsed.company_name || parsed.company_name === 'Target Company')) {
+        parsed.company_name = compName;
+      }
+
+      this.activeSourceType.set('chatgpt_plan');
+      this.parsedData.set(parsed);
+      this.notification.success(`Account Intelligence Generated! Identified ${parsed.people.length} key members & org structure.`);
+    } catch (err: any) {
+      this.notification.error('Failed to parse ChatGPT output: ' + (err.message || 'unknown error'));
+    }
   }
 
   onJsonInputChange(text: string): void {
@@ -1268,6 +2132,7 @@ export class ResearchIngestDialogComponent implements OnInit {
     this.manualInputText = '';
     this.jsonError.set(null);
     this.jsonValidSummary.set(null);
+    this.streamingText.set('');
   }
 
   selectAllPeople(select: boolean): void {
@@ -1295,7 +2160,7 @@ export class ResearchIngestDialogComponent implements OnInit {
       company_size: parsed.company_size,
       website: parsed.website,
       content_html: parsed.formatted_html,
-      content_markdown: this.importMode() === 'json' ? this.jsonInputText : this.manualInputText || '',
+      content_markdown: this.importMode() === 'json' ? this.jsonInputText : (this.streamingText() || this.manualInputText || ''),
       org_chart_data: parsed.org_chart_data,
       people: parsed.people,
       source_type: this.activeSourceType()

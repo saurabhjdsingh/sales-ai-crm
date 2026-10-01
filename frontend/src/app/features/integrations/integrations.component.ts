@@ -321,6 +321,14 @@ export class SecondaryOutboundDialogComponent {
                 <span>Endpoint Base URL</span>
                 <strong style="word-break: break-all;">{{ config().base_url }}</strong>
               </div>
+              <div class="detail-row">
+                <span>Fallback Auto-Failover</span>
+                @if (config().fallback_provider) {
+                  <strong style="color: #34d399;">Active ({{ config().fallback_provider | uppercase }}: {{ config().fallback_model_name || 'Standard' }})</strong>
+                } @else {
+                  <strong style="color: #94a3b8;">None (Optional)</strong>
+                }
+              </div>
             </div>
             <div class="actions-row">
               <button mat-stroked-button (click)="editMode.set(true)">
@@ -377,6 +385,56 @@ export class SecondaryOutboundDialogComponent {
                 <input matInput formControlName="base_url" placeholder="https://your-custom-proxy.com" required>
               </mat-form-field>
 
+              <!-- Phase 5: Fallback LLM Section -->
+              <div class="fallback-card">
+                <div class="fallback-header" (click)="showFallbackConfig.set(!showFallbackConfig())">
+                  <div class="fallback-title-wrap">
+                    <mat-icon class="fb-icon">alt_route</mat-icon>
+                    <div>
+                      <h4 class="fb-title">Fallback Custom API Key (Auto-Failover)</h4>
+                      <p class="fb-subtitle">Automatically fulfills requests with this model if your primary provider fails or expires.</p>
+                    </div>
+                  </div>
+                  <mat-icon class="fb-expand-icon">{{ showFallbackConfig() ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </div>
+
+                @if (showFallbackConfig()) {
+                  <div class="fallback-body">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Fallback Provider</mat-label>
+                      <mat-select formControlName="fallback_provider">
+                        <mat-option value="">None (No Fallback)</mat-option>
+                        <mat-option value="openai">OpenAI (Custom API Key)</mat-option>
+                        <mat-option value="claude">Anthropic Claude (Custom API Key)</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+
+                    @if (form.get('fallback_provider')?.value) {
+                      <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>Fallback API Key</mat-label>
+                        <input matInput [type]="showFallbackKey() ? 'text' : 'password'" formControlName="fallback_api_key" placeholder="Paste custom API key">
+                        <button matSuffix mat-icon-button type="button" (click)="showFallbackKey.set(!showFallbackKey())">
+                          <mat-icon>{{ showFallbackKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                        </button>
+                        <mat-hint *ngIf="config()?.fallback_api_key_masked">
+                          Current masked key: {{ config()?.fallback_api_key_masked }}
+                        </mat-hint>
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>Fallback Model Name</mat-label>
+                        <input matInput formControlName="fallback_model_name" placeholder="e.g. gpt-4o, gpt-4o-mini, claude-3-5-sonnet-20241022">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>Fallback Base URL (Optional)</mat-label>
+                        <input matInput formControlName="fallback_base_url" placeholder="https://api.openai.com/v1 (or custom proxy)">
+                      </mat-form-field>
+                    }
+                  </div>
+                }
+              </div>
+
               <div class="form-buttons">
                 <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
                 <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || saving()">
@@ -417,6 +475,15 @@ export class SecondaryOutboundDialogComponent {
     .full-width { width: 100%; }
     .form-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 
+    .fallback-card { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 0.85rem; margin-top: 0.5rem; }
+    .fallback-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .fallback-title-wrap { display: flex; align-items: center; gap: 0.65rem; }
+    .fb-icon { color: #818cf8; font-size: 20px; width: 20px; height: 20px; }
+    .fb-title { margin: 0; font-size: 0.85rem; font-weight: 600; color: #f8fafc; }
+    .fb-subtitle { margin: 0.2rem 0 0 0; font-size: 0.75rem; color: #94a3b8; }
+    .fb-expand-icon { color: #94a3b8; font-size: 20px; width: 20px; height: 20px; }
+    .fallback-body { padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
     /* Light theme overrides */
     :host-context(body.light-theme) .dialog-container { background-color: #ffffff !important; color: #334155 !important; }
     :host-context(body.light-theme) .dialog-header { border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
@@ -426,6 +493,9 @@ export class SecondaryOutboundDialogComponent {
     :host-context(body.light-theme) .provider-option-card { border: 1px solid rgba(0, 0, 0, 0.08); background: #f8fafc; color: #334155; }
     :host-context(body.light-theme) .provider-option-card:hover { border-color: #818cf8; background: rgba(129, 140, 248, 0.04); }
     :host-context(body.light-theme) .step-title { color: #475569; }
+    :host-context(body.light-theme) .fallback-card { background: #f8fafc; border-color: #e2e8f0; }
+    :host-context(body.light-theme) .fb-title { color: #0f172a !important; }
+    :host-context(body.light-theme) .fb-subtitle { color: #64748b !important; }
   `]
 })
 export class AIConfigDialogComponent implements OnInit {
@@ -442,6 +512,8 @@ export class AIConfigDialogComponent implements OnInit {
 
   readonly selectedProvider = signal<string | null>(null);
   readonly showKey = signal(false);
+  readonly showFallbackConfig = signal(false);
+  readonly showFallbackKey = signal(false);
 
   readonly providers = [
     { id: 'openai', name: 'OpenAI GPT', icon: '🤖', defaultModels: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-4o', 'gpt-4-turbo'] },
@@ -454,7 +526,12 @@ export class AIConfigDialogComponent implements OnInit {
     config_type: ['cloud_api', Validators.required],
     api_key: ['', Validators.required],
     model_name: ['', Validators.required],
-    base_url: ['']
+    base_url: [''],
+    fallback_provider: [''],
+    fallback_config_type: ['cloud_api'],
+    fallback_api_key: [''],
+    fallback_model_name: [''],
+    fallback_base_url: ['']
   });
 
   ngOnInit(): void {
@@ -468,6 +545,12 @@ export class AIConfigDialogComponent implements OnInit {
         this.loading.set(false);
         if (res && res.configured !== false) {
           this.config.set(res);
+          this.form.patchValue({
+            fallback_provider: res.fallback_provider || '',
+            fallback_config_type: res.fallback_config_type || 'cloud_api',
+            fallback_model_name: res.fallback_model_name || '',
+            fallback_base_url: res.fallback_base_url || '',
+          });
         } else {
           this.config.set(null);
         }
@@ -515,7 +598,7 @@ export class AIConfigDialogComponent implements OnInit {
 
   resetForm(): void {
     this.selectedProvider.set(null);
-    this.form.reset({ config_type: 'cloud_api' });
+    this.form.reset({ config_type: 'cloud_api', fallback_config_type: 'cloud_api' });
   }
 
   saveConfig(): void {
@@ -560,6 +643,303 @@ export class AIConfigDialogComponent implements OnInit {
     this.dialogRef.close();
   }
 }
+
+// ─── APOLLO.IO CONFIG DIALOG ─────────────────────────────────────────────────
+@Component({
+  selector: 'app-apollo-config-dialog',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatFormFieldModule,
+    MatInputModule,
+    ReactiveFormsModule
+  ],
+  template: `
+    <div class="dialog-container dark-theme">
+      <div class="dialog-header">
+        <div class="title-area">
+          <mat-icon class="apollo-icon">travel_explore</mat-icon>
+          <h2 mat-dialog-title>Apollo.io Integration</h2>
+        </div>
+        <button mat-icon-button (click)="close()"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <mat-dialog-content class="dialog-content">
+        @if (loading()) {
+          <div class="loading-state">
+            <mat-spinner diameter="32"></mat-spinner>
+            <p>Checking Apollo configuration...</p>
+          </div>
+        } @else if (config()?.configured && !editMode()) {
+          <div class="configured-state">
+            <div class="status-summary">
+              <div class="badge-row">
+                <span class="t-badge apollo">🚀 Apollo MCP Active</span>
+                <span class="status-tag connected">CONFIGURED</span>
+              </div>
+            </div>
+
+            <div class="credit-protection-banner">
+              <mat-icon class="shield-icon">verified_user</mat-icon>
+              <div>
+                <strong>Zero-Credit Protection Active</strong>
+                <p>Account Intelligence automatically uses 0 credits to retrieve firmographics, tech stack, and key leadership rosters. Credits are only used if you explicitly ask Copilot for direct emails/phones.</p>
+              </div>
+            </div>
+
+            <div class="details-list">
+              <div class="detail-row">
+                <span>API Key</span>
+                <strong>🔑 Masked ({{ config()?.api_key_masked }})</strong>
+              </div>
+              <div class="detail-row" *ngIf="config()?.last_verified_at">
+                <span>Verified At</span>
+                <strong>{{ config()?.last_verified_at | date:'medium' }}</strong>
+              </div>
+              <div class="detail-row">
+                <span>Endpoint</span>
+                <strong>Remote MCP (https://mcp.apollo.io/mcp)</strong>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <button mat-stroked-button (click)="testExistingKey()" [disabled]="testing()">
+                @if (testing()) { <mat-spinner diameter="16"></mat-spinner> }
+                @else { <mat-icon>sync</mat-icon> Test Connection }
+              </button>
+              <button mat-stroked-button (click)="editMode.set(true)">
+                <mat-icon>edit</mat-icon> Reconfigure
+              </button>
+              <button mat-button color="warn" (click)="disconnect()" [disabled]="disconnecting()">
+                <mat-icon>delete</mat-icon> Disconnect
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="config-instructions">
+            <div class="instruction-box">
+              <p>
+                Connect your <strong>Apollo API Key</strong> to enrich Account Intelligence with verified company data, headcount, tech stack, and decision-maker hierarchies.
+              </p>
+              <div class="rule-chips">
+                <span class="chip free">🛡️ 0 Credits: Company Overview & Org Chart</span>
+                <span class="chip on-demand">⚡ On-Demand: Copilot Phone/Email Unlock</span>
+              </div>
+            </div>
+          </div>
+
+          <form [formGroup]="form" (ngSubmit)="saveConfig()" class="config-form">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Apollo API Key</mat-label>
+              <input matInput [type]="showKey() ? 'text' : 'password'" formControlName="api_key" placeholder="Paste Apollo API key (app_...)" required>
+              <button matSuffix mat-icon-button type="button" (click)="showKey.set(!showKey())">
+                <mat-icon>{{ showKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint>
+                Find your key in Apollo: <strong>Settings &rarr; Integrations &rarr; API Keys</strong>
+              </mat-hint>
+            </mat-form-field>
+
+            @if (testResult()) {
+              <div class="test-feedback" [class.success]="testResult()!.success" [class.error]="!testResult()!.success">
+                <mat-icon>{{ testResult()!.success ? 'check_circle' : 'error' }}</mat-icon>
+                <span>{{ testResult()!.message }}</span>
+              </div>
+            }
+
+            <div class="form-buttons">
+              <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
+              <button mat-stroked-button type="button" (click)="testKeyInput()" [disabled]="form.invalid || testing()">
+                @if (testing()) { <mat-spinner diameter="16"></mat-spinner> }
+                @else { <mat-icon>network_check</mat-icon> Test Key }
+              </button>
+              <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || saving()">
+                @if (saving()) { <mat-spinner diameter="18"></mat-spinner> }
+                @else { Save Apollo Key }
+              </button>
+            </div>
+          </form>
+        }
+      </mat-dialog-content>
+    </div>
+  `,
+  styles: [`
+    .dialog-container { background-color: #0b1329; color: #e2e8f0; border-radius: 12px; max-width: 520px; width: 100%; }
+    .dialog-header { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    .title-area { display: flex; align-items: center; gap: 0.75rem; }
+    .title-area h2 { margin: 0 !important; color: #f8fafc; font-size: 1.25rem; font-weight: 700; }
+    .apollo-icon { color: #fb923c; }
+    .dialog-content { padding: 1.5rem !important; }
+    .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 0; gap: 1rem; color: #94a3b8; }
+    .configured-state { display: flex; flex-direction: column; gap: 1.25rem; }
+    .status-summary { display: flex; justify-content: space-between; align-items: center; }
+    .badge-row { display: flex; align-items: center; gap: 0.75rem; }
+    .t-badge.apollo { background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); color: #fb923c; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+    .status-tag.connected { background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; }
+    .credit-protection-banner { display: flex; gap: 0.75rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); padding: 0.85rem 1rem; border-radius: 8px; color: #6ee7b7; font-size: 0.8rem; line-height: 1.45; }
+    .credit-protection-banner strong { display: block; margin-bottom: 0.2rem; color: #a7f3d0; font-size: 0.85rem; }
+    .credit-protection-banner p { margin: 0; color: #94a3b8; }
+    .shield-icon { color: #34d399; font-size: 24px; width: 24px; height: 24px; flex-shrink: 0; }
+    .details-list { background: rgba(0,0,0,0.15); padding: 1rem; border-radius: 8px; display: flex; flex-direction: column; gap: 0.75rem; }
+    .detail-row { display: flex; justify-content: space-between; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.5rem; }
+    .detail-row:last-child { border: none; padding: 0; }
+    .detail-row span { color: #64748b; }
+    .detail-row strong { color: #e2e8f0; }
+    .actions-row { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+    .instruction-box { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: #cbd5e1; line-height: 1.45; }
+    .instruction-box p { margin: 0 0 0.75rem 0; }
+    .rule-chips { display: flex; flex-direction: column; gap: 0.35rem; }
+    .chip { font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.6rem; border-radius: 6px; }
+    .chip.free { background: rgba(16, 185, 129, 0.1); color: #34d399; }
+    .chip.on-demand { background: rgba(245, 158, 11, 0.1); color: #fbbf24; }
+    .config-form { display: flex; flex-direction: column; gap: 1rem; }
+    .full-width { width: 100%; }
+    .test-feedback { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .test-feedback.success { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .test-feedback.error { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.25); }
+    .form-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
+
+    /* Light theme overrides */
+    :host-context(body.light-theme) .dialog-container { background-color: #ffffff !important; color: #334155 !important; }
+    :host-context(body.light-theme) .dialog-header { border-bottom: 1px solid rgba(0, 0, 0, 0.08); }
+    :host-context(body.light-theme) .title-area h2 { color: #0f172a !important; }
+    :host-context(body.light-theme) .details-list { background: #f1f5f9; }
+    :host-context(body.light-theme) .detail-row strong { color: #0f172a; }
+    :host-context(body.light-theme) .instruction-box { background: #f8fafc; border-color: #e2e8f0; color: #334155; }
+    :host-context(body.light-theme) .credit-protection-banner { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    :host-context(body.light-theme) .credit-protection-banner strong { color: #15803d; }
+    :host-context(body.light-theme) .credit-protection-banner p { color: #374151; }
+  `]
+})
+export class ApolloConfigDialogComponent implements OnInit {
+  private readonly dialogRef = inject(MatDialogRef<ApolloConfigDialogComponent>);
+  private readonly apiService = inject(ApiService);
+  private readonly notification = inject(NotificationService);
+  private readonly fb = inject(FormBuilder);
+
+  readonly config = signal<any>(null);
+  readonly loading = signal(true);
+  readonly saving = signal(false);
+  readonly testing = signal(false);
+  readonly disconnecting = signal(false);
+  readonly editMode = signal(false);
+  readonly showKey = signal(false);
+  readonly testResult = signal<{ success: boolean; message: string } | null>(null);
+
+  readonly form = this.fb.group({
+    api_key: ['', [Validators.required, Validators.minLength(10)]]
+  });
+
+  ngOnInit(): void {
+    this.loadStatus();
+  }
+
+  loadStatus(): void {
+    this.loading.set(true);
+    this.apiService.get<any>('/integrations/apollo/status/').subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        this.config.set(res);
+      },
+      error: () => {
+        this.loading.set(false);
+      }
+    });
+  }
+
+  testExistingKey(): void {
+    this.testing.set(true);
+    this.apiService.post<any>('/integrations/apollo/test/', {}).subscribe({
+      next: (res) => {
+        this.testing.set(false);
+        if (res.success) {
+          this.notification.success(res.message || 'Apollo connection successful.');
+        } else {
+          this.notification.error(res.message || 'Apollo test failed.');
+        }
+      },
+      error: (err) => {
+        this.testing.set(false);
+        this.notification.error(err.error?.message || 'Apollo test request failed.');
+      }
+    });
+  }
+
+  testKeyInput(): void {
+    const key = this.form.get('api_key')?.value?.trim();
+    if (!key) return;
+    this.testing.set(true);
+    this.testResult.set(null);
+    this.apiService.post<any>('/integrations/apollo/test/', { api_key: key }).subscribe({
+      next: (res) => {
+        this.testing.set(false);
+        this.testResult.set({ success: res.success, message: res.message });
+        if (res.success) {
+          this.notification.success(res.message);
+        } else {
+          this.notification.error(res.message);
+        }
+      },
+      error: (err) => {
+        this.testing.set(false);
+        const msg = err.error?.message || 'Verification failed.';
+        this.testResult.set({ success: false, message: msg });
+        this.notification.error(msg);
+      }
+    });
+  }
+
+  saveConfig(): void {
+    if (this.form.invalid) return;
+    this.saving.set(true);
+    const key = this.form.get('api_key')?.value?.trim();
+    this.apiService.post<any>('/integrations/apollo/save/', { api_key: key }).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.notification.success('Apollo API Key saved and verified.');
+        this.editMode.set(false);
+        this.form.reset();
+        this.loadStatus();
+      },
+      error: (err) => {
+        this.saving.set(false);
+        const msg = err.error?.error?.message || err.error?.message || 'Failed to save Apollo key.';
+        this.notification.error(msg);
+      }
+    });
+  }
+
+  disconnect(): void {
+    this.disconnecting.set(true);
+    this.apiService.post<any>('/integrations/apollo/disconnect/', {}).subscribe({
+      next: () => {
+        this.disconnecting.set(false);
+        this.notification.success('Apollo integration disconnected.');
+        this.config.set({ configured: false });
+        this.loadStatus();
+      },
+      error: () => {
+        this.disconnecting.set(false);
+        this.notification.error('Failed to disconnect Apollo.');
+      }
+    });
+  }
+
+  cancelEdit(): void {
+    this.editMode.set(false);
+    this.testResult.set(null);
+    this.form.reset();
+  }
+
+  close(): void {
+    this.dialogRef.close();
+  }
+}
+
 
 // ─── TELEPHONY CONFIG DIALOG ─────────────────────────────────────────────────
 @Component({
@@ -1003,6 +1383,9 @@ export class TelephonyConfigDialogComponent implements OnInit {
               <div class="logo-box" [ngClass]="item.iconClass">
                 <mat-icon class="logo-icon">{{ item.icon }}</mat-icon>
               </div>
+              <span class="status-badge" [ngClass]="getBadgeClass(item.id, item.badge)">
+                {{ getBadgeText(item.id, item.badge) }}
+              </span>
             </div>
 
             <div class="card-main-body">
@@ -1163,7 +1546,35 @@ export class TelephonyConfigDialogComponent implements OnInit {
     .card-top-header {
       display: flex;
       align-items: center;
-      margin-bottom: 0.5rem;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+
+    .status-badge.enabled {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-badge.not-configured {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .status-badge.coming-soon {
+      background: rgba(245, 158, 11, 0.1);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.2);
     }
 
     .logo-box {
@@ -1178,6 +1589,7 @@ export class TelephonyConfigDialogComponent implements OnInit {
     .logo-box.gmail { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
     .logo-box.twilio { background: rgba(16, 185, 129, 0.15); color: #10b981; }
     .logo-box.ai-assistant { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+    .logo-box.apollo { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
     .logo-box.outlook { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 
     .logo-icon {
@@ -1319,6 +1731,24 @@ export class TelephonyConfigDialogComponent implements OnInit {
       color: #ffffff;
       border-color: #0f172a;
     }
+
+    :host-context(body.light-theme) .status-badge.enabled {
+      background: #ecfdf5;
+      color: #059669;
+      border-color: #a7f3d0;
+    }
+
+    :host-context(body.light-theme) .status-badge.not-configured {
+      background: #f1f5f9;
+      color: #64748b;
+      border-color: #cbd5e1;
+    }
+
+    :host-context(body.light-theme) .status-badge.coming-soon {
+      background: #fffbeb;
+      color: #d97706;
+      border-color: #fde68a;
+    }
   `]
 })
 export class IntegrationsComponent implements OnInit {
@@ -1338,6 +1768,7 @@ export class IntegrationsComponent implements OnInit {
   readonly gmailApiConfigured = signal<boolean>(false);
   readonly telephonyConnected = signal<boolean>(false);
   readonly aiConnected = signal<boolean>(false);
+  readonly apolloConnected = signal<boolean>(false);
 
   readonly loading = signal(false);
   readonly processingCallback = signal(false);
@@ -1364,9 +1795,18 @@ export class IntegrationsComponent implements OnInit {
     {
       id: 'ai_assistant',
       title: 'AI Assistant',
-      description: 'Connect Anthropic Claude, Google Gemini, or custom OpenAI endpoints to power the Sales CRM AI Copilot.',
+      description: 'Connect Anthropic Claude, Google Gemini, or ChatGPT / custom OpenAI endpoints to power the Sales AI Copilot.',
       icon: 'smart_toy',
       iconClass: 'ai-assistant',
+      category: 'AI Tools',
+      badge: 'NOT CONFIGURED'
+    },
+    {
+      id: 'apollo',
+      title: 'Apollo.io (Intelligence & MCP)',
+      description: 'Zero-credit firmographics, tech stack, and employee directory with on-demand contact research via Apollo MCP.',
+      icon: 'travel_explore',
+      iconClass: 'apollo',
       category: 'AI Tools',
       badge: 'NOT CONFIGURED'
     },
@@ -1435,6 +1875,13 @@ export class IntegrationsComponent implements OnInit {
         this.aiConnected.set(res && res.configured !== false);
       }
     });
+
+    // Apollo config status
+    this.apiService.get<any>('/integrations/apollo/status/').subscribe({
+      next: (res) => {
+        this.apolloConnected.set(res && res.configured && res.is_active);
+      }
+    });
   }
 
   getBadgeText(id: string, defBadge: string): string {
@@ -1448,6 +1895,9 @@ export class IntegrationsComponent implements OnInit {
     }
     if (id === 'ai_assistant') {
       return this.aiConnected() ? 'ENABLED' : 'NOT CONFIGURED';
+    }
+    if (id === 'apollo') {
+      return this.apolloConnected() ? 'ENABLED' : 'NOT CONFIGURED';
     }
     return defBadge;
   }
@@ -1484,6 +1934,12 @@ export class IntegrationsComponent implements OnInit {
     } else if (id === 'ai_assistant') {
       const dialogRef = this.dialog.open(AIConfigDialogComponent, {
         width: '500px',
+        panelClass: 'dark-dialog-panel'
+      });
+      dialogRef.afterClosed().subscribe(() => this.loadStatuses());
+    } else if (id === 'apollo') {
+      const dialogRef = this.dialog.open(ApolloConfigDialogComponent, {
+        width: '560px',
         panelClass: 'dark-dialog-panel'
       });
       dialogRef.afterClosed().subscribe(() => this.loadStatuses());
