@@ -467,21 +467,8 @@ class ImportService:
                     contact.lists.add(prospect_list)
 
                 # Trigger automatic company stage update based on contact stage
-                if contact.stage and contact.company:
-                    new_stage = contact.stage
-                    company_stage = None
-                    if new_stage in ["replied", "follow_up", "interested"]:
-                        company_stage = "active_opportunity"
-                    elif new_stage == "won":
-                        company_stage = "current_client"
-                    elif new_stage in ["not_icp", "not_interested", "unresponsive"]:
-                        company_stage = "dead_opportunity"
-                    elif new_stage in ["do_not_contact", "bad_data", "changed_job"]:
-                        company_stage = "do_not_prospect"
-                        
-                    if company_stage:
-                        from apps.companies.services import CompanyService
-                        CompanyService.update_company(contact.company, {"stage": company_stage}, user)
+                from apps.contacts.services import ContactService
+                ContactService.sync_company_stage_from_contact(contact, user)
 
                 ImportRecord.objects.create(
                     import_job=import_job,

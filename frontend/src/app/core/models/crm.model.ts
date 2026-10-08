@@ -40,7 +40,7 @@ export interface ProspectList {
   created_by_detail?: { id: string; name: string };
 }
 
-export type CompanyStage = 'cold' | 'current_client' | 'active_opportunity' | 'dead_opportunity' | 'do_not_prospect';
+export type CompanyStage = 'cold' | 'approaching' | 'current_client' | 'active_opportunity' | 'dead_opportunity' | 'do_not_prospect';
 
 export interface Company {
   id: string;

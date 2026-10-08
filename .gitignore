@@ -7,3 +7,7 @@
 
 # Logs
 *.log
+
+# Backups and archives
+*.tar.gz
+*.backup

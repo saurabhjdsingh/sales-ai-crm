@@ -579,6 +579,7 @@ import { CompanyService } from '../services/company.service';
     }
 
     .stage-badge.cold { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .stage-badge.approaching { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .stage-badge.active_opportunity { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .stage-badge.current_client { background: rgba(16, 185, 129, 0.15); color: #34d399; }
     .stage-badge.dead_opportunity { background: rgba(239, 68, 68, 0.15); color: #f87171; }
@@ -1664,6 +1665,7 @@ export class CompanyDetailComponent implements OnInit {
   getStageLabel(stage: string): string {
     const labels: Record<string, string> = {
       cold: 'Cold',
+      approaching: 'Approaching',
       active_opportunity: 'Active Opportunity',
       current_client: 'Current Client',
       dead_opportunity: 'Dead Opportunity',

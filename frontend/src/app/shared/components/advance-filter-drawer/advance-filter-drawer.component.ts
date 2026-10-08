@@ -80,6 +80,7 @@ export interface AdvanceFilterState {
             <option value="">All Stages</option>
             <ng-container *ngIf="entityType === 'company'">
               <option value="cold">Cold</option>
+              <option value="approaching">Approaching</option>
               <option value="active_opportunity">Active Opportunity</option>
               <option value="current_client">Current Client</option>
               <option value="dead_opportunity">Dead Opportunity</option>

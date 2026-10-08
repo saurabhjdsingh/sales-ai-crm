@@ -82,6 +82,7 @@ interface DropdownItem {
               <mat-label>Stage</mat-label>
               <mat-select formControlName="stage">
                 <mat-option value="cold">Cold</mat-option>
+                <mat-option value="approaching">Approaching</mat-option>
                 <mat-option value="active_opportunity">Active Opportunity</mat-option>
                 <mat-option value="current_client">Current Client</mat-option>
                 <mat-option value="dead_opportunity">Dead Opportunity</mat-option>

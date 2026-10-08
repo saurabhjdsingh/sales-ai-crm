@@ -14,6 +14,7 @@ class UserRole(models.TextChoices):
 
 class CompanyStage(models.TextChoices):
     COLD = "cold", "Cold"
+    APPROACHING = "approaching", "Approaching"
     CURRENT_CLIENT = "current_client", "Current Client"
     ACTIVE_OPPORTUNITY = "active_opportunity", "Active Opportunity"
     DEAD_OPPORTUNITY = "dead_opportunity", "Dead Opportunity"

@@ -71,6 +71,7 @@ import { ResearchIngestDialogComponent } from '../components/research-ingest-dia
           <mat-select formControlName="stage">
             <mat-option value="">All Stages</mat-option>
             <mat-option value="cold">Cold</mat-option>
+            <mat-option value="approaching">Approaching</mat-option>
             <mat-option value="active_opportunity">Active Opportunity</mat-option>
             <mat-option value="current_client">Current Client</mat-option>
             <mat-option value="dead_opportunity">Dead Opportunity</mat-option>
@@ -431,6 +432,7 @@ import { ResearchIngestDialogComponent } from '../components/research-ingest-dia
     }
 
     .stage-badge.cold { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .stage-badge.approaching { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .stage-badge.active_opportunity { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
     .stage-badge.current_client { background: rgba(16, 185, 129, 0.15); color: #34d399; }
     .stage-badge.dead_opportunity { background: rgba(239, 68, 68, 0.15); color: #f87171; }
@@ -641,6 +643,7 @@ export class CompanyListComponent implements OnInit {
   getStageLabel(stage: string): string {
     const labels: Record<string, string> = {
       cold: 'Cold',
+      approaching: 'Approaching',
       active_opportunity: 'Opportunity',
       current_client: 'Client',
       dead_opportunity: 'Dead',

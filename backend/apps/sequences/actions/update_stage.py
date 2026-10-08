@@ -63,6 +63,10 @@ class UpdateStageActionHandler(BaseActionHandler):
                 from apps.sequences.services.auto_stop import AutoStopService
                 AutoStopService.check_and_stop_for_contact_stage(contact, target_stage)
 
+                # Sync company stage if applicable
+                from apps.contacts.services import ContactService
+                ContactService.sync_company_stage_from_contact(contact, user)
+
             now = timezone.now()
             execution.status = ExecutionStatus.COMPLETED
             execution.completed_at = now
