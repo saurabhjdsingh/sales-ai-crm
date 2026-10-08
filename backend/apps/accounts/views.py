@@ -373,7 +373,7 @@ class OrganizationBrandingView(APIView):
         return Response(OrganizationBrandingSerializer(data).data)
 
     def put(self, request):
-        serializer = OrganizationBrandingUpdateSerializer(data=request.data)
+        serializer = OrganizationBrandingUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
@@ -390,6 +390,8 @@ class OrganizationBrandingView(APIView):
                 smtp_use_tls=data.get("smtp_use_tls"),
                 smtp_use_ssl=data.get("smtp_use_ssl"),
                 smtp_from_email=data.get("smtp_from_email"),
+                excluded_meeting_domains=data.get("excluded_meeting_domains"),
+                excluded_meeting_titles=data.get("excluded_meeting_titles"),
             )
         except ValueError as exc:
             return Response(

@@ -23,8 +23,8 @@ import { TelephonyService, TelephonySettings } from '../telephony/telephony.serv
     <div class="dialog-container dark-theme">
       <div class="dialog-header">
         <div class="title-area">
-          <mat-icon class="gmail-icon">email</mat-icon>
-          <h2 mat-dialog-title>Gmail Integration</h2>
+          <mat-icon class="gmail-icon">calendar_month</mat-icon>
+          <h2 mat-dialog-title>Google Workspace (Gmail & Calendar)</h2>
         </div>
         <button mat-icon-button (click)="close()"><mat-icon>close</mat-icon></button>
       </div>
@@ -33,7 +33,7 @@ import { TelephonyService, TelephonySettings } from '../telephony/telephony.serv
         @if (data.apiConfigured) {
           <div class="status-summary" style="margin-bottom: 1.25rem;">
             <div class="badge-row" style="display: flex; align-items: center; gap: 0.75rem;">
-              <span class="t-badge gmail">📬 Google API Active</span>
+              <span class="t-badge gmail">📬 Google Workspace API Active</span>
               <span class="status-tag connected">CONFIGURED</span>
             </div>
           </div>
@@ -48,7 +48,7 @@ import { TelephonyService, TelephonySettings } from '../telephony/telephony.serv
             <mat-icon class="status-icon">error_outline</mat-icon>
             <div class="status-info">
               <h3>Admin Setup Required</h3>
-              <p>An administrator needs to configure the Google Client ID & Secret in settings before you can connect your mailbox.</p>
+              <p>An administrator needs to configure the Google Client ID & Secret in settings before you can connect your account.</p>
             </div>
           </div>
         }
@@ -57,35 +57,37 @@ import { TelephonyService, TelephonySettings } from '../telephony/telephony.serv
           <div class="connection-status connected">
             <mat-icon class="status-icon">check_circle</mat-icon>
             <div class="status-info">
-              <h3>Mailbox Connected</h3>
-              <p>Synchronizing emails for <strong>{{ data.status?.email }}</strong></p>
+              <h3>Google Workspace Connected</h3>
+              <p>Synchronizing Gmail & Calendar for <strong>{{ data.status?.email }}</strong></p>
             </div>
           </div>
 
           <div class="info-box">
             <p><strong>Sync Status:</strong> <span class="status-badge" [ngClass]="data.status?.status">{{ data.status?.status | uppercase }}</span></p>
-            <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;">Emails associated with CRM contacts are automatically synced in the background when viewing contacts, companies, or deals.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8;">
+              Emails and Google Calendar meetings are automatically synchronized in the background, matching attendees to CRM contacts and companies.
+            </p>
           </div>
         } @else if (data.apiConfigured) {
           <div class="connection-status disconnected">
             <mat-icon class="status-icon">error_outline</mat-icon>
             <div class="status-info">
               <h3>Not Connected</h3>
-              <p>Connect your mailbox to enable email timeline syncing.</p>
+              <p>Connect your Google Workspace account to enable email and calendar synchronization.</p>
             </div>
           </div>
           <div class="features-list">
             <div class="feature-item">
               <mat-icon>check</mat-icon>
-              <span>Automatic background syncing of interactions</span>
+              <span>Automatic background syncing of Gmail interactions</span>
             </div>
             <div class="feature-item">
               <mat-icon>check</mat-icon>
-              <span>Provider-agnostic activity rendering</span>
+              <span>Google Calendar sync with contact & company auto-matching</span>
             </div>
             <div class="feature-item">
               <mat-icon>check</mat-icon>
-              <span>Feeds contextual history directly to AI Copilot</span>
+              <span>Post-meeting intelligence with notes, transcripts & AI summaries</span>
             </div>
           </div>
         }
@@ -1345,9 +1347,9 @@ export class IntegrationsComponent implements OnInit {
   readonly integrations = [
     {
       id: 'gmail',
-      title: 'Gmail Sync',
-      description: 'Synchronize email conversations involving your contacts in the background and link them to CRM timelines.',
-      icon: 'email',
+      title: 'Google Workspace (Gmail & Calendar)',
+      description: 'Synchronize Gmail email threads and Google Calendar meetings with automated CRM contact and company matching.',
+      icon: 'calendar_month',
       iconClass: 'gmail',
       category: 'Communication',
       badge: 'NOT CONFIGURED'

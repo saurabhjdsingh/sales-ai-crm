@@ -105,6 +105,18 @@ class OrganizationSettings(models.Model):
     smtp_use_ssl = models.BooleanField(default=False)
     smtp_from_email = models.CharField(max_length=255, blank=True, default="")
 
+    # Meeting Filters
+    excluded_meeting_domains = models.TextField(
+        blank=True,
+        default="",
+        help_text="Comma-separated domains to exclude from CRM sync if all participants belong to them.",
+    )
+    excluded_meeting_titles = models.TextField(
+        blank=True,
+        default="",
+        help_text="Comma- or newline-separated title keywords to exclude from CRM sync.",
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         "accounts.User",

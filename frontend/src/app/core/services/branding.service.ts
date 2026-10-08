@@ -8,6 +8,8 @@ export interface BrandingData {
   organization_name: string;
   logo_url: string | null;
   has_logo: boolean;
+  excluded_meeting_domains?: string;
+  excluded_meeting_titles?: string;
 }
 
 @Injectable({
@@ -22,6 +24,8 @@ export class BrandingService {
   readonly organizationName = signal<string>(this.defaultName);
   readonly logoUrl = signal<string | null>(null);
   readonly hasLogo = signal<boolean>(false);
+  readonly excludedMeetingDomains = signal<string>('');
+  readonly excludedMeetingTitles = signal<string>('');
 
   constructor() {
     this.loadBranding();
@@ -39,7 +43,13 @@ export class BrandingService {
     });
   }
 
-  updateBranding(name: string, logo: File | null, removeLogo: boolean): Observable<BrandingData> {
+  updateBranding(
+    name: string,
+    logo: File | null,
+    removeLogo: boolean,
+    excludedDomains?: string,
+    excludedTitles?: string
+  ): Observable<BrandingData> {
     const formData = new FormData();
     if (name) {
       formData.append('organization_name', name);
@@ -49,6 +59,12 @@ export class BrandingService {
     }
     if (removeLogo) {
       formData.append('remove_logo', 'true');
+    }
+    if (excludedDomains !== undefined) {
+      formData.append('excluded_meeting_domains', excludedDomains);
+    }
+    if (excludedTitles !== undefined) {
+      formData.append('excluded_meeting_titles', excludedTitles);
     }
 
     return this.http.put<BrandingData>(`${environment.apiUrl}/auth/organization/branding/`, formData).pipe(
@@ -68,6 +84,8 @@ export class BrandingService {
     this.organizationName.set(name);
     this.logoUrl.set(data.logo_url);
     this.hasLogo.set(data.has_logo);
+    this.excludedMeetingDomains.set(data.excluded_meeting_domains || '');
+    this.excludedMeetingTitles.set(data.excluded_meeting_titles || '');
     this.titleService.setTitle(name);
 
     // Update favicon dynamically

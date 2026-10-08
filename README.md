@@ -20,7 +20,11 @@ Now integrated with a **Provider-Independent Conversation Intelligence Pipeline*
 - 🕒 **Inactivity Task Reminders**: Automated Celery task runner that detects upcoming tasks due in 1 hour and sends email reminders if the owner has been inactive for 6 hours.
 - 🧑‍🤝‍🧑 **Onboarding & Team Invites**: Invite new members via admin panels. Invitees receive secure, cryptographically signed email links to set passwords on a public onboarding screen.
 - 🎙️ **Independent Conversation Intelligence**: Browser audio stream capture (sales rep microphone and remote customer audio track) processed independently via dual WebSocket connections. Feeds a local Whisper container for 100% free transcription without relying on Twilio cloud recording.
-- 🧠 **Interactive AI Assist Copilot & Post-Call Review**: Real-time floating softphone widget with an integrated side-panel Copilot. Features live speech objection detection, buying signal extraction, in-call discovery questions, entity-scoped AI Chat, and post-call review workflows that log outcomes straight to PostgreSQL.
+- 📅 **Google Calendar Integration & Post-Meeting Intelligence**:
+  - Automatically syncs upcoming and past events from Google Calendar with real-time attendee matching to CRM Contacts and Companies.
+  - Interactive **Post-Meeting Intelligence** dialog to record notes, ingest raw transcripts (from Meet, Zoom, Otter, Fireflies, Grain), and generate AI Executive Summaries, sentiment, key objections, and auto-convertible CRM action items.
+  - Automatically syncs meeting logs and AI takeaways to Contact and Company timeline feeds.
+  - Complete setup instructions in the [**Google Cloud Console Configuration Guide**](GOOGLE_CLOUD_CONSOLE_GUIDE.md).
 - 📇 **Enhanced Contact & Lead Management**: Direct clickable company website links, employee size filtering/sorting across contact lists, and automatic target tab handling (`target="_blank"`) for all external activity links.
 
 ---
@@ -86,9 +90,10 @@ Twilio requires a public URL to send Webhook events to your local server when es
 
 ---
 
-## 🌎 Server Deployment
-
-For deploying the CRM to an Ubuntu staging/production server, refer to our detailed [**Ubuntu Server Deployment Guide**](DEPLOYMENT.md) located at the root of this repository.
+## 🌎 Server Deployment & Google Integration
+ 
+- For deploying the CRM to an Ubuntu staging/production server, refer to our detailed [**Ubuntu Server Deployment Guide**](DEPLOYMENT.md).
+- For configuring Gmail and Google Calendar OAuth2 credentials in Google Cloud Console, see our [**Google Cloud Console Configuration Guide**](GOOGLE_CLOUD_CONSOLE_GUIDE.md).
 
 ---
 
@@ -102,6 +107,7 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 │   │   ├── companies/        # Company directory and auto-range normalization
 │   │   ├── contacts/         # Contacts directory, company size sorting & detail context
 │   │   ├── emails/           # Dual-Mailbox (Primary/Secondary), Custom SMTP provider, thread sync & outreach
+│   │   ├── meetings/         # Google Calendar sync, CRM matching, AI notes & transcript intelligence
 │   │   ├── sequences/        # Multi-step AI sales sequence engine & Celery Beat dispatchers
 │   │   ├── ai_engine/        # AI copilots, custom prompt templates, LLM pricing & usage purpose analytics
 │   │   ├── telephony/        # Twilio call connection, softphone WebRTC & TwiML endpoints
@@ -117,13 +123,15 @@ For deploying the CRM to an Ubuntu staging/production server, refer to our detai
 │   │   ├── auth/             # Login & public password-onboarding (accept-invite) screens
 │   │   ├── companies/        # Companies list with ICP sorting and creation
 │   │   ├── contacts/         # Contact list with 4 columns (Timeline, Tasks, Notes, Email Threads & AI Draft Generator)
+│   │   ├── meetings/         # Google Calendar upcoming/past list, CRM association & AI Intelligence dialog
 │   │   ├── integrations/     # Primary/Secondary mailbox OAuth & Custom SMTP config panel
-│   │   ├── settings/         # Organization settings, branding, SMTP, AI Persona & AI Usage purpose card
+│   │   ├── settings/         # Organization settings, branding, Google Configuration & AI Persona
 │   │   ├── sequences/        # Automated AI sequence creator, enrollment & enrolled progress column
 │   │   ├── telephony/        # Softphone Widget, AI Assist Copilot, twin WS streaming & call history
 │   │   ├── dashboard/        # Top prospects lists and lead activity metrics
 │   │   └── tasks/            # Task board, pipeline statuses, and workflows
 │   └── src/app/shared/       # Shared layouts, components, and global tables
 ├── docker-compose.yml        # Docker containers configuration stack
-└── DEPLOYMENT.md             # Detailed production Ubuntu deployment manual
+├── DEPLOYMENT.md             # Detailed production Ubuntu deployment manual
+└── GOOGLE_CLOUD_CONSOLE_GUIDE.md # Step-by-step Google Cloud OAuth configuration guide
 ```

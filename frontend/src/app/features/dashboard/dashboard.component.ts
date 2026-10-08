@@ -90,10 +90,12 @@ interface ProductivityMetric {
   value: number;
 }
 
+import { MatTooltipModule } from '@angular/material/tooltip';
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [CommonModule, RouterModule, FormsModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatTooltipModule],
   template: `
     @if (loading()) {
       <div class="loading-state">
@@ -221,6 +223,53 @@ interface ProductivityMetric {
                     <div class="empty-feed">
                       <mat-icon>sentiment_satisfied_alt</mat-icon>
                       <p>No tasks remaining today. Go ahead and relax!</p>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Upcoming Calendar Meetings -->
+            <div class="card section-card">
+              <div class="card-header">
+                <mat-icon class="header-icon blue">calendar_today</mat-icon>
+                <h3>Upcoming Meetings</h3>
+                <a routerLink="/meetings" class="header-link" style="margin-left: auto; font-size: 0.78rem; color: #60a5fa; text-decoration: none; font-weight: 600;">View Calendar</a>
+              </div>
+              <div class="card-body">
+                <div class="tasks-feed">
+                  @for (m of upcomingMeetings(); track m.id) {
+                    <div class="task-row" routerLink="/meetings" style="cursor: pointer;">
+                      <div class="m-time-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 48px; padding: 0.2rem 0.4rem; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                        <span style="font-size: 0.68rem; font-weight: 700; color: #60a5fa;">{{ m.start_time | date:'dd MMM' }}</span>
+                        <span style="font-size: 0.65rem; color: #94a3b8;">{{ m.start_time | date:'shortTime' }}</span>
+                      </div>
+                      <div class="task-details" style="flex: 1;">
+                        <div class="task-title" style="font-weight: 600;">{{ m.title }}</div>
+                        <div class="task-meta">
+                          @if (m.company_name) {
+                            <span class="entity" style="color: #60a5fa; font-weight: 600;">{{ m.company_name }}</span>
+                          }
+                          @if (m.contact_name) {
+                            <span class="divider">·</span>
+                            <span class="entity">{{ m.contact_name }}</span>
+                          }
+                          @if (!m.company_name && !m.contact_name) {
+                            <span style="color: #f59e0b; font-size: 0.72rem; font-style: italic;">Unlinked to CRM</span>
+                          }
+                        </div>
+                      </div>
+                      @if (m.meeting_url) {
+                        <a [href]="m.meeting_url" target="_blank" rel="noopener noreferrer" (click)="$event.stopPropagation()" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 6px; background: rgba(59, 130, 246, 0.15); color: #60a5fa;" matTooltip="Join Video Call">
+                          <mat-icon style="font-size: 18px; width: 18px; height: 18px;">videocam</mat-icon>
+                        </a>
+                      }
+                    </div>
+                  }
+                  @if (upcomingMeetings().length === 0) {
+                    <div class="empty-feed">
+                      <mat-icon>event_available</mat-icon>
+                      <p>No upcoming meetings scheduled. All caught up!</p>
                     </div>
                   }
                 </div>
@@ -1381,6 +1430,7 @@ export class DashboardComponent implements OnInit {
   readonly productivityUpdatedAt = signal<string>('');
   readonly selectedRange = signal<string>('today');
   readonly customDate = signal<string>('');
+  readonly upcomingMeetings = signal<any[]>([]);
 
   ngOnInit(): void {
     this.apiService.get<DashboardData>('/dashboard/').subscribe({
@@ -1391,6 +1441,16 @@ export class DashboardComponent implements OnInit {
       error: () => {
         this.loading.set(false);
         this.notification.error('Failed to load dashboard statistics');
+      }
+    });
+
+    // Fetch upcoming calendar meetings
+    this.apiService.get<any[]>('/meetings/upcoming/').subscribe({
+      next: (meetings) => {
+        this.upcomingMeetings.set(meetings || []);
+      },
+      error: () => {
+        // Silent fallback if meetings not yet configured
       }
     });
 

@@ -244,6 +244,7 @@ export class SidebarComponent {
     { label: 'Prospect Lists', route: '/lists', icon: 'format_list_bulleted' },
     { label: 'Deals', route: '/deals', icon: 'monetization_on' },
     { label: 'Tasks', route: '/tasks', icon: 'assignment' },
+    { label: 'Meetings', route: '/meetings', icon: 'event' },
     { label: 'Sequences', route: '/sequences', icon: 'auto_awesome' },
     { label: 'Calls', route: '/calls', icon: 'call' },
     { label: 'Import Center', route: '/imports', icon: 'cloud_upload' },

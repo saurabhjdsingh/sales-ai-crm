@@ -185,6 +185,8 @@ class OrganizationBrandingSerializer(serializers.Serializer):
     smtp_use_ssl = serializers.BooleanField(required=False)
     smtp_from_email = serializers.CharField(allow_blank=True, required=False)
     smtp_has_password = serializers.BooleanField(required=False)
+    excluded_meeting_domains = serializers.CharField(allow_blank=True, required=False)
+    excluded_meeting_titles = serializers.CharField(allow_blank=True, required=False)
 
 
 class OrganizationBrandingUpdateSerializer(serializers.Serializer):
@@ -195,9 +197,11 @@ class OrganizationBrandingUpdateSerializer(serializers.Serializer):
     smtp_port = serializers.IntegerField(required=False)
     smtp_username = serializers.CharField(max_length=255, required=False, allow_blank=True)
     smtp_password = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    smtp_use_tls = serializers.BooleanField(required=False)
-    smtp_use_ssl = serializers.BooleanField(required=False)
+    smtp_use_tls = serializers.BooleanField(required=False, allow_null=True)
+    smtp_use_ssl = serializers.BooleanField(required=False, allow_null=True)
     smtp_from_email = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    excluded_meeting_domains = serializers.CharField(required=False, allow_blank=True)
+    excluded_meeting_titles = serializers.CharField(required=False, allow_blank=True)
 
     def validate_organization_name(self, value):
         value = value.strip()

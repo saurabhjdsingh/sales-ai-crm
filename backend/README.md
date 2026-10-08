@@ -44,7 +44,7 @@ A Django 5 REST API backend powering an autonomous Sales AI CRM with agentic too
 | **AI Providers** | Anthropic Claude SDK, OpenAI SDK |
 | **Browser Automation** | Playwright (Chromium, headless) |
 | **Auth** | JWT via `djangorestframework-simplejwt` |
-| **Integrations** | Google Gmail API (OAuth2) |
+| **Integrations** | Google Gmail API (OAuth2) & Google Calendar API |
 | **Web Scraping** | `httpx` + `beautifulsoup4` + `lxml` |
 | **Encryption** | `cryptography` (Fernet symmetric encryption) |
 | **WebSockets / ASGI** | Daphne 4.2 + Django Channels 4.3 |
@@ -76,6 +76,7 @@ backend/
 │   │   ├── tasks.py      # Celery background tasks
 │   │   └── urls.py
 │   ├── emails/           # Dual-Mailbox strategy (Primary/Secondary), SmtpProvider, thread sync & outreach
+│   ├── meetings/         # Google Calendar sync, CRM matching, AI notes & transcript intelligence
 │   ├── sequences/        # Multi-step AI sales sequence engine & Celery Beat step evaluation
 │   ├── integrations/     # Google OAuth2 integration and token exchange
 │   ├── ai_engine/        # LLM provider abstraction, copilot service, context builder, usage cost tracking

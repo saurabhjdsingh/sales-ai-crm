@@ -120,6 +120,39 @@ import { NotificationService } from '../../../core/services/notification.service
                     </div>
                   }
 
+                  @if (act.activity_type === 'meeting' && act.metadata) {
+                    <div class="meeting-timeline-details">
+                      @if (act.metadata.start_time) {
+                        <div class="meeting-time-row">
+                          <mat-icon class="m-icon">schedule</mat-icon>
+                          <span>{{ act.metadata.start_time | date:'mediumDate' }} at {{ act.metadata.start_time | date:'shortTime' }}</span>
+                          @if (act.metadata.status) {
+                            <span class="m-status-tag" [ngClass]="act.metadata.status">{{ act.metadata.status | uppercase }}</span>
+                          }
+                        </div>
+                      }
+
+                      @if (act.metadata.meeting_url) {
+                        <div class="meeting-call-row">
+                          <a [href]="act.metadata.meeting_url" target="_blank" rel="noopener noreferrer" class="m-join-btn">
+                            <mat-icon>videocam</mat-icon> Join Meeting Call
+                          </a>
+                        </div>
+                      }
+
+                      @if (act.metadata.action_items?.length) {
+                        <div class="meeting-actions-box">
+                          <span class="m-box-title">Action Items:</span>
+                          <ul class="m-actions-list">
+                            @for (item of act.metadata.action_items; track $index) {
+                              <li>{{ item.task || item }}</li>
+                            }
+                          </ul>
+                        </div>
+                      }
+                    </div>
+                  }
+
                   @if (act.description) {
                     <p class="item-desc" [class.email-preview]="isEmailType(act.activity_type)" [innerHTML]="formatTextWithLinks(act.description)"></p>
                   }
@@ -304,6 +337,81 @@ import { NotificationService } from '../../../core/services/notification.service
     .badge.outgoing {
       background: rgba(16, 185, 129, 0.15);
       color: #34d399;
+    }
+
+    .meeting-timeline-details {
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .meeting-time-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .m-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: #f59e0b;
+    }
+
+    .m-status-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.05rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .m-join-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      text-decoration: none;
+      width: fit-content;
+    }
+
+    .m-join-btn mat-icon {
+      font-size: 15px;
+      width: 15px;
+      height: 15px;
+    }
+
+    .meeting-actions-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .m-box-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #a855f7;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .m-actions-list {
+      margin: 0.25rem 0 0 0;
+      padding-left: 1.1rem;
+      font-size: 0.78rem;
+      color: #cbd5e1;
     }
 
     .email-preview {

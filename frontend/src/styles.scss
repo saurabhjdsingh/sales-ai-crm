@@ -107,6 +107,33 @@ body:not(.light-theme) .research-dialog-panel {
   }
 }
 
+/* Meeting Intelligence & Association Dialog Panels */
+.meeting-dialog-panel {
+  max-width: 95vw !important;
+
+  .mat-mdc-dialog-container {
+    padding: 0 !important;
+    max-height: 86vh !important;
+  }
+
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    border-radius: 12px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    max-height: 86vh !important;
+  }
+}
+
+body:not(.light-theme) .meeting-dialog-panel {
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    background-color: #0b1329 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+  }
+}
+
 /* ==========================================================================
    Angular Material Tooltip Global Overrides (Dark & Light Theme Contrast Fix)
    ========================================================================== */
@@ -1014,6 +1041,19 @@ body.light-theme {
     }
 
     .ingest-dialog-container {
+      background-color: #ffffff !important;
+      color: #334155 !important;
+    }
+  }
+
+  .meeting-dialog-panel {
+    .mat-mdc-dialog-container .mdc-dialog__surface {
+      background-color: #ffffff !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .intelligence-dialog-container, .edit-dialog-container {
       background-color: #ffffff !important;
       color: #334155 !important;
     }

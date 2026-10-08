@@ -567,3 +567,75 @@ export interface EmailStatusResponse {
   secondary_account?: EmailAccount | null;
 }
 
+export type MeetingStatus = 'confirmed' | 'tentative' | 'cancelled' | 'completed';
+
+export interface MeetingAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: string;
+  self?: boolean;
+  organizer?: boolean;
+}
+
+export interface MeetingOrganizer {
+  email: string;
+  displayName?: string;
+  self?: boolean;
+}
+
+export interface MeetingActionItem {
+  task: string;
+  owner?: string;
+  due_in_days?: number;
+}
+
+export interface MeetingAnalysis {
+  summary?: string;
+  key_takeaways?: string[];
+  action_items?: MeetingActionItem[];
+  objections_raised?: string[];
+  sentiment?: string;
+  next_recommended_step?: string;
+}
+
+export interface Meeting {
+  id: string;
+  google_event_id: string;
+  calendar_id?: string;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  timezone?: string;
+  location?: string;
+  meeting_url?: string;
+  html_link?: string;
+  status: MeetingStatus;
+  organizer?: MeetingOrganizer;
+  attendees?: MeetingAttendee[];
+  contact?: string | null;
+  contact_name?: string;
+  contact_email?: string;
+  company?: string | null;
+  company_name?: string;
+  deal?: string | null;
+  deal_name?: string;
+  is_auto_matched: boolean;
+  matched_attendee_email?: string;
+  is_manually_edited: boolean;
+  meeting_notes?: string;
+  transcript?: string;
+  transcript_source?: string;
+  analysis?: MeetingAnalysis;
+  has_post_meeting_notes: boolean;
+  post_meeting_updated_at?: string | null;
+  send_reminders?: boolean;
+  reminder_24h_sent?: boolean;
+  reminder_24h_sent_at?: string | null;
+  reminder_1h_sent?: boolean;
+  reminder_1h_sent_at?: string | null;
+  is_finished: boolean;
+  created_at: string;
+  updated_at: string;
+}
+

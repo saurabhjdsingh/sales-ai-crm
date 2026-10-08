@@ -57,6 +57,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/tasks/task-list/task-list.component').then(m => m.TaskListComponent)
       },
       {
+        path: 'meetings',
+        loadComponent: () => import('./features/meetings/meetings.component').then(m => m.MeetingsComponent)
+      },
+      {
         path: 'imports',
         loadComponent: () => import('./features/imports/import-center.component').then(m => m.ImportCenterComponent)
       },

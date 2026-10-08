@@ -28,6 +28,7 @@ api_v1_patterns = [
     path("sequences/", include("apps.sequences.urls")),
     path("common/", include("apps.common.urls")),
     path("prospect-lists/", include("apps.prospect_lists.urls")),
+    path("meetings/", include("apps.meetings.urls")),
 ]
 
 from apps.sequences.views import StealthClickRedirectView

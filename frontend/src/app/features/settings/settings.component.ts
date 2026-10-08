@@ -540,12 +540,12 @@ interface AIProviderOption {
             </div>
           </div>
 
-          <!-- Gmail API Configuration Settings (Admin Only) -->
+          <!-- Google Configuration Settings (Admin Only) -->
           <div class="card settings-card" *ngIf="isAdmin()">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <mat-icon>settings_suggest</mat-icon>
-                <h3>Gmail API Configuration</h3>
+                <h3>Google Configuration</h3>
               </div>
               <button mat-icon-button type="button" (click)="showGmailGuide.set(!showGmailGuide())" title="Setup Instructions" class="guide-toggle">
                 <mat-icon>info_outline</mat-icon>
@@ -554,22 +554,32 @@ interface AIProviderOption {
             <div class="card-body">
               @if (showGmailGuide()) {
                 <div class="gmail-setup-guide">
-                  <h4>Google Cloud Project & Gmail API Setup Guide</h4>
+                  <h4>Google Cloud Project & Google Workspace API Setup Guide</h4>
                   <ol>
-                    <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">Google Cloud Console</a> and create a new project.</li>
-                    <li>Navigate to <strong>APIs & Services > Library</strong>, search for <strong>Gmail API</strong>, and click <strong>Enable</strong>.</li>
+                    <li>Go to the <a href="https://console.cloud.google.com/" target="_blank" style="color: #60a5fa; text-decoration: underline;">Google Cloud Console</a> and create or select your project.</li>
+                    <li>Navigate to <strong>APIs & Services > Library</strong>:
+                      <ul>
+                        <li>Search for <strong>Gmail API</strong> and click <strong>Enable</strong>.</li>
+                        <li>Search for <strong>Google Calendar API</strong> and click <strong>Enable</strong>.</li>
+                      </ul>
+                    </li>
                     <li>Go to <strong>OAuth consent screen</strong>:
                       <ul>
-                        <li>Choose user type <strong>External</strong> and fill in required app details.</li>
-                        <li>Add scopes: <code>https://www.googleapis.com/auth/gmail.readonly</code> and <code>https://www.googleapis.com/auth/gmail.send</code>.</li>
-                        <li>Add your test users (emails you want to connect) under <strong>Test users</strong>.</li>
+                        <li>Choose user type (External or Internal) and fill in required application details.</li>
+                        <li>Add scopes:
+                          <code>https://www.googleapis.com/auth/gmail.readonly</code>,
+                          <code>https://www.googleapis.com/auth/gmail.send</code>,
+                          <code>https://www.googleapis.com/auth/calendar.readonly</code>, and
+                          <code>https://www.googleapis.com/auth/calendar.events.readonly</code>.
+                        </li>
+                        <li>Add your test users under <strong>Test users</strong> (if publishing status is Testing).</li>
                       </ul>
                     </li>
                     <li>Go to <strong>Credentials</strong>:
                       <ul>
                         <li>Click <strong>+ CREATE CREDENTIALS</strong> and select <strong>OAuth client ID</strong>.</li>
                         <li>Select application type <strong>Web application</strong>.</li>
-                        <li>Add an Authorized Redirect URI: <code>http://localhost/integrations</code> (or your server's domain/integrations path).</li>
+                        <li>Add Authorized Redirect URI: <code>http://localhost:4200/integrations</code> (or your server's domain/integrations path).</li>
                       </ul>
                     </li>
                     <li>Copy the generated <strong>Client ID</strong> and <strong>Client Secret</strong>, paste them into the form below, and click Save.</li>
@@ -580,7 +590,7 @@ interface AIProviderOption {
               @if (gmailConfig() && !gmailEditMode()) {
                 <div class="configured-state" style="display: flex; flex-direction: column; gap: 1.25rem;">
                   <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin: 0; line-height: 1.4;">
-                    Organization-wide Google OAuth credentials are saved. Users can now authenticate their individual mailboxes.
+                    Organization-wide Google OAuth credentials are saved. Users can now authenticate their individual accounts for Gmail and Calendar.
                   </p>
                   <div class="details-list">
                     <div class="detail-row">
@@ -609,7 +619,7 @@ interface AIProviderOption {
                 </div>
               } @else {
                 <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 1.25rem; line-height: 1.4;">
-                  Set up the organization-wide Google OAuth Application Credentials. Individual team members can then authenticate their own mailboxes using these settings.
+                  Set up the organization-wide Google OAuth Application Credentials. Individual team members can then authenticate their own accounts for Gmail and Calendar using these settings.
                 </p>
                 
                 <form [formGroup]="gmailConfigForm" (ngSubmit)="saveGmailConfig()">
@@ -636,12 +646,56 @@ interface AIProviderOption {
                         <mat-spinner diameter="18" style="display: inline-block;"></mat-spinner>
                       } @else {
                         <mat-icon>save</mat-icon>
-                        <span>Save Gmail API Settings</span>
+                        <span>Save Google Configuration</span>
                       }
                     </button>
                   </div>
                 </form>
               }
+            </div>
+          </div>
+
+          <!-- Excluded Meeting Filters (Admin Only) -->
+          <div class="card settings-card" *ngIf="isAdmin()">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <mat-icon>filter_alt</mat-icon>
+                <h3>Excluded Meetings & Filters (Sales CRM Filter)</h3>
+              </div>
+            </div>
+            <div class="card-body">
+              <p class="form-instructions" style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 1.25rem; line-height: 1.4;">
+                Keep your CRM focused strictly on sales. Meetings matching these criteria will not be saved, displayed, or sent reminders.
+                <br>
+                <strong>Retroactive cleanup:</strong> Saving these filters or syncing your calendar automatically purges any existing matching meetings from your database.
+              </p>
+              
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Excluded Domains (e.g. radar36.com, mach37.com)</mat-label>
+                  <textarea matInput [value]="excludedDomainsInput()" (input)="onExcludedDomainsChange($event)" rows="2" placeholder="e.g. radar36.com, mach37.com"></textarea>
+                  <mat-hint>Meetings where <strong>all participants</strong> belong exclusively to these domains (or solo events) are excluded.</mat-hint>
+                </mat-form-field>
+              </div>
+
+              <div class="form-row" style="margin-top: 1.25rem;">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Excluded Meeting Titles / Keywords (e.g. advisory meeting, MACH37 Fall 2026 Cohort)</mat-label>
+                  <textarea matInput [value]="excludedTitlesInput()" (input)="onExcludedTitlesChange($event)" rows="2" placeholder="e.g. advisory meeting, MACH37 Fall 2026 Cohort"></textarea>
+                  <mat-hint>Case-insensitive: Any calendar event containing these words or phrases in its title will be excluded and deleted from the CRM.</mat-hint>
+                </mat-form-field>
+              </div>
+
+              <div class="form-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button mat-flat-button color="primary" type="button" (click)="saveExcludedDomains()" [disabled]="savingExcludedDomains()" class="save-btn">
+                  @if (savingExcludedDomains()) {
+                    <mat-spinner diameter="18" style="display: inline-block;"></mat-spinner>
+                  } @else {
+                    <mat-icon>save</mat-icon>
+                    <span>Save Meeting Filters</span>
+                  }
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2330,6 +2384,9 @@ export class SettingsComponent implements OnInit {
   readonly brandingService = inject(BrandingService);
 
   readonly savingBranding = signal(false);
+  readonly excludedDomainsInput = signal<string>('');
+  readonly excludedTitlesInput = signal<string>('');
+  readonly savingExcludedDomains = signal<boolean>(false);
   readonly showCropper = signal(false);
   readonly cropImageSrc = signal<string | null>(null);
   readonly logoZoom = signal<number>(1.0);
@@ -2509,6 +2566,16 @@ export class SettingsComponent implements OnInit {
       if (this.brandingForm && !this.brandingForm.dirty) {
         this.brandingForm.patchValue({ organization_name: name });
       }
+    });
+
+    effect(() => {
+      const domains = this.brandingService.excludedMeetingDomains();
+      this.excludedDomainsInput.set(domains);
+    });
+
+    effect(() => {
+      const titles = this.brandingService.excludedMeetingTitles();
+      this.excludedTitlesInput.set(titles);
     });
 
     // Reactively load SMTP settings once the user is resolved as Admin
@@ -2791,6 +2858,37 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  onExcludedDomainsChange(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    this.excludedDomainsInput.set(target.value);
+  }
+
+  onExcludedTitlesChange(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    this.excludedTitlesInput.set(target.value);
+  }
+
+  saveExcludedDomains(): void {
+    this.savingExcludedDomains.set(true);
+    const currentName = this.brandingService.organizationName();
+    this.brandingService.updateBranding(
+      currentName,
+      null,
+      false,
+      this.excludedDomainsInput(),
+      this.excludedTitlesInput()
+    ).subscribe({
+      next: () => {
+        this.savingExcludedDomains.set(false);
+        this.notification.success('Meeting filters updated and matching meetings purged');
+      },
+      error: (err) => {
+        this.savingExcludedDomains.set(false);
+        this.notification.error(err.error?.error?.message || 'Failed to update meeting filters');
+      }
+    });
+  }
+
   // ─── Team Invite ────────────────────────────
   onInviteSubmit(): void {
     if (this.inviteForm.invalid) return;
@@ -2925,7 +3023,7 @@ export class SettingsComponent implements OnInit {
       next: (res) => {
         this.savingGmailConfig.set(false);
         this.gmailEditMode.set(false);
-        this.notification.success('Gmail API credentials saved successfully.');
+        this.notification.success('Google configuration saved successfully.');
         this.loadGmailConfig();
       },
       error: (err) => {
@@ -2945,7 +3043,7 @@ export class SettingsComponent implements OnInit {
         this.gmailConfig.set(null);
         this.gmailEditMode.set(false);
         this.hasGmailSecret.set(false);
-        this.notification.success('Gmail API configuration removed.');
+        this.notification.success('Google configuration removed.');
       },
       error: () => {
         this.deletingGmailConfig.set(false);

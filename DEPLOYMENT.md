@@ -106,4 +106,5 @@ http://<YOUR_SERVER_IP>:4200
 - **Automatic Migrations**: The backend container checks for new database migrations and runs `python manage.py migrate` automatically on startup before starting the server.
 - **Dynamic API Routing**: The Angular frontend automatically detects the server's host IP/domain and routes API calls to port `8000` dynamically.
 - **Branded & Encrypted Emails**: Once you configure SMTP in the settings panel (under **SMTP Integration**), invite and task reminder emails will be sent out using the saved database credentials. Passwords are encrypted on-disk using Django's secret key wrapper.
+- **Google Cloud & Calendar Integration**: To enable Gmail thread sync, dual-mailbox outreach, and Google Calendar meeting intelligence with AI summary generation, configure OAuth2 in Google Cloud Console. Follow the complete [**Google Cloud Console Configuration Guide**](GOOGLE_CLOUD_CONSOLE_GUIDE.md).
 - **Git Ready**: Root, frontend, and backend folders are configured with `.gitignore` files to prevent caching, local files, and `.env` credentials from being checked into source control.

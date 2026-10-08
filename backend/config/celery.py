@@ -46,4 +46,12 @@ app.conf.beat_schedule = {
         "task": "apps.sequences.tasks.process_scheduled_emails",
         "schedule": crontab(minute="*"),
     },
+    "auto-sync-google-calendars": {
+        "task": "apps.meetings.tasks.auto_sync_all_google_calendars",
+        "schedule": crontab(minute="*/15"),
+    },
+    "send-meeting-reminders": {
+        "task": "apps.meetings.tasks.send_meeting_reminders_task",
+        "schedule": crontab(minute="*/5"),
+    },
 }

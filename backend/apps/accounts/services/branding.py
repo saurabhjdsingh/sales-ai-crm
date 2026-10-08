@@ -41,6 +41,8 @@ class BrandingService:
             "smtp_use_ssl": settings_obj.smtp_use_ssl,
             "smtp_from_email": settings_obj.smtp_from_email,
             "smtp_has_password": bool(settings_obj.smtp_password),
+            "excluded_meeting_domains": settings_obj.excluded_meeting_domains,
+            "excluded_meeting_titles": settings_obj.excluded_meeting_titles,
         }
 
     @staticmethod
@@ -56,6 +58,8 @@ class BrandingService:
         smtp_use_tls: bool | None = None,
         smtp_use_ssl: bool | None = None,
         smtp_from_email: str | None = None,
+        excluded_meeting_domains: str | None = None,
+        excluded_meeting_titles: str | None = None,
     ) -> OrganizationSettings:
         settings_obj = BrandingService.get_settings()
 
@@ -76,17 +80,14 @@ class BrandingService:
                 settings_obj.logo.delete(save=False)
             settings_obj.logo.save("logo.png", processed, save=False)
 
-        # Test SMTP connection if settings are being updated and host is not empty
-        smtp_updated = any(x is not None for x in [
-            smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls, smtp_use_ssl
-        ])
-        if smtp_updated:
-            test_host = smtp_host.strip() if smtp_host is not None else settings_obj.smtp_host
+        # Test SMTP connection ONLY if SMTP host is explicitly provided in this update request
+        if smtp_host is not None:
+            test_host = smtp_host.strip()
             if test_host:
                 test_port = smtp_port if smtp_port is not None else settings_obj.smtp_port
                 test_username = smtp_username.strip() if smtp_username is not None else settings_obj.smtp_username
                 
-                if smtp_password is not None:
+                if smtp_password is not None and smtp_password.strip():
                     test_password = smtp_password.strip()
                 else:
                     test_password = settings_obj.smtp_password_decrypted
@@ -135,8 +136,24 @@ class BrandingService:
             if smtp_from_email is not None:
                 settings_obj.smtp_from_email = smtp_from_email.strip()
 
+        if excluded_meeting_domains is not None:
+            settings_obj.excluded_meeting_domains = excluded_meeting_domains.strip()
+
+        if excluded_meeting_titles is not None:
+            settings_obj.excluded_meeting_titles = excluded_meeting_titles.strip()
+
         settings_obj.updated_by = user
         settings_obj.save()
+
+        # Retroactive cleanup: If meeting filters were updated, purge any matching database meetings
+        if (excluded_meeting_domains is not None) or (excluded_meeting_titles is not None):
+            try:
+                from apps.meetings.services.sync_service import MeetingSyncService
+                MeetingSyncService.purge_all_excluded_meetings()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error purging meetings on filter update: {e}")
+
         return settings_obj
 
     @staticmethod
