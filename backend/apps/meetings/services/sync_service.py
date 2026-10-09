@@ -320,7 +320,7 @@ class MeetingSyncService:
                     "status": ev["status"],
                     "organizer": ev["organizer"],
                     "attendees": ev["attendees"],
-                    "send_reminders": True,
+                    "send_reminders": ev["start_time"] > now,
                     "created_by": user,
                     "updated_by": user,
                 },
@@ -355,6 +355,10 @@ class MeetingSyncService:
                 meeting.status = ev["status"]
                 meeting.organizer = ev["organizer"]
                 meeting.attendees = ev["attendees"]
+
+                # Ensure past meetings never have reminders enabled
+                if meeting.start_time <= now:
+                    meeting.send_reminders = False
 
                 if time_changed:
                     logger.info(

@@ -91,20 +91,39 @@ MEETING_REMINDER_EMAIL_TEMPLATE = """<!DOCTYPE html>
             font-weight: 700;
             color: #0f172a;
         }}
+        .time-hint {{
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 6px;
+        }}
         .btn-wrapper {{
             text-align: center;
             margin: 28px 0 20px 0;
         }}
-        .btn {{
+        .btn-primary {{
             display: inline-block;
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: #ffffff !important;
             text-decoration: none;
-            padding: 14px 32px;
+            padding: 12px 24px;
             font-weight: 600;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 15px;
             box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+            margin: 6px 4px;
+        }}
+        .btn-secondary {{
+            display: inline-block;
+            background: #ffffff;
+            color: #1e293b !important;
+            text-decoration: none;
+            padding: 11px 22px;
+            font-weight: 600;
+            border-radius: 8px;
+            font-size: 15px;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin: 6px 4px;
         }}
         .details-list {{
             margin: 20px 0 0 0;
@@ -140,9 +159,10 @@ MEETING_REMINDER_EMAIL_TEMPLATE = """<!DOCTYPE html>
             <div class="meeting-time-box">
                 <div class="time-label">Date & Time</div>
                 <div class="time-val">{formatted_time}</div>
+                <div class="time-hint">Organizer scheduled timezone shown. Click "View in Google Calendar" below to open in your local timezone.</div>
             </div>
 
-            {join_button_html}
+            {action_buttons_html}
 
             <ul class="details-list">
                 {host_item_html}
@@ -160,6 +180,29 @@ MEETING_REMINDER_EMAIL_TEMPLATE = """<!DOCTYPE html>
 
 class MeetingReminderService:
     """Dispatches automated branded reminders via the user's Gmail API connection."""
+
+    @classmethod
+    def format_meeting_time(cls, start_time: datetime, timezone_str: str = "") -> str:
+        """
+        Converts UTC database start_time to the meeting's native timezone
+        and formats a human-readable string with timezone abbreviation and label.
+        e.g. 'Saturday, Oct 10, 2026 at 12:00 PM IST (Asia/Kolkata)'
+        """
+        try:
+            from zoneinfo import ZoneInfo
+            tz_str = timezone_str or getattr(settings, "TIME_ZONE", "UTC") or "UTC"
+            target_tz = ZoneInfo(tz_str)
+            local_dt = start_time.astimezone(target_tz)
+
+            tz_abbrev = local_dt.strftime("%Z")
+            if tz_abbrev and tz_abbrev != tz_str:
+                tz_label = f"{tz_abbrev} ({tz_str})"
+            else:
+                tz_label = tz_str
+            return f"{local_dt.strftime('%A, %b %d, %Y at %I:%M %p')} {tz_label}"
+        except Exception as e:
+            logger.warning(f"Failed to convert start_time to timezone '{timezone_str}': {e}")
+            return start_time.strftime("%A, %b %d, %Y at %I:%M %p UTC")
 
     @classmethod
     def get_recipient_emails(cls, meeting: Meeting) -> List[str]:
@@ -188,6 +231,15 @@ class MeetingReminderService:
         Sends a branded reminder email to meeting attendees.
         window_type: '24h' or '1h'
         """
+        now = timezone.now()
+        # Hard safety guard: Never send reminders for past meetings
+        if meeting.start_time <= now:
+            logger.info(
+                f"Skipping reminder for meeting {meeting.id} ({meeting.title}): "
+                f"meeting start_time ({meeting.start_time}) is in the past."
+            )
+            return False
+
         if not meeting.send_reminders or meeting.status != MeetingStatus.CONFIRMED:
             logger.info(f"Skipping reminder for meeting {meeting.id} (send_reminders={meeting.send_reminders}, status={meeting.status})")
             return False
@@ -199,7 +251,7 @@ class MeetingReminderService:
 
         # Retrieve branding
         branding = BrandingService.get_branding_data()
-        org_name = branding.get("organization_name") or "Sales AI"
+        org_name = branding.get("organization_name") or "Sales AI CRM"
         logo_url = branding.get("logo_url")
 
         if logo_url:
@@ -213,20 +265,20 @@ class MeetingReminderService:
         host_name = meeting.user.get_full_name() or meeting.user.username or org_name
         window_label = "Meeting Tomorrow" if window_type == "24h" else "Meeting in 1 Hour"
 
-        # Format clean date & time
-        try:
-            formatted_time = meeting.start_time.strftime("%A, %b %d, %Y at %I:%M %p")
-            if meeting.timezone:
-                formatted_time += f" ({meeting.timezone})"
-        except Exception:
-            formatted_time = str(meeting.start_time)
+        # Format clean date & time in meeting's native timezone
+        formatted_time = cls.format_meeting_time(meeting.start_time, meeting.timezone)
 
-        # Build Join Button
-        join_url = meeting.meeting_url or meeting.html_link
+        # Build Action Buttons (Join Video Call + View in Google Calendar)
+        join_url = meeting.meeting_url
+        calendar_url = meeting.html_link
+
+        buttons_html = []
         if join_url:
-            join_button_html = f'<div class="btn-wrapper"><a href="{join_url}" class="btn" target="_blank">Join Meeting Video Call</a></div>'
-        else:
-            join_button_html = ""
+            buttons_html.append(f'<a href="{join_url}" class="btn-primary" target="_blank">Join Video Call</a>')
+        if calendar_url:
+            buttons_html.append(f'<a href="{calendar_url}" class="btn-secondary" target="_blank">View in Google Calendar</a>')
+
+        action_buttons_html = f'<div class="btn-wrapper">{"".join(buttons_html)}</div>' if buttons_html else ""
 
         host_item_html = f"<li><strong>Organizer:</strong> {host_name} ({meeting.user.email})</li>"
         location_item_html = f"<li><strong>Location:</strong> {meeting.location}</li>" if meeting.location else ""
@@ -238,7 +290,7 @@ class MeetingReminderService:
             window_label=window_label,
             host_name=host_name,
             formatted_time=formatted_time,
-            join_button_html=join_button_html,
+            action_buttons_html=action_buttons_html,
             host_item_html=host_item_html,
             location_item_html=location_item_html,
         )
@@ -250,6 +302,8 @@ class MeetingReminderService:
         )
         if join_url:
             plain_text += f"Join Call: {join_url}\n"
+        if calendar_url:
+            plain_text += f"View in Google Calendar: {calendar_url}\n"
 
         subject = f"Reminder: {meeting.title} ({'Tomorrow' if window_type == '24h' else 'in 1 Hour'})"
 

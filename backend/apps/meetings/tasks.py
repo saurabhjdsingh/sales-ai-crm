@@ -85,6 +85,7 @@ def send_meeting_reminders_task():
     meetings_24h = Meeting.objects.filter(
         status=MeetingStatus.CONFIRMED,
         send_reminders=True,
+        start_time__gt=now,
         start_time__gte=start_24h_min,
         start_time__lte=start_24h_max,
     ).select_related("user", "contact", "company")
@@ -104,6 +105,7 @@ def send_meeting_reminders_task():
     meetings_1h = Meeting.objects.filter(
         status=MeetingStatus.CONFIRMED,
         send_reminders=True,
+        start_time__gt=now,
         start_time__gte=start_1h_min,
         start_time__lte=start_1h_max,
     ).select_related("user", "contact", "company")
